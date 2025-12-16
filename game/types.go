@@ -209,6 +209,10 @@ func (c *Config) Normalize() map[string]interface{} {
 // Works with both *Config and custom config structs that embed Config.
 // For custom config structs, it extracts the embedded Config field.
 func GetConfigFromNormalizer(normalizer ConfigNormalizer) (*Config, error) {
+	if normalizer == nil {
+		return nil, fmt.Errorf("ConfigNormalizer is nil")
+	}
+	
 	// Try direct type assertion first
 	if cfg, ok := normalizer.(*Config); ok {
 		return cfg, nil
@@ -217,25 +221,58 @@ func GetConfigFromNormalizer(normalizer ConfigNormalizer) (*Config, error) {
 	// Try to extract embedded Config from custom struct using reflection
 	// This handles cases where ConfigNormalizer is a custom struct that embeds Config
 	val := reflect.ValueOf(normalizer)
+	if !val.IsValid() {
+		return nil, fmt.Errorf("ConfigNormalizer is invalid")
+	}
 	if val.Kind() == reflect.Ptr {
+		if val.IsNil() {
+			return nil, fmt.Errorf("ConfigNormalizer is nil pointer")
+		}
 		val = val.Elem()
 	}
 	
 	// Look for embedded Config field
 	typ := val.Type()
+	configType := reflect.TypeOf(Config{})
+	
 	for i := 0; i < typ.NumField(); i++ {
 		field := typ.Field(i)
-		if field.Type == reflect.TypeOf(Config{}) || field.Type == reflect.TypeOf((*Config)(nil)).Elem() {
-			// Found embedded Config field
+		// Check if field type is Config (handles both named and embedded fields)
+		// Use AssignableTo to handle type compatibility
+		if field.Type.AssignableTo(configType) {
+			// Found Config field (embedded or named)
 			configVal := val.Field(i)
-			if configVal.CanAddr() {
-				return configVal.Addr().Interface().(*Config), nil
+			if !configVal.IsValid() {
+				continue
 			}
-			// Create a new Config and copy values
+			
+			// If we can get address, return pointer to the field (preferred - no copy needed)
+			if configVal.CanAddr() {
+				addr := configVal.Addr()
+				if addr.CanInterface() {
+					// Try type assertion first
+					if cfgPtr, ok := addr.Interface().(*Config); ok {
+						return cfgPtr, nil
+					}
+					// If type assertion fails, try to convert
+					// This handles cases where the field is embedded Config but type doesn't match exactly
+					if addr.Type().ConvertibleTo(reflect.TypeOf((*Config)(nil))) {
+						converted := addr.Convert(reflect.TypeOf((*Config)(nil)))
+						if cfgPtr, ok := converted.Interface().(*Config); ok {
+							return cfgPtr, nil
+						}
+					}
+				}
+			}
+			
+			// If we can't get address, create a new Config and copy values
+			// This should rarely happen, but handle it for safety
 			cfg := &Config{}
-			configValCopy := reflect.ValueOf(cfg).Elem()
-			configValCopy.Set(configVal)
-			return cfg, nil
+			cfgVal := reflect.ValueOf(cfg).Elem()
+			if cfgVal.CanSet() && configVal.Type().AssignableTo(cfgVal.Type()) {
+				cfgVal.Set(configVal)
+				return cfg, nil
+			}
 		}
 	}
 	
