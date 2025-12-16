@@ -1,0 +1,61 @@
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go.work
+go.work.sum
+
+# Binary
+/slotmodule
+/bin/
+/dist/
+
+# Dependencies
+vendor/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Coverage
+coverage.out
+coverage.html
+*.cover
+
+# Config overrides
+config.local.yaml
+*.local.yaml
+
+examples/
+
+
+
+
+
+
+

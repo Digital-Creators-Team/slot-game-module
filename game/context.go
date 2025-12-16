@@ -1,0 +1,177 @@
+package game
+
+import (
+	"context"
+
+	"github.com/rs/zerolog"
+	"git.futuregamestudio.net/be-shared/slot-game-module.git/pkg/providers"
+)
+
+// ModuleContext provides access to dependencies and services for game modules
+// This is set by middleware and available in game module methods
+// Use game.MustFromContext(ctx) to get it (panics if not found)
+// Use game.FromContext(ctx) to get it safely (returns nil if not found)
+type ModuleContext struct {
+	// User information (may be nil if no auth middleware)
+	user *User
+
+	// Logger for logging (always available)
+	Logger zerolog.Logger
+
+	// Providers (optional, can be nil if not needed)
+	// Use helper functions (StateProvider(), etc.) for type-safe access
+	stateProvider  interface{} // providers.StateProvider
+	walletProvider interface{} // providers.WalletProvider
+	rewardProvider interface{} // providers.RewardProvider
+	logProvider    interface{} // providers.LogProvider
+}
+
+// NewModuleContext creates a new ModuleContext
+// This is used internally by the server package
+func NewModuleContext(user *User, logger zerolog.Logger, stateProvider, walletProvider, rewardProvider, logProvider interface{}) *ModuleContext {
+	return &ModuleContext{
+		user:          user,
+		Logger:        logger,
+		stateProvider:  stateProvider,
+		walletProvider: walletProvider,
+		rewardProvider: rewardProvider,
+		logProvider:    logProvider,
+	}
+}
+
+// User returns the current user information
+// Returns nil if no auth middleware was used or user not authenticated
+// Always check for nil before using:
+//   if user := mc.User(); user != nil {
+//       userID := user.ID()
+//   }
+func (mc *ModuleContext) User() *User {
+	return mc.user
+}
+
+// GetUser is an alias for User() for convenience
+func (mc *ModuleContext) GetUser() *User {
+	return mc.user
+}
+
+// HasUser returns true if user information is available
+func (mc *ModuleContext) HasUser() bool {
+	return mc.user != nil
+}
+
+// RequireUser returns the current user or panics if no user is available.
+// Use when the operation strictly requires authentication.
+func (mc *ModuleContext) RequireUser() *User {
+	if mc.user == nil {
+		panic("user is required but not present in ModuleContext (ensure auth middleware is applied)")
+	}
+	return mc.user
+}
+
+// Logger returns the logger from context
+// This is a convenience function to avoid nil checks
+func (mc *ModuleContext) GetLogger() zerolog.Logger {
+	return mc.Logger
+}
+
+// StateProvider returns the state provider if available (type-safe, no casting needed)
+// Returns nil if not available
+func (mc *ModuleContext) StateProvider() providers.StateProvider {
+	if mc.stateProvider == nil {
+		return nil
+	}
+	if sp, ok := mc.stateProvider.(providers.StateProvider); ok {
+		return sp
+	}
+	return nil
+}
+
+// WalletProvider returns the wallet provider if available (type-safe, no casting needed)
+// Returns nil if not available
+func (mc *ModuleContext) WalletProvider() providers.WalletProvider {
+	if mc.walletProvider == nil {
+		return nil
+	}
+	if wp, ok := mc.walletProvider.(providers.WalletProvider); ok {
+		return wp
+	}
+	return nil
+}
+
+// RewardProvider returns the reward provider if available (type-safe, no casting needed)
+// Returns nil if not available
+func (mc *ModuleContext) RewardProvider() providers.RewardProvider {
+	if mc.rewardProvider == nil {
+		return nil
+	}
+	if rp, ok := mc.rewardProvider.(providers.RewardProvider); ok {
+		return rp
+	}
+	return nil
+}
+
+// LogProvider returns the log provider if available (type-safe, no casting needed)
+// Returns nil if not available
+func (mc *ModuleContext) LogProvider() providers.LogProvider {
+	if mc.logProvider == nil {
+		return nil
+	}
+	if lp, ok := mc.logProvider.(providers.LogProvider); ok {
+		return lp
+	}
+	return nil
+}
+
+// GetStateProvider returns the state provider as interface{} (for backward compatibility)
+// Prefer using StateProvider() for type-safe access
+func (mc *ModuleContext) GetStateProvider() interface{} {
+	return mc.stateProvider
+}
+
+// GetWalletProvider returns the wallet provider as interface{} (for backward compatibility)
+// Prefer using WalletProvider() for type-safe access
+func (mc *ModuleContext) GetWalletProvider() interface{} {
+	return mc.walletProvider
+}
+
+// GetRewardProvider returns the reward provider as interface{} (for backward compatibility)
+// Prefer using RewardProvider() for type-safe access
+func (mc *ModuleContext) GetRewardProvider() interface{} {
+	return mc.rewardProvider
+}
+
+// GetLogProvider returns the log provider as interface{} (for backward compatibility)
+// Prefer using LogProvider() for type-safe access
+func (mc *ModuleContext) GetLogProvider() interface{} {
+	return mc.logProvider
+}
+
+// WithContext attaches ModuleContext to a context
+func WithContext(ctx context.Context, mc *ModuleContext) context.Context {
+	return context.WithValue(ctx, contextKeyModuleContext, mc)
+}
+
+// FromContext extracts ModuleContext from context
+// Returns nil if not found (should not happen in normal game module methods)
+// Use MustFromContext() in game modules for guaranteed access
+func FromContext(ctx context.Context) *ModuleContext {
+	if mc, ok := ctx.Value(contextKeyModuleContext).(*ModuleContext); ok {
+		return mc
+	}
+	return nil
+}
+
+// MustFromContext extracts ModuleContext from context, panics if not found
+// Use this in game module methods - ModuleContext is always available
+// Example: ctx := game.MustFromContext(ctx); userID := ctx.User().ID()
+func MustFromContext(ctx context.Context) *ModuleContext {
+	mc := FromContext(ctx)
+	if mc == nil {
+		panic("ModuleContext not found in context - this should not happen in game module methods")
+	}
+	return mc
+}
+
+type contextKey string
+
+const contextKeyModuleContext contextKey = "module_context"
