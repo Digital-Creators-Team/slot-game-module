@@ -135,9 +135,15 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 	}
 
 	// 6. Get ending balance
-	balance, err := s.walletProvider.GetBalance(ctx, req.UserID, req.CurrencyID)
-	if err != nil {
-		s.logger.Error().Err(err).Msg("Failed to get ending balance")
+	var balance decimal.Decimal
+	if s.walletProvider != nil {
+		balance, err = s.walletProvider.GetBalance(ctx, req.UserID, req.CurrencyID)
+		if err != nil {
+			s.logger.Error().Err(err).Msg("Failed to get ending balance")
+			balance = decimal.Zero
+		}
+	} else {
+		s.logger.Warn().Msg("Wallet provider not configured, ending balance will be zero")
 		balance = decimal.Zero
 	}
 	spinResult.EndingBalance = balance
@@ -220,6 +226,9 @@ func (s *GameService) executeNormalSpin(
 	gameCode := s.gameModule.GetGameCode()
 
 	// 1. Withdraw bet from wallet
+	if s.walletProvider == nil {
+		return nil, errors.New(errors.ErrInternalServerError, "wallet provider not configured")
+	}
 	if err := s.walletProvider.Withdraw(ctx, req.UserID, req.CurrencyID, totalBet); err != nil {
 		return nil, errors.Wrap(err, errors.ErrInsufficientBalance, "failed to withdraw bet")
 	}
@@ -227,9 +236,11 @@ func (s *GameService) executeNormalSpin(
 	// 2. Execute spin
 	spinResult, err := s.gameModule.PlayNormalSpin(ctx, req.BetMultiplier, req.CheatPayout)
 	if err != nil {
-		// Try to refund the bet
-		if refundErr := s.walletProvider.Deposit(ctx, req.UserID, req.CurrencyID, totalBet); refundErr != nil {
-			s.logger.Error().Err(refundErr).Msg("Failed to refund bet after spin error")
+		// Try to refund the bet (walletProvider is already checked above)
+		if s.walletProvider != nil {
+			if refundErr := s.walletProvider.Deposit(ctx, req.UserID, req.CurrencyID, totalBet); refundErr != nil {
+				s.logger.Error().Err(refundErr).Msg("Failed to refund bet after spin error")
+			}
 		}
 		return nil, errors.Wrap(err, errors.ErrInternalServerError, "failed to execute spin")
 	}
@@ -249,6 +260,9 @@ func (s *GameService) executeNormalSpin(
 
 	// 4. Deposit winnings to wallet
 	if spinResult.TotalWin.GreaterThan(decimal.Zero) {
+		if s.walletProvider == nil {
+			return nil, errors.New(errors.ErrInternalServerError, "wallet provider not configured")
+		}
 		if err := s.walletProvider.Deposit(ctx, req.UserID, req.CurrencyID, spinResult.TotalWin); err != nil {
 			return nil, errors.Wrap(err, errors.ErrWalletError, "failed to deposit winnings")
 		}

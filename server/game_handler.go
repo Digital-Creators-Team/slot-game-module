@@ -106,7 +106,12 @@ func (h *GameHandler) Authorize(c *gin.Context) {
 		return
 	}
 
-		// Get balance - requires WalletProvider
+	// Get balance - requires WalletProvider
+	if h.app.walletProvider == nil {
+		h.logger.Error().Msg("Wallet provider not configured")
+		InternalError(c, errors.New(errors.ErrInternalServerError, "Wallet provider not configured"))
+		return
+	}
 	balance, err := h.app.walletProvider.GetBalance(ctx, userID, currencyID)
 	if err != nil {
 		h.logger.Error().Err(err).Msg("Failed to get balance")
