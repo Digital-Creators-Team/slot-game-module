@@ -17,6 +17,7 @@ import (
 	"git.futuregamestudio.net/be-shared/slot-game-module.git/pkg/providers"
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog"
+	"github.com/shopspring/decimal"
 )
 
 // App represents the game service application
