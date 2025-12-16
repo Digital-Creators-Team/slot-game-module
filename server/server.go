@@ -59,6 +59,11 @@ type Router = gin.Engine
 
 // New creates a new game service application
 func New(opts Options) *App {
+	// Configure decimal.Decimal to marshal as JSON number instead of string
+	// WARNING: This may cause precision loss for decimals with many digits when
+	// unmarshaled by clients using IEEE 754 double-precision (e.g., JavaScript)
+	decimal.MarshalJSONWithoutQuotes = true
+
 	// Set Gin mode
 	if opts.Config.IsDevelopment() {
 		gin.SetMode(gin.DebugMode)
