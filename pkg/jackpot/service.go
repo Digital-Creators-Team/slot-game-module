@@ -123,6 +123,50 @@ func (s *Service) RewardProvider() RewardProvider {
 	return s.reward
 }
 
+// GetCurrentPools returns the current state of all registered pools.
+// If RewardProvider is configured, it fetches current amounts from the provider.
+// Otherwise, it returns pools with their init values.
+func (s *Service) GetCurrentPools(ctx context.Context) ([]Update, error) {
+	s.mu.RLock()
+	pools := make([]PoolConfig, 0, len(s.pools))
+	for _, pool := range s.pools {
+		pools = append(pools, pool)
+	}
+	store := s.reward
+	s.mu.RUnlock()
+
+	updates := make([]Update, 0, len(pools))
+	for _, pool := range pools {
+		var amount decimal.Decimal
+		var updatedAt time.Time
+
+		if store != nil {
+			// Try to get current amount from provider
+			poolData, err := store.GetPool(ctx, pool.ID, pool.Init)
+			if err != nil {
+				// If error, fallback to init value
+				amount = pool.Init
+				updatedAt = time.Now()
+			} else {
+				amount = poolData.Amount
+				updatedAt = poolData.UpdatedAt
+			}
+		} else {
+			// No provider, use init value
+			amount = pool.Init
+			updatedAt = time.Now()
+		}
+
+		updates = append(updates, Update{
+			PoolID:    pool.ID,
+			Amount:    amount,
+			Timestamp: updatedAt,
+		})
+	}
+
+	return updates, nil
+}
+
 // HandleKafkaUpdate buffers an external update (e.g. from Kafka).
 // Caller provides poolID + new amount. This is transport-agnostic.
 func (s *Service) HandleKafkaUpdate(update Update) {

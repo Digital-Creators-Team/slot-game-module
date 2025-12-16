@@ -14,6 +14,7 @@ import (
 // SSE event types
 const (
 	EventTypeConnected = "connected"
+	EventTypeInitial   = "initial"
 	EventTypeUpdated   = "updated"
 	EventTypeHeartbeat = "heartbeat"
 )
@@ -78,6 +79,21 @@ func (h *JackpotHandler) StreamUpdates(c *gin.Context) {
 		Timestamp: time.Now().Unix(),
 	})
 
+	// Send initial data for all pools
+	currentPools, err := h.svc.GetCurrentPools(ctx)
+	if err != nil {
+		h.logger.Error().Err(err).Msg("Failed to get current pools for initial data")
+	} else {
+		for _, pool := range currentPools {
+			_ = h.sendSSEEvent(c, &JackpotSSEResponse{
+				Type:      EventTypeInitial,
+				PoolID:    pool.PoolID,
+				Amount:    pool.Amount.InexactFloat64(),
+				Timestamp: pool.Timestamp.Unix(),
+			})
+		}
+	}
+
 	heartbeat := time.NewTicker(h.heartbeatPeriod)
 	defer heartbeat.Stop()
 
@@ -137,6 +153,21 @@ func (h *JackpotHandler) StreamUpdatesWebSocket(c *gin.Context) {
 		Type:      EventTypeConnected,
 		Timestamp: time.Now().Unix(),
 	})
+
+	// Send initial data for all pools
+	currentPools, err := h.svc.GetCurrentPools(ctx)
+	if err != nil {
+		h.logger.Error().Err(err).Msg("Failed to get current pools for initial data")
+	} else {
+		for _, pool := range currentPools {
+			_ = h.sendWebSocketMessage(conn, &JackpotSSEResponse{
+				Type:      EventTypeInitial,
+				PoolID:    pool.PoolID,
+				Amount:    pool.Amount.InexactFloat64(),
+				Timestamp: pool.Timestamp.Unix(),
+			})
+		}
+	}
 
 	heartbeat := time.NewTicker(h.heartbeatPeriod)
 	defer heartbeat.Stop()
