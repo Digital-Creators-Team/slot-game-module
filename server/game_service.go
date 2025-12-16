@@ -102,9 +102,9 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 	if err != nil {
 		return nil, errors.Wrap(err, errors.ErrInternalServerError, "failed to get game config")
 	}
-	gameConfig, ok := cfg.(*game.Config)
-	if !ok {
-		return nil, errors.New(errors.ErrInternalServerError, "invalid game config type")
+	gameConfig, err := game.GetConfigFromNormalizer(cfg)
+	if err != nil {
+		return nil, errors.Wrap(err, errors.ErrInternalServerError, "invalid game config type")
 	}
 
 	// 3. Load player state
