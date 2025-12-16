@@ -27,15 +27,8 @@ func NewWalletProvider(cfg *config.Config, logger zerolog.Logger) *WalletProvide
 		timeout = 10 * time.Second
 	}
 
-	baseURL := cfg.ExternalServices.WalletService.BaseURL
-	if baseURL == "" {
-		logger.Warn().Msg("Wallet service base URL is empty - wallet operations will fail")
-	} else {
-		logger.Info().Str("base_url", baseURL).Msg("Wallet provider initialized")
-	}
-
 	return &WalletProvider{
-		baseURL: baseURL,
+		baseURL: cfg.ExternalServices.WalletService.BaseURL,
 		httpClient: &http.Client{
 			Timeout: timeout,
 		},
@@ -45,12 +38,7 @@ func NewWalletProvider(cfg *config.Config, logger zerolog.Logger) *WalletProvide
 
 // GetBalance retrieves player balance from wallet service
 func (p *WalletProvider) GetBalance(ctx context.Context, userID, currencyID string) (decimal.Decimal, error) {
-	if p.baseURL == "" {
-		return decimal.Zero, fmt.Errorf("wallet service base URL is not configured")
-	}
-
-	url := fmt.Sprintf("%s/api/wallet/balance?user_id=%s&currency_id=%s", p.baseURL, userID, currencyID)
-	p.logger.Debug().Str("url", url).Msg("Getting balance from wallet service")
+	url := fmt.Sprintf("%s/wallet/balance?user_id=%s&currency_id=%s", p.baseURL, userID, currencyID)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -59,16 +47,11 @@ func (p *WalletProvider) GetBalance(ctx context.Context, userID, currencyID stri
 
 	resp, err := p.httpClient.Do(req)
 	if err != nil {
-		p.logger.Error().Err(err).Str("url", url).Msg("Failed to call wallet service")
 		return decimal.Zero, fmt.Errorf("failed to get balance: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		p.logger.Error().
-			Int("status_code", resp.StatusCode).
-			Str("url", url).
-			Msg("Wallet service returned non-OK status")
 		return decimal.Zero, fmt.Errorf("wallet service returned status %d", resp.StatusCode)
 	}
 
@@ -86,12 +69,7 @@ func (p *WalletProvider) GetBalance(ctx context.Context, userID, currencyID stri
 
 // Withdraw deducts amount from player balance
 func (p *WalletProvider) Withdraw(ctx context.Context, userID, currencyID string, amount decimal.Decimal) error {
-	if p.baseURL == "" {
-		return fmt.Errorf("wallet service base URL is not configured")
-	}
-
-	url := fmt.Sprintf("%s/api/wallet/withdraw", p.baseURL)
-	p.logger.Debug().Str("url", url).Str("user_id", userID).Str("amount", amount.String()).Msg("Withdrawing from wallet")
+	url := fmt.Sprintf("%s/wallet/withdraw", p.baseURL)
 
 	body, _ := json.Marshal(map[string]interface{}{
 		"user_id":     userID,
@@ -107,16 +85,11 @@ func (p *WalletProvider) Withdraw(ctx context.Context, userID, currencyID string
 
 	resp, err := p.httpClient.Do(req)
 	if err != nil {
-		p.logger.Error().Err(err).Str("url", url).Msg("Failed to call wallet service for withdraw")
 		return fmt.Errorf("failed to withdraw: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		p.logger.Error().
-			Int("status_code", resp.StatusCode).
-			Str("url", url).
-			Msg("Wallet service returned non-OK status for withdraw")
 		return fmt.Errorf("withdraw failed with status %d", resp.StatusCode)
 	}
 
@@ -125,12 +98,7 @@ func (p *WalletProvider) Withdraw(ctx context.Context, userID, currencyID string
 
 // Deposit adds amount to player balance
 func (p *WalletProvider) Deposit(ctx context.Context, userID, currencyID string, amount decimal.Decimal) error {
-	if p.baseURL == "" {
-		return fmt.Errorf("wallet service base URL is not configured")
-	}
-
-	url := fmt.Sprintf("%s/api/wallet/deposit", p.baseURL)
-	p.logger.Debug().Str("url", url).Str("user_id", userID).Str("amount", amount.String()).Msg("Depositing to wallet")
+	url := fmt.Sprintf("%s/wallet/deposit", p.baseURL)
 
 	body, _ := json.Marshal(map[string]interface{}{
 		"user_id":     userID,
@@ -146,16 +114,11 @@ func (p *WalletProvider) Deposit(ctx context.Context, userID, currencyID string,
 
 	resp, err := p.httpClient.Do(req)
 	if err != nil {
-		p.logger.Error().Err(err).Str("url", url).Msg("Failed to call wallet service for deposit")
 		return fmt.Errorf("failed to deposit: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		p.logger.Error().
-			Int("status_code", resp.StatusCode).
-			Str("url", url).
-			Msg("Wallet service returned non-OK status for deposit")
 		return fmt.Errorf("deposit failed with status %d", resp.StatusCode)
 	}
 
