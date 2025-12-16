@@ -3,6 +3,7 @@ package game
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"time"
 
 	"github.com/shopspring/decimal"
@@ -205,15 +206,40 @@ func (c *Config) Normalize() map[string]interface{} {
 }
 
 // GetConfigFromNormalizer extracts *Config from a ConfigNormalizer.
-// Simple type assertion - works when ConfigNormalizer is actually *Config.
-// For custom config structs that embed Config, store the full struct in your module
-// and access fields directly (e.g., m.gameConfig.PayLine instead of cfg.PayLine).
+// Works with both *Config and custom config structs that embed Config.
+// For custom config structs, it extracts the embedded Config field.
 func GetConfigFromNormalizer(normalizer ConfigNormalizer) (*Config, error) {
-	cfg, ok := normalizer.(*Config)
-	if !ok {
-		return nil, fmt.Errorf("ConfigNormalizer is not *Config, got %T. Store full config struct in module instead", normalizer)
+	// Try direct type assertion first
+	if cfg, ok := normalizer.(*Config); ok {
+		return cfg, nil
 	}
-	return cfg, nil
+	
+	// Try to extract embedded Config from custom struct using reflection
+	// This handles cases where ConfigNormalizer is a custom struct that embeds Config
+	val := reflect.ValueOf(normalizer)
+	if val.Kind() == reflect.Ptr {
+		val = val.Elem()
+	}
+	
+	// Look for embedded Config field
+	typ := val.Type()
+	for i := 0; i < typ.NumField(); i++ {
+		field := typ.Field(i)
+		if field.Type == reflect.TypeOf(Config{}) || field.Type == reflect.TypeOf((*Config)(nil)).Elem() {
+			// Found embedded Config field
+			configVal := val.Field(i)
+			if configVal.CanAddr() {
+				return configVal.Addr().Interface().(*Config), nil
+			}
+			// Create a new Config and copy values
+			cfg := &Config{}
+			configValCopy := reflect.ValueOf(cfg).Elem()
+			configValCopy.Set(configVal)
+			return cfg, nil
+		}
+	}
+	
+	return nil, fmt.Errorf("ConfigNormalizer is not *Config and does not embed Config, got %T", normalizer)
 }
 
 // SymbolConfig holds symbol configuration

@@ -91,9 +91,11 @@ func (h *GameHandler) Authorize(c *gin.Context) {
 		InternalError(c, errors.New(errors.ErrInternalServerError, "Failed to retrieve game configuration"))
 		return
 	}
-	gameConfig, ok := cfg.(*game.Config)
-	if !ok {
-		h.logger.Error().Msg("Invalid game config type")
+
+	// Extract *Config from ConfigNormalizer (handles both *Config and custom configs that embed Config)
+	gameConfig, err := game.GetConfigFromNormalizer(cfg)
+	if err != nil {
+		h.logger.Error().Err(err).Msg("Failed to extract game config")
 		InternalError(c, errors.New(errors.ErrInternalServerError, "Invalid game config"))
 		return
 	}
@@ -297,6 +299,7 @@ func (h *GameHandler) GetConfig(c *gin.Context) {
 // @Tags         game
 // @Accept       json
 // @Produce      json
+// @Param        game_code   path      string       true  "Game code"
 // @Success      200  {object}  BaseResponse{data=game.PlayerState}
 // @Failure      401  {object}  BaseResponse
 // @Failure      500  {object}  BaseResponse
