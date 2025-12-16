@@ -1396,10 +1396,11 @@ func New{{.GameCodeUpper}}Module(configPath string) (*{{.GameCodeUpper}}Module, 
 		return nil, fmt.Errorf("failed to load game config: %w", err)
 	}
 
-	// Create base module with loaded config (use embedded Config field for ConfigNormalizer)
+	// Create base module with loaded config
+	// Store the full custom config (not just embedded Config) so Normalize() method works correctly
 	base := &game.BaseModule{
 		GameCode: "{{.GameCode}}",
-		Config:   &gameConfig.Config, // Use embedded Config (need pointer for interface)
+		Config:   gameConfig, // Store full custom config to preserve Normalize() method
 	}
 
 	// TODO: Use gameConfig custom fields here if needed
@@ -1412,12 +1413,12 @@ func New{{.GameCodeUpper}}Module(configPath string) (*{{.GameCodeUpper}}Module, 
 	}, nil
 }
 
-// GetConfig and GetGameCode are inherited from BaseModule
-// Override them only if you need custom logic:
-//
-// func (m *{{.GameCodeUpper}}Module) GetConfig(ctx context.Context) (*game.Config, error) {
-//     return m.BaseModule.GetConfig(ctx) // or custom logic
-// }
+// GetConfig returns the game configuration
+// Override to return the full custom config (with custom Normalize() method)
+func (m *{{.GameCodeUpper}}Module) GetConfig(ctx context.Context) (game.ConfigNormalizer, error) {
+	// Return the full custom config so Normalize() includes custom fields (e.g., jackpotConfig)
+	return m.gameConfig, nil
+}
 
 // PlayNormalSpin executes a normal spin
 //
