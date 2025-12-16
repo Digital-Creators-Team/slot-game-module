@@ -268,13 +268,13 @@ func (a *App) healthCheck(c *gin.Context) {
 // Flow: HTTP Request -> gameRoutes -> GameHandler -> GameService -> GameModule
 //
 // Routes registered:
-//   - POST /api/games/{game_code}/authorize-game  -> GameHandler.Authorize
-//   - POST /api/games/{game_code}/spin            -> GameHandler.Spin -> GameService -> GameModule
-//   - GET  /api/games/{game_code}/config          -> GameHandler.GetConfig
-//   - GET  /api/games/{game_code}/get-player-state -> GameHandler.GetState
-//   - GET  /api/games/{game_code}/jackpot/updates -> JackpotHandler.StreamUpdates (SSE)
-//   - GET  /api/games/{game_code}/jackpot/updates/ws -> JackpotHandler.StreamUpdatesWebSocket (WebSocket)
-//   - GET  /api/games/{game_code}/bet-history    -> GameHandler.GetBetHistory
+//   - POST /api/games/{game_code}/authorize-game  -> GameHandler.Authorize (requires auth)
+//   - POST /api/games/{game_code}/spin            -> GameHandler.Spin -> GameService -> GameModule (requires auth)
+//   - GET  /api/games/{game_code}/config          -> GameHandler.GetConfig (public, no auth)
+//   - GET  /api/games/{game_code}/get-player-state -> GameHandler.GetState (requires auth)
+//   - GET  /api/games/{game_code}/jackpot/updates -> JackpotHandler.StreamUpdates (public, no auth)
+//   - GET  /api/games/{game_code}/jackpot/updates/ws -> JackpotHandler.StreamUpdatesWebSocket (public, no auth)
+//   - GET  /api/games/{game_code}/bet-history    -> GameHandler.GetBetHistory (requires auth)
 //
 // For custom routes, use CustomRoutes() to add game-specific endpoints.
 func (a *App) RegisterCommonGameRoutes() {
@@ -285,24 +285,26 @@ func (a *App) RegisterCommonGameRoutes() {
 
 	gameCode := a.gameModule.GetGameCode()
 
+	// Base group for all game routes (no auth middleware)
 	games := a.engine.Group("/api/games")
-	games.Use(auth.JWTMiddleware(a.config.JWT.Secret, a.logger)) // JWT middleware sets user info
-	games.Use(a.ModuleContextMiddleware())                       // ModuleContext middleware injects context
+	games.Use(a.ModuleContextMiddleware()) // ModuleContext middleware injects context
 	{
 		gameRoutes := games.Group("/" + gameCode)
 		{
-			// Core game routes
-			gameRoutes.POST("/authorize-game", a.gameHandler.Authorize)
-			gameRoutes.POST("/spin", a.gameHandler.Spin)
+			// Public routes (no authentication required)
 			gameRoutes.GET("/config", a.gameHandler.GetConfig)
-			gameRoutes.GET("/get-player-state", a.gameHandler.GetState)
-
-			// Jackpot routes (SSE and WebSocket streams). Updates should be fed via AttachJackpotUpdateFeed (e.g., Kafka consumer).
 			gameRoutes.GET("/jackpot/updates", a.jackpotHandler.StreamUpdates)           // SSE endpoint
 			gameRoutes.GET("/jackpot/updates/ws", a.jackpotHandler.StreamUpdatesWebSocket) // WebSocket endpoint
 
-			// History route
-			gameRoutes.GET("/bet-history", a.gameHandler.GetBetHistory)
+			// Protected routes (require JWT authentication)
+			authRoutes := gameRoutes.Group("")
+			authRoutes.Use(auth.JWTMiddleware(a.config.JWT.Secret, a.logger)) // JWT middleware sets user info
+			{
+				authRoutes.POST("/authorize-game", a.gameHandler.Authorize)
+				authRoutes.POST("/spin", a.gameHandler.Spin)
+				authRoutes.GET("/get-player-state", a.gameHandler.GetState)
+				authRoutes.GET("/bet-history", a.gameHandler.GetBetHistory)
+			}
 		}
 	}
 

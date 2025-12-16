@@ -263,7 +263,6 @@ type GameConfigResponse struct {
 // @Param        game_code   path      string  true  "Game code"
 // @Success      200  {object}  BaseResponse{data=GameConfigResponse}
 // @Failure      500  {object}  BaseResponse
-// @Security     BearerAuth
 // @Router       /games/{game_code}/config [get]
 func (h *GameHandler) GetConfig(c *gin.Context) {
 	ctx := c.Request.Context()
