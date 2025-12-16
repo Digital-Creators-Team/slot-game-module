@@ -1343,6 +1343,12 @@ func (c *{{.GameCodeUpper}}Config) Normalize() map[string]interface{} {
 	return base
 }
 
+// GetConfig returns a pointer to the embedded Config (implements game.ConfigNormalizer interface).
+// This allows extracting the base Config from custom config structs.
+func (c *{{.GameCodeUpper}}Config) GetConfig() *game.Config {
+	return &c.Config
+}
+
 // Example: JackpotTierConfig (uncomment if using jackpot)
 // type JackpotTierConfig struct {
 // 	Init string ` + "`mapstructure:\"init\"`" + ` // Initial value multiplier

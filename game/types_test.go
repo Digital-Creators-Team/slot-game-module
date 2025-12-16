@@ -147,6 +147,11 @@ func (c *CustomGameConfig) Normalize() map[string]interface{} {
 	return c.Config.Normalize()
 }
 
+// GetConfig implements ConfigNormalizer
+func (c *CustomGameConfig) GetConfig() *Config {
+	return &c.Config
+}
+
 // CustomGameConfigNamed is a test struct with named Config field
 type CustomGameConfigNamed struct {
 	GameConfig  Config // Named Config field
@@ -156,6 +161,11 @@ type CustomGameConfigNamed struct {
 // Normalize implements ConfigNormalizer
 func (c *CustomGameConfigNamed) Normalize() map[string]interface{} {
 	return c.GameConfig.Normalize()
+}
+
+// GetConfig implements ConfigNormalizer
+func (c *CustomGameConfigNamed) GetConfig() *Config {
+	return &c.GameConfig
 }
 
 // InvalidConfig is a test struct without Config field
@@ -168,4 +178,11 @@ func (c *InvalidConfig) Normalize() map[string]interface{} {
 	return map[string]interface{}{
 		"someField": c.SomeField,
 	}
+}
+
+// GetConfig implements ConfigNormalizer (but will panic since no Config field)
+func (c *InvalidConfig) GetConfig() *Config {
+	// This should not be called in practice, but we need to implement the interface
+	// Return nil to indicate invalid config
+	return nil
 }
