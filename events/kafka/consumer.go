@@ -193,9 +193,6 @@ func (c *Consumer) handleMessage(msg kafka.Message) error {
 
 	if !shouldProcess {
 		// Skip this pool - it doesn't belong to this game
-		c.logger.Debug().
-			Str("pool_id", event.PoolID).
-			Msg("Skipping pool update (not for this game)")
 		return nil
 	}
 
