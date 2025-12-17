@@ -392,7 +392,7 @@ func fetchGamesRegistry() (string, error) {
 	projectPath := "be-shared%2Fslot-game-module"
 	filePath := "GAMES.md"
 	branch := "games-registry"
-	
+
 	apiURL := fmt.Sprintf("https://git.futuregamestudio.net/api/v4/projects/%s/repository/files/%s/raw?ref=%s",
 		projectPath, url.QueryEscape(filePath), branch)
 
@@ -433,7 +433,7 @@ func parseGamesRegistry(content string) ([]GameRegistryEntry, error) {
 	headerFound := false
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
-		
+
 		// Skip empty lines and comments
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
@@ -469,7 +469,7 @@ func parseTableRow(line string) *GameRegistryEntry {
 	if !strings.HasPrefix(line, "|") {
 		return nil
 	}
-	
+
 	// Remove leading and trailing |
 	line = strings.TrimPrefix(line, "|")
 	line = strings.TrimSuffix(line, "|")
@@ -524,7 +524,7 @@ func checkGamesRegistry(gameCode string, port int) error {
 	// Check for duplicate game code
 	for _, entry := range entries {
 		if entry.GameCode == gameCode {
-			return fmt.Errorf("game code '%s' already exists in games registry (port: %d, service: %s)", 
+			return fmt.Errorf("game code '%s' already exists in games registry (port: %d, service: %s)",
 				gameCode, entry.Port, entry.ServiceName)
 		}
 	}
@@ -532,7 +532,7 @@ func checkGamesRegistry(gameCode string, port int) error {
 	// Check for duplicate port
 	for _, entry := range entries {
 		if entry.Port == port {
-			return fmt.Errorf("port %d is already in use by game '%s' (service: %s)", 
+			return fmt.Errorf("port %d is already in use by game '%s' (service: %s)",
 				port, entry.GameCode, entry.ServiceName)
 		}
 	}
@@ -2317,7 +2317,7 @@ update-nginx-{{.GameCode}}:
       when: on_success
       allow_failure: false
   tags:
-    - fgs-dind-runner-vn
+    - fgs-vn
 
 update-games-documentation-{{.GameCode}}:
   extends:
@@ -2338,7 +2338,7 @@ notify-{{.GameCode}}:
   needs:
     - update-nginx-{{.GameCode}}
   tags:
-    - fgs-dind-runner-vn
+    - fgs-vn
 `
 
 var makefileTemplate = `.PHONY: run build test clean docker-build docker-run swagger vendor
