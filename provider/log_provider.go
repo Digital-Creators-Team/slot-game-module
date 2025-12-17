@@ -53,7 +53,7 @@ func NewLogProvider(cfg *config.Config, kafkaProducer *kafka.Producer, logger ze
 		timeout = 10 * time.Second
 	}
 
-	auditTopic := "audit-events"
+	auditTopic := "game.audit"
 	if cfg.Kafka.Topics != nil {
 		if t, ok := cfg.Kafka.Topics["audit"]; ok {
 			auditTopic = t
@@ -97,7 +97,7 @@ func (p *LogProvider) LogSpin(ctx context.Context, log *server.SpinLog) (string,
 		UserID:        log.UserID,
 		SessionID:     sessionID,
 		SourceService: log.GameCode,
-		Action:        "normal",     // Default action for spin
+		Action:        "normal", // Default action for spin
 		Details: SpinDetails{
 			SessionID:  sessionID,
 			Username:   log.Username,

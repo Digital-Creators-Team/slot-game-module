@@ -1252,12 +1252,12 @@ func main() {
 	})
 
 
-	// 6. Attach jackpot feed from Kafka (topic: jackpot-updates or config override)
+	// 6. Attach jackpot feed from Kafka (topic: jackpot.pool.updated or config override)
 	jackpotFeed := make(chan jackpot.Update, 256)
 	app.AttachJackpotUpdateFeed(jackpotFeed)
 
 	if len(cfg.Kafka.Brokers) > 0 {
-		topic := "jackpot-updates"
+		topic := "jackpot.pool.updated"
 		if cfg.Kafka.Topics != nil {
 			if t, ok := cfg.Kafka.Topics["jackpot_updates"]; ok {
 				topic = t
@@ -1682,8 +1682,8 @@ kafka:
     - kafka:9092
   consumer_group: {{.GameCode}}
   topics:
-    audit: audit-events
-    jackpot_updates: jackpot-updates
+    audit: game.audit
+    jackpot_updates: jackpot.pool.updated
 
 jwt:
   secret: your-secret-key-here
