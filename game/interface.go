@@ -25,9 +25,11 @@ import (
 //
 //	type MyGameModule struct {
 //		BaseModule              // Embed base module for common functionality
-//		game.JackpotHandler     // Embed jackpot handler interface (optional)
 //		rng *rand.Rand
 //	}
+//
+//	// Verify interface implementation at compile time (optional)
+//	var _ game.JackpotHandler = (*MyGameModule)(nil)
 //
 //	func (m *MyGameModule) PlayNormalSpin(ctx context.Context, betMultiplier float32, cheatPayout interface{}) (*game.SpinResult, error) {
 //		// ModuleContext is set by middleware

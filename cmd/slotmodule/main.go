@@ -1380,15 +1380,18 @@ import (
 // Example:
 //   type MyGameModule struct {
 //       game.BaseModule              // Embed for GetConfig(), GetGameCode()
-//       game.JackpotHandler          // Embed interface to implement custom jackpot
 //       rng    *rand.Rand
 //   }
+//   // Verify interface implementation at compile time
+//   var _ game.JackpotHandler = (*MyGameModule)(nil)
 type {{.GameCodeUpper}}Module struct {
 	game.BaseModule              // Embed for GetConfig(), GetGameCode() - config is in BaseModule.Config
-	// game.JackpotHandler        // Uncomment to implement custom jackpot logic
 	rng        *rand.Rand
 	gameConfig *{{.GameCodeUpper}}Config // Store full config to access fields directly
 }
+
+// Verify interface implementation at compile time (uncomment if implementing JackpotHandler)
+// var _ game.JackpotHandler = (*{{.GameCodeUpper}}Module)(nil)
 
 // New{{.GameCodeUpper}}Module creates a new game module
 // configPath can be a single file or a directory containing multiple config files
@@ -1567,7 +1570,7 @@ func (m *{{.GameCodeUpper}}Module) determineWinTitle(totalWin, totalBet float64)
 // Optional: Implement game.JackpotHandler interface for custom jackpot logic
 // ============================================================================
 // To enable custom jackpot logic:
-// 1. Uncomment "game.JackpotHandler" in the struct definition above
+// 1. Uncomment "var _ game.JackpotHandler = (*{{.GameCodeUpper}}Module)(nil)" above to verify interface implementation
 // 2. Uncomment and implement the methods below
 // 3. Otherwise, base module will use default logic (3 pools: mini, minor, grand)
 //
