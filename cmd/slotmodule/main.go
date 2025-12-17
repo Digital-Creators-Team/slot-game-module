@@ -1318,7 +1318,7 @@ import "{{.CoreModulePath}}/game"
 //       init: "3"
 //       prog: "0.003"
 type {{.GameCodeUpper}}Config struct {
-	game.Config // Embed game.Config to get all base config fields (PayLine, ReelRows, ReelCols, etc.)
+	game.Config `mapstructure:",squash"` // Embed game.Config to get all base config fields (PayLine, ReelRows, ReelCols, etc.)
 
 	// Add your custom config fields here
 	// Example:

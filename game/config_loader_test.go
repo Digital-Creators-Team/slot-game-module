@@ -278,3 +278,225 @@ reel_rows: 4
 		t.Errorf("Expected ReelCols 5 (from base), got %d", cfg.ReelCols)
 	}
 }
+
+// TestCustomGameConfig is a test struct that embeds Config (like real game modules)
+type TestCustomGameConfig struct {
+	Config `mapstructure:",squash"` // Embed game.Config to get all base config fields
+
+	// Custom fields
+	CustomField string `mapstructure:"custom_field"`
+}
+
+// TestLoadConfigFromDirInto_WithEmbeddedConfig tests loading config with custom struct that embeds Config
+func TestLoadConfigFromDirInto_WithEmbeddedConfig(t *testing.T) {
+	// Create temporary directory
+	tmpDir, err := os.MkdirTemp("", "config_test_*")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(tmpDir) //nolint:errcheck
+
+	// Create base config file with both base fields and custom fields
+	baseConfig := `game_code: test-game
+game_name: Test Game
+pay_line: 20
+reel_rows: 3
+reel_cols: 5
+reel_size: [3, 3, 3, 3, 3]
+bet_multipliers: [1.0, 2.0, 5.0]
+wild_symbol: 10
+scatter_symbol: 11
+jackpot_symbol: 12
+rtp: 96.5
+volatility: medium
+custom_field: base-custom-value
+`
+	baseFile := filepath.Join(tmpDir, "base.yaml")
+	if err := os.WriteFile(baseFile, []byte(baseConfig), 0644); err != nil {
+		t.Fatalf("Failed to write base config: %v", err)
+	}
+
+	// Create override config file that overrides both base and custom fields
+	overrideConfig := `game_name: Overridden Game Name
+pay_line: 25
+reel_rows: 4
+jackpot_multiplier: 5000
+custom_field: overridden-custom-value
+`
+	overrideFile := filepath.Join(tmpDir, "override.yaml")
+	if err := os.WriteFile(overrideFile, []byte(overrideConfig), 0644); err != nil {
+		t.Fatalf("Failed to write override config: %v", err)
+	}
+
+	// Load config from directory into custom struct
+	var customCfg TestCustomGameConfig
+	if err := LoadConfigFromDirInto(tmpDir, &customCfg); err != nil {
+		t.Fatalf("Failed to load config from directory: %v", err)
+	}
+
+	// Verify base config fields (from embedded Config)
+	if customCfg.GameCode != "test-game" {
+		t.Errorf("Expected GameCode 'test-game', got '%s'", customCfg.GameCode)
+	}
+	if customCfg.GameName != "Overridden Game Name" {
+		t.Errorf("Expected GameName 'Overridden Game Name', got '%s'", customCfg.GameName)
+	}
+	if customCfg.PayLine != 25 {
+		t.Errorf("Expected PayLine 25 (overridden), got %d", customCfg.PayLine)
+	}
+	if customCfg.ReelRows != 4 {
+		t.Errorf("Expected ReelRows 4 (overridden), got %d", customCfg.ReelRows)
+	}
+	if customCfg.ReelCols != 5 {
+		t.Errorf("Expected ReelCols 5 (from base), got %d", customCfg.ReelCols)
+	}
+	if customCfg.JackpotMultiplier != 5000 {
+		t.Errorf("Expected JackpotMultiplier 5000 (overridden), got %d", customCfg.JackpotMultiplier)
+	}
+	if customCfg.WildSymbol != 10 {
+		t.Errorf("Expected WildSymbol 10 (from base), got %d", customCfg.WildSymbol)
+	}
+	if customCfg.RTP != 96.5 {
+		t.Errorf("Expected RTP 96.5 (from base), got %f", customCfg.RTP)
+	}
+	if customCfg.Volatility != "medium" {
+		t.Errorf("Expected Volatility 'medium' (from base), got '%s'", customCfg.Volatility)
+	}
+
+	// Verify custom fields
+	if customCfg.CustomField != "overridden-custom-value" {
+		t.Errorf("Expected CustomField 'overridden-custom-value' (overridden), got '%s'", customCfg.CustomField)
+	}
+}
+
+// TestLoadGameConfig_WithEmbeddedConfig tests LoadGameConfig with custom struct that embeds Config
+func TestLoadGameConfig_WithEmbeddedConfig(t *testing.T) {
+	// Create temporary directory
+	tmpDir, err := os.MkdirTemp("", "config_test_*")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(tmpDir) //nolint:errcheck
+
+	// Create base config file
+	baseConfig := `game_code: test-game
+game_name: Test Game
+pay_line: 20
+reel_rows: 3
+reel_cols: 5
+custom_field: base-value
+`
+	baseFile := filepath.Join(tmpDir, "base.yaml")
+	if err := os.WriteFile(baseFile, []byte(baseConfig), 0644); err != nil {
+		t.Fatalf("Failed to write base config: %v", err)
+	}
+
+	// Create override config file
+	overrideConfig := `pay_line: 25
+reel_rows: 4
+custom_field: override-value
+`
+	overrideFile := filepath.Join(tmpDir, "override.yaml")
+	if err := os.WriteFile(overrideFile, []byte(overrideConfig), 0644); err != nil {
+		t.Fatalf("Failed to write override config: %v", err)
+	}
+
+	// Load using LoadGameConfig with custom type
+	customCfg, err := LoadGameConfig[TestCustomGameConfig](tmpDir)
+	if err != nil {
+		t.Fatalf("Failed to load game config: %v", err)
+	}
+
+	if customCfg == nil {
+		t.Fatal("Expected non-nil config, got nil")
+	}
+
+	// Verify base config fields (from embedded Config)
+	if customCfg.GameCode != "test-game" {
+		t.Errorf("Expected GameCode 'test-game', got '%s'", customCfg.GameCode)
+	}
+	if customCfg.GameName != "Test Game" {
+		t.Errorf("Expected GameName 'Test Game', got '%s'", customCfg.GameName)
+	}
+	if customCfg.PayLine != 25 {
+		t.Errorf("Expected PayLine 25 (overridden), got %d", customCfg.PayLine)
+	}
+	if customCfg.ReelRows != 4 {
+		t.Errorf("Expected ReelRows 4 (overridden), got %d", customCfg.ReelRows)
+	}
+	if customCfg.ReelCols != 5 {
+		t.Errorf("Expected ReelCols 5 (from base), got %d", customCfg.ReelCols)
+	}
+
+	// Verify custom fields
+	if customCfg.CustomField != "override-value" {
+		t.Errorf("Expected CustomField 'override-value' (overridden), got '%s'", customCfg.CustomField)
+	}
+}
+
+// TestCustomGameConfigWithMultipleFiles tests loading custom config from multiple files
+func TestCustomGameConfigWithMultipleFiles(t *testing.T) {
+	// Create temporary directory
+	tmpDir, err := os.MkdirTemp("", "config_test_*")
+	if err != nil {
+		t.Fatalf("Failed to create temp directory: %v", err)
+	}
+	defer os.RemoveAll(tmpDir) //nolint:errcheck
+
+	// Create a-base.yaml (first file alphabetically, loaded first)
+	moduleBaseConfig := `game_code: test-game
+game_name: Base Game
+pay_line: 20
+reel_rows: 3
+reel_cols: 5
+custom_field: module-base-value
+`
+	moduleBaseFile := filepath.Join(tmpDir, "a-base.yaml")
+	if err := os.WriteFile(moduleBaseFile, []byte(moduleBaseConfig), 0644); err != nil {
+		t.Fatalf("Failed to write module-base config: %v", err)
+	}
+
+	// Create z-game-specific.yaml (second file alphabetically, loaded second, overrides a-base)
+	gameSpecificConfig := `game_name: Game Specific Name
+pay_line: 25
+reel_rows: 4
+custom_field: game-specific-value
+`
+	gameSpecificFile := filepath.Join(tmpDir, "z-game-specific.yaml")
+	if err := os.WriteFile(gameSpecificFile, []byte(gameSpecificConfig), 0644); err != nil {
+		t.Fatalf("Failed to write game-specific config: %v", err)
+	}
+
+	// Load using LoadGameConfig
+	customCfg, err := LoadGameConfig[TestCustomGameConfig](tmpDir)
+	if err != nil {
+		t.Fatalf("Failed to load game config: %v", err)
+	}
+
+	if customCfg == nil {
+		t.Fatal("Expected non-nil config, got nil")
+	}
+
+	// Verify that z-game-specific.yaml overrides a-base.yaml
+	// Base fields from a-base.yaml
+	if customCfg.GameCode != "test-game" {
+		t.Errorf("Expected GameCode 'test-game' (from a-base), got '%s'", customCfg.GameCode)
+	}
+	if customCfg.ReelCols != 5 {
+		t.Errorf("Expected ReelCols 5 (from a-base), got %d", customCfg.ReelCols)
+	}
+
+	// Overridden fields from z-game-specific.yaml
+	if customCfg.GameName != "Game Specific Name" {
+		t.Errorf("Expected GameName 'Game Specific Name' (from z-game-specific), got '%s'", customCfg.GameName)
+	}
+	if customCfg.PayLine != 25 {
+		t.Errorf("Expected PayLine 25 (from z-game-specific), got %d", customCfg.PayLine)
+	}
+	if customCfg.ReelRows != 4 {
+		t.Errorf("Expected ReelRows 4 (from z-game-specific), got %d", customCfg.ReelRows)
+	}
+	if customCfg.CustomField != "game-specific-value" {
+		t.Errorf("Expected CustomField 'game-specific-value' (from z-game-specific), got '%s'", customCfg.CustomField)
+	}
+}
