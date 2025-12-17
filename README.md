@@ -123,6 +123,10 @@ game:
 - [Game Development Guide](docs/GUIDE.md) - How to implement a new game
 - [Architecture Overview](docs/ARCHITECTURE.md) - System architecture
 
+## Games Registry
+
+See the list of all deployed games: [Games Registry](https://git.futuregamestudio.net/be-shared/slot-game-module/-/blob/games-registry/GAMES.md)
+
 ## License
 
 This project is licensed under the MIT License.

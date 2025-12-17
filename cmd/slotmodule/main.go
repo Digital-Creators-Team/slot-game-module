@@ -1591,7 +1591,6 @@ func (m *{{.GameCodeUpper}}Module) determineWinTitle(totalWin, totalBet float64)
 // ModuleContext is available via game.MustFromContext(ctx) if you need to access other resources
 // Access your module's config directly via m.gameConfig (no need to get from context)
 //
-// NOTE: Pool IDs should include bet multiplier to match game-logic~ behavior
 // Calculate bet multiplier from: totalBet / PayLine
 func (m *{{.GameCodeUpper}}Module) GetContributions(ctx context.Context, spinResult *game.SpinResult, totalBet decimal.Decimal) ([]game.JackpotContribution, error) {
 	// Example: Custom contribution logic
@@ -1607,13 +1606,11 @@ func (m *{{.GameCodeUpper}}Module) GetContributions(ctx context.Context, spinRes
 	gameCode := m.GetGameCode()
 	contributions := []game.JackpotContribution{}
 	
-	// Calculate bet multiplier from totalBet and PayLine (to match game-logic~ behavior)
 	// This ensures pool IDs include bet multiplier for proper pool separation
 	payLine := decimal.NewFromInt(int64(m.gameConfig.PayLine))
 	betMultiplier := totalBet.Div(payLine)
 	
 	// Example: Contribute to a single pool with bet multiplier
-	// Format matches game-logic~: "game-code-betMultiplier"
 	// contribution := decimal.NewFromString("0.01").Mul(totalBet) // 1% of bet
 	// contributions = append(contributions, game.JackpotContribution{
 	// 	PoolID: fmt.Sprintf("%s-%s", gameCode, betMultiplier.String()),
@@ -1648,7 +1645,6 @@ func (m *{{.GameCodeUpper}}Module) GetContributions(ctx context.Context, spinRes
 // ModuleContext is available via game.MustFromContext(ctx) if you need to access other resources
 // Access your module's config directly via m.gameConfig (no need to get from context)
 //
-// NOTE: Pool ID should include bet multiplier to match game-logic~ behavior
 // Calculate bet multiplier from: totalBet / PayLine
 func (m *{{.GameCodeUpper}}Module) GetWin(ctx context.Context, spinResult *game.SpinResult, totalBet decimal.Decimal) (*game.JackpotWin, error) {
 	// Example: Custom win detection logic
@@ -1663,7 +1659,6 @@ func (m *{{.GameCodeUpper}}Module) GetWin(ctx context.Context, spinResult *game.
 	
 	gameCode := m.GetGameCode()
 	
-	// Calculate bet multiplier from totalBet and PayLine (to match game-logic~ behavior)
 	// This ensures pool ID includes bet multiplier for proper pool separation
 	payLine := decimal.NewFromInt(int64(m.gameConfig.PayLine))
 	betMultiplier := totalBet.Div(payLine)
@@ -1674,12 +1669,10 @@ func (m *{{.GameCodeUpper}}Module) GetWin(ctx context.Context, spinResult *game.
 	// 	return nil, nil // No jackpot win
 	// }
 	
-	// Example: Calculate init value (matches game-logic~ format)
 	// jackpotMultiplier := decimal.NewFromInt(int64(m.gameConfig.JackpotMultiplier[0])) // First tier
 	// initValue := betMultiplier.Mul(payLine).Mul(jackpotMultiplier)
 	
 	// Example: Return win with pool ID including bet multiplier
-	// Format matches game-logic~: "game-code-betMultiplier" or "game-code-betMultiplier-tier"
 	// return &game.JackpotWin{
 	// 	PoolID:    fmt.Sprintf("%s-%s", gameCode, betMultiplier.String()), // Single pool
 	// 	// PoolID:    fmt.Sprintf("%s-%s-%s", gameCode, betMultiplier.String(), tier), // Multiple pools
@@ -1698,7 +1691,6 @@ func (m *{{.GameCodeUpper}}Module) GetWin(ctx context.Context, spinResult *game.
 // ModuleContext is available via game.MustFromContext(ctx) if you need to access other resources
 // Access your module's config directly via m.gameConfig (no need to get from context)
 // 
-// NOTE: Pool IDs include bet multiplier to separate pools by bet level (like game-logic~)
 // Format: "game-code-betMultiplier" or "game-code-betMultiplier-tier"
 func (m *{{.GameCodeUpper}}Module) GetPoolID(ctx context.Context, gameCode string, betMultiplier float32) ([]string, error) {
 	// Example: Return pool IDs to stream
@@ -1709,7 +1701,6 @@ func (m *{{.GameCodeUpper}}Module) GetPoolID(ctx context.Context, gameCode strin
 	// customField := m.gameConfig.CustomField // if you have custom fields
 	
 	// IMPORTANT: Include bet multiplier in pool ID to separate pools by bet level
-	// This matches game-logic~ behavior where each bet multiplier has its own pool
 	// Format: "game-code-betMultiplier" (e.g., "beach-party-1.5")
 	
 	// Example: Single pool with bet multiplier
@@ -1722,7 +1713,6 @@ func (m *{{.GameCodeUpper}}Module) GetPoolID(ctx context.Context, gameCode strin
 	// 	fmt.Sprintf("%s-%g-grand", gameCode, betMultiplier),
 	// }, nil
 	
-	// Default: single pool with bet multiplier (matches game-logic~ format)
 	return []string{fmt.Sprintf("%s-%g", gameCode, betMultiplier)}, nil
 }
 
@@ -1730,11 +1720,9 @@ func (m *{{.GameCodeUpper}}Module) GetPoolID(ctx context.Context, gameCode strin
 // ModuleContext is available via game.MustFromContext(ctx) if you need to access other resources
 // Access your module's config directly via m.gameConfig (no need to get from context)
 //
-// NOTE: This matches game-logic~ behavior where init value = betMultiplier * PayLine * JackpotMultiplier
 func (m *{{.GameCodeUpper}}Module) GetInitialPoolValue(ctx context.Context, poolID string, betMultiplier float32) (decimal.Decimal, error) {
 	// Example: Calculate initial value based on bet multiplier
 	// This is used when connecting to SSE to show initial jackpot value
-	// Matches game-logic~ calculation: betMultiplier * PayLine * JackpotMultiplier
 	
 	// Access config directly from module (m.gameConfig already has full config):
 	// payLine := m.gameConfig.PayLine
@@ -1744,7 +1732,6 @@ func (m *{{.GameCodeUpper}}Module) GetInitialPoolValue(ctx context.Context, pool
 	betMult := decimal.NewFromFloat32(betMultiplier)
 	baseBet := decimal.NewFromInt(int64(m.gameConfig.PayLine))
 	
-	// Example calculation (matches game-logic~ format):
 	// For single pool:
 	// jackpotMultiplier := decimal.NewFromInt(int64(m.gameConfig.JackpotMultiplier[0])) // First tier
 	// return betMult.Mul(baseBet).Mul(jackpotMultiplier), nil
