@@ -51,6 +51,7 @@ func LoadConfigFromDir(configDir string) (*Config, error) {
 
 // LoadConfigFromDirInto loads config from a directory into the provided struct (out must be a pointer).
 // All YAML files in the directory are loaded and merged, with later files (alphabetically) overriding earlier ones.
+// Uses viper's ReadInConfig() for the first file and MergeInConfig() for subsequent files.
 func LoadConfigFromDirInto(configDir string, out interface{}) error {
 	v := viper.New()
 	v.SetConfigType("yaml")
@@ -66,7 +67,7 @@ func LoadConfigFromDirInto(configDir string, out interface{}) error {
 	// Sort files alphabetically to ensure consistent loading order
 	var yamlFiles []string
 	for _, entry := range entries {
-		if !entry.IsDir() && strings.HasSuffix(strings.ToLower(entry.Name()), ".yaml") || strings.HasSuffix(strings.ToLower(entry.Name()), ".yml") {
+		if !entry.IsDir() && (strings.HasSuffix(strings.ToLower(entry.Name()), ".yaml") || strings.HasSuffix(strings.ToLower(entry.Name()), ".yml")) {
 			yamlFiles = append(yamlFiles, entry.Name())
 		}
 	}
@@ -75,12 +76,19 @@ func LoadConfigFromDirInto(configDir string, out interface{}) error {
 		return fmt.Errorf("no YAML files found in config directory: %s", configDir)
 	}
 
-	// Load each file, with later files overriding earlier ones
-	for _, filename := range yamlFiles {
-		filePath := filepath.Join(configDir, filename)
+	// First file: use ReadInConfig()
+	firstFile := filepath.Join(configDir, yamlFiles[0])
+	v.SetConfigFile(firstFile)
+	if err := v.ReadInConfig(); err != nil {
+		return fmt.Errorf("failed to read first config file %s: %w", yamlFiles[0], err)
+	}
+
+	// Subsequent files: use MergeInConfig()
+	for i := 1; i < len(yamlFiles); i++ {
+		filePath := filepath.Join(configDir, yamlFiles[i])
 		v.SetConfigFile(filePath)
 		if err := v.MergeInConfig(); err != nil {
-			return fmt.Errorf("failed to merge config from %s: %w", filename, err)
+			return fmt.Errorf("failed to merge config from %s: %w", yamlFiles[i], err)
 		}
 	}
 
