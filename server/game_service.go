@@ -342,7 +342,7 @@ func (s *GameService) contributeToJackpot(ctx context.Context, gameCode string, 
 	// Check if game module implements custom jackpot handler
 	if handler, ok := s.gameModule.(game.JackpotHandler); ok {
 		// Use custom jackpot handler
-		contributions, err := handler.GetContributions(ctx, spinResult, totalBet, gameConfig)
+		contributions, err := handler.GetContributions(ctx, spinResult, totalBet)
 		if err != nil {
 			return fmt.Errorf("failed to get jackpot contributions: %w", err)
 		}
@@ -381,7 +381,7 @@ func (s *GameService) processJackpotWin(
 	// Check if game module implements custom jackpot handler
 	if handler, ok := s.gameModule.(game.JackpotHandler); ok {
 		// Use custom jackpot handler
-		jackpotWin, err = handler.GetWin(ctx, spinResult, totalBet, gameConfig)
+		jackpotWin, err = handler.GetWin(ctx, spinResult, totalBet)
 		if err != nil {
 			return fmt.Errorf("failed to get jackpot win: %w", err)
 		}

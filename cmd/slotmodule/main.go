@@ -1576,13 +1576,18 @@ func (m *{{.GameCodeUpper}}Module) determineWinTitle(totalWin, totalBet float64)
 /*
 // GetContributions returns jackpot contributions for a spin
 // Called by gameService when IsGetJackpot is false
-// You can access ModuleContext via game.FromContext(ctx) if needed
-func (m *{{.GameCodeUpper}}Module) GetContributions(ctx context.Context, spinResult *game.SpinResult, totalBet decimal.Decimal, gameConfig *game.Config) ([]game.JackpotContribution, error) {
+// ModuleContext is available via game.MustFromContext(ctx) if you need to access other resources
+// Access your module's config directly via m.gameConfig (no need to get from context)
+func (m *{{.GameCodeUpper}}Module) GetContributions(ctx context.Context, spinResult *game.SpinResult, totalBet decimal.Decimal) ([]game.JackpotContribution, error) {
 	// Example: Custom contribution logic
 	// You can implement any logic here, e.g.:
 	// - Different number of pools
 	// - Different contribution rates
 	// - Conditional contributions based on spin result
+	
+	// Access config directly from module (m.gameConfig already has full config):
+	// payLine := m.gameConfig.PayLine
+	// customField := m.gameConfig.CustomField // if you have custom fields
 	
 	gameCode := m.GetGameCode()
 	contributions := []game.JackpotContribution{}
@@ -1599,13 +1604,18 @@ func (m *{{.GameCodeUpper}}Module) GetContributions(ctx context.Context, spinRes
 
 // GetWin returns jackpot win information for a spin
 // Called by gameService when IsGetJackpot is true
-// You can access ModuleContext via game.FromContext(ctx) if needed
-func (m *{{.GameCodeUpper}}Module) GetWin(ctx context.Context, spinResult *game.SpinResult, totalBet decimal.Decimal, gameConfig *game.Config) (*game.JackpotWin, error) {
+// ModuleContext is available via game.MustFromContext(ctx) if you need to access other resources
+// Access your module's config directly via m.gameConfig (no need to get from context)
+func (m *{{.GameCodeUpper}}Module) GetWin(ctx context.Context, spinResult *game.SpinResult, totalBet decimal.Decimal) (*game.JackpotWin, error) {
 	// Example: Custom win detection logic
 	// You can implement any logic here, e.g.:
 	// - Detect tier based on symbol positions
 	// - Detect tier based on win amount
 	// - Multiple pools with different rules
+	
+	// Access config directly from module (m.gameConfig already has full config):
+	// payLine := m.gameConfig.PayLine
+	// customField := m.gameConfig.CustomField // if you have custom fields
 	
 	gameCode := m.GetGameCode()
 	
@@ -1629,9 +1639,15 @@ func (m *{{.GameCodeUpper}}Module) GetWin(ctx context.Context, spinResult *game.
 
 // GetPoolID returns pool IDs for SSE updates
 // This is used for jackpot SSE streaming
-func (m *{{.GameCodeUpper}}Module) GetPoolID(ctx context.Context, gameCode string, betMultiplier float32, gameConfig *game.Config) ([]string, error) {
+// ModuleContext is available via game.MustFromContext(ctx) if you need to access other resources
+// Access your module's config directly via m.gameConfig (no need to get from context)
+func (m *{{.GameCodeUpper}}Module) GetPoolID(ctx context.Context, gameCode string, betMultiplier float32) ([]string, error) {
 	// Example: Return pool IDs to stream
 	// Can return multiple pools if your game has multiple jackpot pools
+	
+	// Access config directly from module (m.gameConfig already has full config):
+	// payLine := m.gameConfig.PayLine
+	// customField := m.gameConfig.CustomField // if you have custom fields
 	
 	// Example: Single pool
 	// return []string{fmt.Sprintf("jackpot:%s", gameCode)}, nil
@@ -1648,14 +1664,25 @@ func (m *{{.GameCodeUpper}}Module) GetPoolID(ctx context.Context, gameCode strin
 }
 
 // GetInitialPoolValue returns initial pool value for SSE
-func (m *{{.GameCodeUpper}}Module) GetInitialPoolValue(ctx context.Context, poolID string, betMultiplier float32, gameConfig *game.Config) (decimal.Decimal, error) {
+// ModuleContext is available via game.MustFromContext(ctx) if you need to access other resources
+// Access your module's config directly via m.gameConfig (no need to get from context)
+func (m *{{.GameCodeUpper}}Module) GetInitialPoolValue(ctx context.Context, poolID string, betMultiplier float32) (decimal.Decimal, error) {
 	// Example: Calculate initial value based on bet multiplier
 	// This is used when connecting to SSE to show initial jackpot value
 	
+	// Access config directly from module (m.gameConfig already has full config):
+	// payLine := m.gameConfig.PayLine
+	// jackpotMultiplier := m.gameConfig.JackpotMultiplier
+	// customField := m.gameConfig.CustomField // if you have custom fields
+	
 	betMult := decimal.NewFromFloat32(betMultiplier)
-	baseBet := decimal.NewFromInt(int64(gameConfig.PayLine))
-	jackpotMultiplier := decimal.NewFromInt(int64(gameConfig.JackpotMultiplier))
-	return betMult.Mul(baseBet).Mul(jackpotMultiplier), nil
+	// Example calculation (adjust based on your game logic):
+	// baseBet := decimal.NewFromInt(int64(m.gameConfig.PayLine))
+	// jackpotMultiplier := decimal.NewFromInt(int64(m.gameConfig.JackpotMultiplier))
+	// return betMult.Mul(baseBet).Mul(jackpotMultiplier), nil
+	
+	// Default: return zero
+	return decimal.Zero, nil
 }
 */
 `
