@@ -172,6 +172,13 @@ func (s *Service) GetCurrentPools(ctx context.Context) ([]Update, error) {
 func (s *Service) HandleKafkaUpdate(update Update) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	// Only buffer updates for registered pools
+	if _, exists := s.pools[update.PoolID]; !exists {
+		// Pool not registered, ignore this update
+		return
+	}
+	
 	if update.Timestamp.IsZero() {
 		update.Timestamp = time.Now()
 	}

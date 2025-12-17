@@ -1726,7 +1726,7 @@ external_services:
     base_url: http://wallet-service:8081
     timeout: 5s
   reward_service:
-    base_url: http://reward-service:8387
+    base_url: http://reward-api:8387
     timeout: 5s
   log_service:
     base_url: http://log-service:8388
