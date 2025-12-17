@@ -301,7 +301,11 @@ func (h *JackpotHandler) StreamUpdatesWebSocket(c *gin.Context) {
 		for {
 			_, _, err := conn.ReadMessage()
 			if err != nil {
-				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+				// Only log unexpected close errors (not normal closures)
+				// CloseNormalClosure (1000) = normal closure (e.g., page closing)
+				// CloseGoingAway (1001) = server going down or browser navigating away
+				// CloseAbnormalClosure (1006) = connection lost without close frame
+				if websocket.IsUnexpectedCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 					h.logger.Debug().Err(err).Msg("WebSocket read error")
 				}
 				return

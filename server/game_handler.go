@@ -336,8 +336,8 @@ func (h *GameHandler) GetState(c *gin.Context) {
 type BetHistoryQueryParams struct {
 	Type     BetType `form:"type" binding:"required"`
 	GameCode string  `form:"gameCode" binding:"required"`
-	Limit    int     `form:"limit" binding:"required"`
-	Page     int     `form:"page" binding:"required"`
+	Limit    int     `form:"limit"`
+	Page     int     `form:"page"`
 }
 
 // GetBetHistory godoc
@@ -374,6 +374,17 @@ func (h *GameHandler) GetBetHistory(c *gin.Context) {
 		return
 	}
 
+	// Set default values for Limit and Page if not provided
+	if params.Limit <= 0 {
+		params.Limit = 20
+	}
+	if params.Limit > 100 {
+		params.Limit = 100
+	}
+	if params.Page < 0 {
+		params.Page = 0
+	}
+
 	// For jackpot history, we don't need userID (show all users)
 	var userID string
 	if params.Type != BetTypeJackpot {
@@ -384,14 +395,6 @@ func (h *GameHandler) GetBetHistory(c *gin.Context) {
 			Unauthorized(c, errors.New(errors.ErrUnauthorized, "Invalid or missing authentication token"))
 			return
 		}
-	}
-
-	// Validate limits
-	if params.Limit <= 0 || params.Limit > 100 {
-		params.Limit = 20
-	}
-	if params.Page < 0 {
-		params.Page = 0
 	}
 
 	// Build query

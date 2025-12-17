@@ -22,9 +22,9 @@ type Event struct {
 // PoolUpdateEvent represents a jackpot pool update event
 type PoolUpdateEvent struct {
 	PoolID    string          `json:"pool_id"`
-	Amount    decimal.Decimal `json:"amount"`
-	GameID    string          `json:"game_id,omitempty"`
-	UpdatedAt time.Time       `json:"updated_at"`
+	Amount    decimal.Decimal `json:"delta"`      //contribute amount
+	NewAmount decimal.Decimal `json:"new_amount"` //pool amount
+	UpdatedAt time.Time       `json:"timestamp"`
 }
 
 // PoolCache is an in-memory cache for pool amounts
@@ -175,11 +175,6 @@ func (c *Consumer) consume() {
 
 // handleMessage processes a single Kafka message
 func (c *Consumer) handleMessage(msg kafka.Message) error {
-	c.logger.Debug().
-		Str("topic", msg.Topic).
-		Int("partition", msg.Partition).
-		Int64("offset", msg.Offset).
-		Msg("Received message")
 
 	var event PoolUpdateEvent
 	if err := json.Unmarshal(msg.Value, &event); err != nil {
@@ -187,7 +182,7 @@ func (c *Consumer) handleMessage(msg kafka.Message) error {
 	}
 
 	// Update cache
-	c.poolCache.Set(event.PoolID, event.Amount)
+	c.poolCache.Set(event.PoolID, event.NewAmount)
 
 	// Broadcast to subscribers
 	c.mu.RLock()
@@ -217,12 +212,6 @@ func (c *Consumer) handleMessage(msg kafka.Message) error {
 		}
 	}
 	c.mu.RUnlock()
-
-	c.logger.Info().
-		Str("pool_id", event.PoolID).
-		Str("amount", event.Amount.String()).
-		Msg("Pool update processed")
-
 	return nil
 }
 
@@ -295,5 +284,3 @@ func (c *Consumer) UnsubscribeWithPoolID(poolID string, subID string) {
 		Str("sub_id", subID).
 		Msg("Subscription removed")
 }
-
-
