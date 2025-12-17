@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"git.futuregamestudio.net/be-shared/slot-game-module.git/game"
@@ -198,7 +197,7 @@ func (h *JackpotHandler) StreamUpdates(c *gin.Context) {
 				Str("update_pool_id", update.PoolID).
 				Float64("update_amount", update.Amount.InexactFloat64()).
 				Msg("SSE: Received update from service")
-			
+
 			// Only send updates for pools matching bet multiplier
 			if isTargetPool(update.PoolID) {
 				err := h.sendSSEEvent(c, &JackpotSSEResponse{
@@ -396,7 +395,7 @@ func (h *JackpotHandler) StreamUpdatesWebSocket(c *gin.Context) {
 				Str("update_pool_id", update.PoolID).
 				Float64("update_amount", update.Amount.InexactFloat64()).
 				Msg("WebSocket: Received update from service")
-			
+
 			// Only send updates for pools matching bet multiplier
 			if isTargetPool(update.PoolID) {
 				err := h.sendWebSocketMessage(conn, &JackpotSSEResponse{
