@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"git.futuregamestudio.net/be-shared/slot-game-module.git/game"
@@ -95,8 +96,8 @@ func (h *JackpotHandler) StreamUpdates(c *gin.Context) {
 
 	// Get pool IDs for this bet multiplier using game module's GetPoolID
 	var targetPoolIDs []string
+	gameCode := gameModule.GetGameCode()
 	if handler, ok := gameModule.(game.JackpotHandler); ok {
-		gameCode := gameModule.GetGameCode()
 		poolIDs, err := handler.GetPoolID(c.Request.Context(), gameCode, betMultiplier)
 		if err != nil {
 			h.logger.Error().Err(err).Msg("Failed to get pool IDs")
@@ -106,6 +107,10 @@ func (h *JackpotHandler) StreamUpdates(c *gin.Context) {
 			return
 		}
 		targetPoolIDs = poolIDs
+		h.logger.Debug().
+			Float32("bet_multiplier", betMultiplier).
+			Strs("target_pool_ids", targetPoolIDs).
+			Msg("SSE: Retrieved target pool IDs for bet multiplier")
 	} else {
 		// Fallback: if game doesn't implement JackpotHandler, use all pools
 		h.logger.Warn().Msg("Game module does not implement JackpotHandler, streaming all pools")
@@ -122,16 +127,69 @@ func (h *JackpotHandler) StreamUpdates(c *gin.Context) {
 	updates, cancel := h.svc.Listen(ctx)
 	defer cancel()
 
+	// Helper function to extract tier from pool ID
+	// Supports both formats:
+	//   - Legacy: "game-code:tier" (e.g., "cangaceiro-warrior:mini")
+	//   - New: "game-code-betMultiplier-tier" (e.g., "cangaceiro-warrior-1.5-mini")
+	extractTier := func(poolID string) string {
+		if strings.Contains(poolID, ":") {
+			// Legacy format: "game-code:tier"
+			parts := strings.Split(poolID, ":")
+			if len(parts) == 2 {
+				return parts[1]
+			}
+		} else if strings.Contains(poolID, "-") {
+			// New format: "game-code-betMultiplier-tier"
+			parts := strings.Split(poolID, "-")
+			if len(parts) >= 3 {
+				return parts[len(parts)-1] // Last part is tier
+			}
+		}
+		return ""
+	}
+
 	// Helper function to check if pool ID matches target pools
+	// Matches by tier since registered pools use legacy format but GetPoolID returns new format
 	isTargetPool := func(poolID string) bool {
 		if len(targetPoolIDs) == 0 {
 			return true // No filter, stream all
 		}
+		
+		// Extract tier from incoming pool ID
+		updateTier := extractTier(poolID)
+		if updateTier == "" {
+			h.logger.Debug().Str("pool_id", poolID).Msg("SSE: Could not extract tier from pool ID, using exact match")
+			// Fallback to exact match
+			for _, targetID := range targetPoolIDs {
+				if poolID == targetID {
+					return true
+				}
+			}
+			return false
+		}
+		
+		// Check if tier matches any target pool ID
 		for _, targetID := range targetPoolIDs {
+			targetTier := extractTier(targetID)
+			if targetTier != "" && updateTier == targetTier {
+				h.logger.Debug().
+					Str("update_pool_id", poolID).
+					Str("target_pool_id", targetID).
+					Str("matched_tier", updateTier).
+					Msg("SSE: Pool ID matched by tier")
+				return true
+			}
+			// Also check exact match for backward compatibility
 			if poolID == targetID {
 				return true
 			}
 		}
+		
+		h.logger.Debug().
+			Str("update_pool_id", poolID).
+			Str("update_tier", updateTier).
+			Strs("target_pool_ids", targetPoolIDs).
+			Msg("SSE: Pool ID did not match any target pools")
 		return false
 	}
 
@@ -140,19 +198,37 @@ func (h *JackpotHandler) StreamUpdates(c *gin.Context) {
 		Type:      EventTypeConnected,
 		Timestamp: time.Now().Unix(),
 	})
+	h.logger.Debug().
+		Float32("bet_multiplier", betMultiplier).
+		Strs("target_pool_ids", targetPoolIDs).
+		Msg("SSE: Connection established, sending initial data")
 
 	// Send initial data with EventTypeUpdated for pools matching bet multiplier
 	if currentPools, err := h.svc.GetCurrentPools(ctx); err == nil {
+		h.logger.Debug().Int("total_pools", len(currentPools)).Msg("SSE: Retrieved current pools")
+		sentCount := 0
 		for _, pool := range currentPools {
 			if isTargetPool(pool.PoolID) {
-				_ = h.sendSSEEvent(c, &JackpotSSEResponse{
+				err := h.sendSSEEvent(c, &JackpotSSEResponse{
 					Type:      EventTypeUpdated,
 					PoolID:    pool.PoolID,
 					Amount:    pool.Amount.InexactFloat64(),
 					Timestamp: pool.Timestamp.Unix(),
 				})
+				if err != nil {
+					h.logger.Error().Err(err).Str("pool_id", pool.PoolID).Msg("SSE: Failed to send initial pool data")
+				} else {
+					sentCount++
+					h.logger.Debug().
+						Str("pool_id", pool.PoolID).
+						Float64("amount", pool.Amount.InexactFloat64()).
+						Msg("SSE: Sent initial pool data")
+				}
 			}
 		}
+		h.logger.Debug().Int("sent_pools", sentCount).Msg("SSE: Finished sending initial pool data")
+	} else {
+		h.logger.Error().Err(err).Msg("SSE: Failed to get current pools")
 	}
 
 	heartbeat := time.NewTicker(h.heartbeatPeriod)
@@ -169,16 +245,36 @@ func (h *JackpotHandler) StreamUpdates(c *gin.Context) {
 			})
 		case update, ok := <-updates:
 			if !ok {
+				h.logger.Debug().Msg("SSE: Updates channel closed")
 				return
 			}
+			h.logger.Debug().
+				Str("update_pool_id", update.PoolID).
+				Float64("update_amount", update.Amount.InexactFloat64()).
+				Msg("SSE: Received update from service")
+			
 			// Only send updates for pools matching bet multiplier
 			if isTargetPool(update.PoolID) {
-				_ = h.sendSSEEvent(c, &JackpotSSEResponse{
+				err := h.sendSSEEvent(c, &JackpotSSEResponse{
 					Type:      EventTypeUpdated,
 					PoolID:    update.PoolID,
 					Amount:    update.Amount.InexactFloat64(),
 					Timestamp: update.Timestamp.Unix(),
 				})
+				if err != nil {
+					h.logger.Error().Err(err).Str("pool_id", update.PoolID).Msg("SSE: Failed to send update")
+				} else {
+					h.logger.Debug().
+						Str("pool_id", update.PoolID).
+						Float64("amount", update.Amount.InexactFloat64()).
+						Float32("bet_multiplier", betMultiplier).
+						Msg("SSE: Successfully sent update to client")
+				}
+			} else {
+				h.logger.Debug().
+					Str("pool_id", update.PoolID).
+					Float32("bet_multiplier", betMultiplier).
+					Msg("SSE: Update filtered out (pool ID does not match bet multiplier)")
 			}
 		}
 	}
@@ -230,8 +326,8 @@ func (h *JackpotHandler) StreamUpdatesWebSocket(c *gin.Context) {
 
 	// Get pool IDs for this bet multiplier using game module's GetPoolID
 	var targetPoolIDs []string
+	gameCode := gameModule.GetGameCode()
 	if handler, ok := gameModule.(game.JackpotHandler); ok {
-		gameCode := gameModule.GetGameCode()
 		poolIDs, err := handler.GetPoolID(c.Request.Context(), gameCode, betMultiplier)
 		if err != nil {
 			h.logger.Error().Err(err).Msg("Failed to get pool IDs")
@@ -241,6 +337,10 @@ func (h *JackpotHandler) StreamUpdatesWebSocket(c *gin.Context) {
 			return
 		}
 		targetPoolIDs = poolIDs
+		h.logger.Debug().
+			Float32("bet_multiplier", betMultiplier).
+			Strs("target_pool_ids", targetPoolIDs).
+			Msg("WebSocket: Retrieved target pool IDs for bet multiplier")
 	} else {
 		// Fallback: if game doesn't implement JackpotHandler, use all pools
 		h.logger.Warn().Msg("Game module does not implement JackpotHandler, streaming all pools")
@@ -258,16 +358,69 @@ func (h *JackpotHandler) StreamUpdatesWebSocket(c *gin.Context) {
 	updates, cancel := h.svc.Listen(ctx)
 	defer cancel()
 
+	// Helper function to extract tier from pool ID
+	// Supports both formats:
+	//   - Legacy: "game-code:tier" (e.g., "cangaceiro-warrior:mini")
+	//   - New: "game-code-betMultiplier-tier" (e.g., "cangaceiro-warrior-1.5-mini")
+	extractTier := func(poolID string) string {
+		if strings.Contains(poolID, ":") {
+			// Legacy format: "game-code:tier"
+			parts := strings.Split(poolID, ":")
+			if len(parts) == 2 {
+				return parts[1]
+			}
+		} else if strings.Contains(poolID, "-") {
+			// New format: "game-code-betMultiplier-tier"
+			parts := strings.Split(poolID, "-")
+			if len(parts) >= 3 {
+				return parts[len(parts)-1] // Last part is tier
+			}
+		}
+		return ""
+	}
+
 	// Helper function to check if pool ID matches target pools
+	// Matches by tier since registered pools use legacy format but GetPoolID returns new format
 	isTargetPool := func(poolID string) bool {
 		if len(targetPoolIDs) == 0 {
 			return true // No filter, stream all
 		}
+		
+		// Extract tier from incoming pool ID
+		updateTier := extractTier(poolID)
+		if updateTier == "" {
+			h.logger.Debug().Str("pool_id", poolID).Msg("WebSocket: Could not extract tier from pool ID, using exact match")
+			// Fallback to exact match
+			for _, targetID := range targetPoolIDs {
+				if poolID == targetID {
+					return true
+				}
+			}
+			return false
+		}
+		
+		// Check if tier matches any target pool ID
 		for _, targetID := range targetPoolIDs {
+			targetTier := extractTier(targetID)
+			if targetTier != "" && updateTier == targetTier {
+				h.logger.Debug().
+					Str("update_pool_id", poolID).
+					Str("target_pool_id", targetID).
+					Str("matched_tier", updateTier).
+					Msg("WebSocket: Pool ID matched by tier")
+				return true
+			}
+			// Also check exact match for backward compatibility
 			if poolID == targetID {
 				return true
 			}
 		}
+		
+		h.logger.Debug().
+			Str("update_pool_id", poolID).
+			Str("update_tier", updateTier).
+			Strs("target_pool_ids", targetPoolIDs).
+			Msg("WebSocket: Pool ID did not match any target pools")
 		return false
 	}
 
@@ -276,19 +429,37 @@ func (h *JackpotHandler) StreamUpdatesWebSocket(c *gin.Context) {
 		Type:      EventTypeConnected,
 		Timestamp: time.Now().Unix(),
 	})
+	h.logger.Debug().
+		Float32("bet_multiplier", betMultiplier).
+		Strs("target_pool_ids", targetPoolIDs).
+		Msg("WebSocket: Connection established, sending initial data")
 
 	// Send initial data with EventTypeUpdated for pools matching bet multiplier
 	if currentPools, err := h.svc.GetCurrentPools(ctx); err == nil {
+		h.logger.Debug().Int("total_pools", len(currentPools)).Msg("WebSocket: Retrieved current pools")
+		sentCount := 0
 		for _, pool := range currentPools {
 			if isTargetPool(pool.PoolID) {
-				_ = h.sendWebSocketMessage(conn, &JackpotSSEResponse{
+				err := h.sendWebSocketMessage(conn, &JackpotSSEResponse{
 					Type:      EventTypeUpdated,
 					PoolID:    pool.PoolID,
 					Amount:    pool.Amount.InexactFloat64(),
 					Timestamp: pool.Timestamp.Unix(),
 				})
+				if err != nil {
+					h.logger.Error().Err(err).Str("pool_id", pool.PoolID).Msg("WebSocket: Failed to send initial pool data")
+				} else {
+					sentCount++
+					h.logger.Debug().
+						Str("pool_id", pool.PoolID).
+						Float64("amount", pool.Amount.InexactFloat64()).
+						Msg("WebSocket: Sent initial pool data")
+				}
 			}
 		}
+		h.logger.Debug().Int("sent_pools", sentCount).Msg("WebSocket: Finished sending initial pool data")
+	} else {
+		h.logger.Error().Err(err).Msg("WebSocket: Failed to get current pools")
 	}
 
 	heartbeat := time.NewTicker(h.heartbeatPeriod)
@@ -326,16 +497,36 @@ func (h *JackpotHandler) StreamUpdatesWebSocket(c *gin.Context) {
 			})
 		case update, ok := <-updates:
 			if !ok {
+				h.logger.Debug().Msg("WebSocket: Updates channel closed")
 				return
 			}
+			h.logger.Debug().
+				Str("update_pool_id", update.PoolID).
+				Float64("update_amount", update.Amount.InexactFloat64()).
+				Msg("WebSocket: Received update from service")
+			
 			// Only send updates for pools matching bet multiplier
 			if isTargetPool(update.PoolID) {
-				_ = h.sendWebSocketMessage(conn, &JackpotSSEResponse{
+				err := h.sendWebSocketMessage(conn, &JackpotSSEResponse{
 					Type:      EventTypeUpdated,
 					PoolID:    update.PoolID,
 					Amount:    update.Amount.InexactFloat64(),
 					Timestamp: update.Timestamp.Unix(),
 				})
+				if err != nil {
+					h.logger.Error().Err(err).Str("pool_id", update.PoolID).Msg("WebSocket: Failed to send update")
+				} else {
+					h.logger.Debug().
+						Str("pool_id", update.PoolID).
+						Float64("amount", update.Amount.InexactFloat64()).
+						Float32("bet_multiplier", betMultiplier).
+						Msg("WebSocket: Successfully sent update to client")
+				}
+			} else {
+				h.logger.Debug().
+					Str("pool_id", update.PoolID).
+					Float32("bet_multiplier", betMultiplier).
+					Msg("WebSocket: Update filtered out (pool ID does not match bet multiplier)")
 			}
 		}
 	}
