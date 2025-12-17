@@ -1809,7 +1809,7 @@ external_services:
     base_url: http://reward-api:8387
     timeout: 5s
   log_service:
-    base_url: http://log-service:8388
+    base_url: http://log-api:8388
     timeout: 5s
 `
 
