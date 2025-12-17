@@ -1269,6 +1269,15 @@ func main() {
 			ConsumerGroup: cfg.Kafka.ConsumerGroup + "-jackpot",
 			Logger:        logger,
 		}, kafka.NewPoolCache(logger))
+		
+		// Set pool filter to skip pools not belonging to this game
+		// This prevents updating cache for pools from other games
+		if app.GetJackpotService() != nil {
+			poolFilter := app.GetJackpotService().CreatePoolFilter()
+			consumer.SetPoolFilter(poolFilter)
+			logger.Info().Msg("Pool filter set - will skip pools not registered for this game")
+		}
+		
 		if err := consumer.Start(); err != nil {
 			logger.Fatal().Err(err).Msg("Failed to start jackpot Kafka consumer")
 		}

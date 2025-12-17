@@ -70,6 +70,10 @@ type Subscription struct {
 	Channel chan PoolUpdateEvent
 }
 
+// PoolFilter is a function that determines if a pool ID should be processed.
+// Returns true if the pool should be processed, false to skip it.
+type PoolFilter func(poolID string) bool
+
 // Consumer represents a Kafka consumer
 type Consumer struct {
 	reader    *kafka.Reader
@@ -81,6 +85,7 @@ type Consumer struct {
 
 	mu          sync.RWMutex
 	subscribers map[string][]*Subscription
+	poolFilter  PoolFilter // Optional filter to skip pools not belonging to this game
 }
 
 // ConsumerConfig holds Kafka consumer configuration
@@ -181,6 +186,19 @@ func (c *Consumer) handleMessage(msg kafka.Message) error {
 		return err
 	}
 
+	// Check if pool should be processed (skip if filter exists and returns false)
+	c.mu.RLock()
+	shouldProcess := c.poolFilter == nil || c.poolFilter(event.PoolID)
+	c.mu.RUnlock()
+
+	if !shouldProcess {
+		// Skip this pool - it doesn't belong to this game
+		c.logger.Debug().
+			Str("pool_id", event.PoolID).
+			Msg("Skipping pool update (not for this game)")
+		return nil
+	}
+
 	// Update cache
 	c.poolCache.Set(event.PoolID, event.NewAmount)
 
@@ -218,6 +236,20 @@ func (c *Consumer) handleMessage(msg kafka.Message) error {
 // GetPoolCache returns the pool cache
 func (c *Consumer) GetPoolCache() *PoolCache {
 	return c.poolCache
+}
+
+// SetPoolFilter sets a filter function to skip pools that don't belong to this game.
+// If filter is nil, all pools will be processed (default behavior).
+// The filter function should return true for pools that should be processed.
+func (c *Consumer) SetPoolFilter(filter PoolFilter) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.poolFilter = filter
+	if filter != nil {
+		c.logger.Info().Msg("Pool filter set - will skip pools not belonging to this game")
+	} else {
+		c.logger.Info().Msg("Pool filter cleared - will process all pools")
+	}
 }
 
 // Subscribe subscribes to pool updates for a specific pool ID

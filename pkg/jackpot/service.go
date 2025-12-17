@@ -183,6 +183,29 @@ func (s *Service) HandleKafkaUpdate(update Update) {
 	s.buffer[update.PoolID] = update
 }
 
+// GetRegisteredPoolIDs returns a copy of all registered pool IDs.
+// This can be used to create a filter for Kafka consumer.
+func (s *Service) GetRegisteredPoolIDs() []string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	poolIDs := make([]string, 0, len(s.pools))
+	for poolID := range s.pools {
+		poolIDs = append(poolIDs, poolID)
+	}
+	return poolIDs
+}
+
+// CreatePoolFilter creates a filter function that returns true only for registered pools.
+// This can be used with kafka.Consumer.SetPoolFilter() to skip pools not belonging to this game.
+func (s *Service) CreatePoolFilter() func(poolID string) bool {
+	return func(poolID string) bool {
+		s.mu.RLock()
+		defer s.mu.RUnlock()
+		_, exists := s.pools[poolID]
+		return exists
+	}
+}
+
 // Listen returns a channel to receive flushed updates plus a cancel function.
 func (s *Service) Listen(ctx context.Context) (<-chan Update, context.CancelFunc) {
 	return s.broad.Listen(ctx)
