@@ -22,21 +22,21 @@ import (
 
 // App represents the game service application
 type App struct {
-	engine            *gin.Engine
-	config            *config.Config
-	logger            zerolog.Logger
-	gameModule        game.Module
+	engine             *gin.Engine
+	config             *config.Config
+	logger             zerolog.Logger
+	gameModule         game.Module
 	gameServiceFactory GameServiceFactory
-	httpServer        *http.Server
-	onShutdown        []func()
-	gameHandler       *GameHandler
-	jackpotHandler    *JackpotHandler
-	jackpotService    *jackpot.Service
-	jackpotFeedCancel context.CancelFunc
-	stateProvider     providers.StateProvider
-	walletProvider    providers.WalletProvider
-	rewardProvider    providers.RewardProvider
-	logProvider       providers.LogProvider
+	httpServer         *http.Server
+	onShutdown         []func()
+	gameHandler        *GameHandler
+	jackpotHandler     *JackpotHandler
+	jackpotService     *jackpot.Service
+	jackpotFeedCancel  context.CancelFunc
+	stateProvider      providers.StateProvider
+	walletProvider     providers.WalletProvider
+	rewardProvider     providers.RewardProvider
+	logProvider        providers.LogProvider
 }
 
 // Options holds server configuration options
@@ -81,10 +81,10 @@ func New(opts Options) *App {
 		// Default factory uses the built-in implementation
 		gameServiceFactory: func(
 			gameModule game.Module,
-		stateProvider providers.StateProvider,
-		walletProvider providers.WalletProvider,
-		rewardProvider providers.RewardProvider,
-		logProvider providers.LogProvider,
+			stateProvider providers.StateProvider,
+			walletProvider providers.WalletProvider,
+			rewardProvider providers.RewardProvider,
+			logProvider providers.LogProvider,
 			logger zerolog.Logger,
 		) SpinService {
 			return NewGameService(gameModule, stateProvider, walletProvider, rewardProvider, logProvider, logger)
@@ -176,7 +176,6 @@ func (a *App) newGameService(
 	}
 	return NewGameService(gameModule, stateProvider, walletProvider, rewardProvider, logProvider, logger)
 }
-
 
 // UseCommonMiddlewares adds common middlewares to the application
 func (a *App) UseCommonMiddlewares() {
@@ -287,18 +286,18 @@ func (a *App) RegisterCommonGameRoutes() {
 
 	// Base group for all game routes (no auth middleware)
 	games := a.engine.Group("/api/games")
-	games.Use(a.ModuleContextMiddleware()) // ModuleContext middleware injects context
 	{
 		gameRoutes := games.Group("/" + gameCode)
 		{
 			// Public routes (no authentication required)
-			gameRoutes.GET("/config", a.gameHandler.GetConfig)
-			gameRoutes.GET("/jackpot/updates", a.jackpotHandler.StreamUpdates)           // SSE endpoint
-			gameRoutes.GET("/jackpot/updates/ws", a.jackpotHandler.StreamUpdatesWebSocket) // WebSocket endpoint
+			gameRoutes.GET("/config", a.gameHandler.GetConfig, a.ModuleContextMiddleware())
+			gameRoutes.GET("/jackpot/updates", a.jackpotHandler.StreamUpdates, a.ModuleContextMiddleware())             // SSE endpoint
+			gameRoutes.GET("/jackpot/updates/ws", a.jackpotHandler.StreamUpdatesWebSocket, a.ModuleContextMiddleware()) // WebSocket endpoint
 
 			// Protected routes (require JWT authentication)
 			authRoutes := gameRoutes.Group("")
-			authRoutes.Use(auth.JWTMiddleware(a.config.JWT.Secret, a.logger)) // JWT middleware sets user info
+			authRoutes.Use(auth.JWTMiddleware(a.config.JWT.Secret, a.logger), // JWT middleware sets user info
+				a.ModuleContextMiddleware())
 			{
 				authRoutes.POST("/authorize-game", a.gameHandler.Authorize)
 				authRoutes.POST("/spin", a.gameHandler.Spin)
