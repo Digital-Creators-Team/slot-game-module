@@ -36,6 +36,7 @@ test:
     - go build ./...
     - go vet ./...
     - go test -coverprofile=coverage.out ./...
+  interruptible: true
   coverage: '/total:\s+\(statements\)\s+(\d+\.\d+)%/'
   artifacts:
     reports:
@@ -67,6 +68,7 @@ lint:
   script:
     - go mod download
     - golangci-lint run --timeout 10m --concurrency 2
+  interruptible: true
   allow_failure: true
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
@@ -137,6 +139,7 @@ release:
       git push origin "$NEW_TAG"
       
       echo "✅ Released $NEW_TAG"
+  interruptible: true
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       when: on_success
