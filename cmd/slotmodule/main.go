@@ -2338,7 +2338,7 @@ notify-{{.GameCode}}:
   needs:
     - update-nginx-{{.GameCode}}
   tags:
-    - fgs-vn
+    - fgs-dind-runner-vn
 `
 
 var makefileTemplate = `.PHONY: run build test clean docker-build docker-run swagger vendor
