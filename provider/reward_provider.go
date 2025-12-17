@@ -38,13 +38,14 @@ func NewRewardProvider(cfg *config.Config, logger zerolog.Logger) *RewardProvide
 }
 
 // Contribute adds contribution to jackpot pool
-func (p *RewardProvider) Contribute(ctx context.Context, poolID string, amount decimal.Decimal, gameCode string) error {
+func (p *RewardProvider) Contribute(ctx context.Context, poolID, userID string, amount decimal.Decimal, gameCode string) error {
 	url := fmt.Sprintf("%s/jackpot/contribute", p.baseURL)
 
 	body, _ := json.Marshal(map[string]interface{}{
 		"pool_id":   poolID,
 		"amount":    amount.String(),
 		"game_code": gameCode,
+		"user_id":   userID,
 	})
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))

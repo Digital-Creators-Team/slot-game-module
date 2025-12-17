@@ -253,7 +253,7 @@ func (s *GameService) executeNormalSpin(
 		}
 	} else {
 		// Contribute to jackpot pools
-		if err := s.contributeToJackpot(ctx, gameCode, gameConfig, totalBet, spinResult); err != nil {
+		if err := s.contributeToJackpot(ctx, req.UserID, gameCode, gameConfig, totalBet, spinResult); err != nil {
 			s.logger.Error().Err(err).Msg("Failed to contribute to jackpot")
 		}
 	}
@@ -334,7 +334,7 @@ func (s *GameService) executeFreeSpin(
 
 // contributeToJackpot contributes to jackpot pools
 // Uses custom JackpotHandler if implemented by game module, otherwise uses default logic
-func (s *GameService) contributeToJackpot(ctx context.Context, gameCode string, gameConfig *game.Config, totalBet decimal.Decimal, spinResult *game.SpinResult) error {
+func (s *GameService) contributeToJackpot(ctx context.Context, userID, gameCode string, gameConfig *game.Config, totalBet decimal.Decimal, spinResult *game.SpinResult) error {
 	if s.rewardProvider == nil {
 		return nil
 	}
@@ -349,7 +349,7 @@ func (s *GameService) contributeToJackpot(ctx context.Context, gameCode string, 
 
 		// Process each contribution
 		for _, contrib := range contributions {
-			if err := s.rewardProvider.Contribute(ctx, contrib.PoolID, contrib.Amount, gameCode); err != nil {
+			if err := s.rewardProvider.Contribute(ctx, contrib.PoolID, userID, contrib.Amount, gameCode); err != nil {
 				s.logger.Error().Err(err).Str("pool", contrib.PoolID).Msg("Failed to contribute to jackpot pool")
 			}
 		}

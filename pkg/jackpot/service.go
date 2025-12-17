@@ -73,10 +73,10 @@ func (s *Service) Contribute(totalBet decimal.Decimal) []Contribution {
 }
 
 // ContributeAndStore computes contributions and persists them via a RewardStore (e.g., providers.RewardProvider).
-func (s *Service) ContributeAndStore(ctx context.Context, totalBet decimal.Decimal, gameCode string, store RewardProvider) error {
+func (s *Service) ContributeAndStore(ctx context.Context, totalBet decimal.Decimal, gameCode, userID string, store RewardProvider) error {
 	contribs := s.Contribute(totalBet)
 	for _, c := range contribs {
-		if err := store.Contribute(ctx, c.PoolID, c.Amount, gameCode); err != nil {
+		if err := store.Contribute(ctx, c.PoolID, userID, c.Amount, gameCode); err != nil {
 			return err
 		}
 	}
@@ -85,7 +85,7 @@ func (s *Service) ContributeAndStore(ctx context.Context, totalBet decimal.Decim
 
 // ContributeAndApply uses the internal RewardStore (if set) and returns the contributions.
 // If no RewardStore is configured, it just returns the computed contributions and does not persist.
-func (s *Service) ContributeAndApply(ctx context.Context, totalBet decimal.Decimal) ([]Contribution, error) {
+func (s *Service) ContributeAndApply(ctx context.Context, totalBet decimal.Decimal, userID string) ([]Contribution, error) {
 	contribs := s.Contribute(totalBet)
 	s.mu.RLock()
 	store := s.reward
@@ -95,7 +95,7 @@ func (s *Service) ContributeAndApply(ctx context.Context, totalBet decimal.Decim
 		return contribs, nil
 	}
 	for _, c := range contribs {
-		if err := store.Contribute(ctx, c.PoolID, c.Amount, gameCode); err != nil {
+		if err := store.Contribute(ctx, c.PoolID, userID, c.Amount, gameCode); err != nil {
 			return contribs, err
 		}
 	}
@@ -172,13 +172,11 @@ func (s *Service) GetCurrentPools(ctx context.Context) ([]Update, error) {
 func (s *Service) HandleKafkaUpdate(update Update) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-
 	// Only buffer updates for registered pools
 	if _, exists := s.pools[update.PoolID]; !exists {
 		// Pool not registered, ignore this update
 		return
 	}
-	
 	if update.Timestamp.IsZero() {
 		update.Timestamp = time.Now()
 	}

@@ -22,7 +22,7 @@ type WalletProvider interface {
 
 // RewardProvider interface for jackpot/reward operations
 type RewardProvider interface {
-	Contribute(ctx context.Context, poolID string, amount decimal.Decimal, gameCode string) error
+	Contribute(ctx context.Context, poolID, userID string, amount decimal.Decimal, gameCode string) error
 	Claim(ctx context.Context, poolID, userID, gameCode string, initValue decimal.Decimal) (*JackpotClaim, error)
 	GetPool(ctx context.Context, poolID string, initValue decimal.Decimal) (*JackpotPool, error)
 }
