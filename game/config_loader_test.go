@@ -12,7 +12,7 @@ func TestLoadConfigFromDirInto(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck
 
 	// Create first config file (base config)
 	baseConfig := `game_code: test-game
@@ -104,7 +104,7 @@ func TestLoadConfigFromDirInto_SingleFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck
 
 	// Create single config file
 	singleConfig := `game_code: single-game
@@ -148,7 +148,7 @@ func TestLoadConfigFromDirInto_NoYamlFiles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck
 
 	// Try to load from empty directory
 	var cfg Config
@@ -176,7 +176,7 @@ func TestLoadConfigFromDirInto_AlphabeticalOrder(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck
 
 	// Create files in non-alphabetical order
 	// z-file.yaml should be loaded last and override everything
@@ -232,7 +232,7 @@ func TestLoadGameConfig_FromDirectory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer os.RemoveAll(tmpDir) //nolint:errcheck
 
 	// Create base config
 	baseConfig := `game_code: test-game
