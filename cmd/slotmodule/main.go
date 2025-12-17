@@ -1970,6 +1970,10 @@ variables:
   GAME_SLUG: "{{.GameCode}}"
   GAME_PATH: "{{.GameCode}}"
   GAME_PORT: "{{.Port}}"
+  # Optional: Override games documentation settings (defaults shown below)
+  # GAMES_DOC_REPO: "be-shared/slot-game-module"  # Default: central repo for all games
+  # GAMES_FILE_PATH: "GAMES.md"                    # Default: root/GAMES.md, can be "docs/GAMES.md" etc.
+  # NGINX_DOMAIN: "data.futuregamestudio.net"      # Default: matches nginx server_name config
 
 build-{{.GameCode}}:
   extends: .build
@@ -1997,6 +2001,19 @@ update-nginx-{{.GameCode}}:
       allow_failure: false
   tags:
     - fgs-dind-runner-vn
+
+update-games-documentation-{{.GameCode}}:
+  extends:
+    - .service
+    - .update-games-documentation
+  needs:
+    - update-nginx-{{.GameCode}}
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      when: on_success
+      allow_failure: false
+  tags:
+    - fgs-vn
 
 notify-{{.GameCode}}:
   extends: .notify
