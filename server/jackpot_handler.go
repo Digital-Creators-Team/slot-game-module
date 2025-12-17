@@ -127,69 +127,15 @@ func (h *JackpotHandler) StreamUpdates(c *gin.Context) {
 	updates, cancel := h.svc.Listen(ctx)
 	defer cancel()
 
-	// Helper function to extract tier from pool ID
-	// Supports both formats:
-	//   - Legacy: "game-code:tier" (e.g., "cangaceiro-warrior:mini")
-	//   - New: "game-code-betMultiplier-tier" (e.g., "cangaceiro-warrior-1.5-mini")
-	extractTier := func(poolID string) string {
-		if strings.Contains(poolID, ":") {
-			// Legacy format: "game-code:tier"
-			parts := strings.Split(poolID, ":")
-			if len(parts) == 2 {
-				return parts[1]
-			}
-		} else if strings.Contains(poolID, "-") {
-			// New format: "game-code-betMultiplier-tier"
-			parts := strings.Split(poolID, "-")
-			if len(parts) >= 3 {
-				return parts[len(parts)-1] // Last part is tier
-			}
-		}
-		return ""
-	}
-
-	// Helper function to check if pool ID matches target pools
-	// Matches by tier since registered pools use legacy format but GetPoolID returns new format
 	isTargetPool := func(poolID string) bool {
 		if len(targetPoolIDs) == 0 {
-			return true // No filter, stream all
+			return true
 		}
-		
-		// Extract tier from incoming pool ID
-		updateTier := extractTier(poolID)
-		if updateTier == "" {
-			h.logger.Debug().Str("pool_id", poolID).Msg("SSE: Could not extract tier from pool ID, using exact match")
-			// Fallback to exact match
-			for _, targetID := range targetPoolIDs {
-				if poolID == targetID {
-					return true
-				}
-			}
-			return false
-		}
-		
-		// Check if tier matches any target pool ID
 		for _, targetID := range targetPoolIDs {
-			targetTier := extractTier(targetID)
-			if targetTier != "" && updateTier == targetTier {
-				h.logger.Debug().
-					Str("update_pool_id", poolID).
-					Str("target_pool_id", targetID).
-					Str("matched_tier", updateTier).
-					Msg("SSE: Pool ID matched by tier")
-				return true
-			}
-			// Also check exact match for backward compatibility
 			if poolID == targetID {
 				return true
 			}
 		}
-		
-		h.logger.Debug().
-			Str("update_pool_id", poolID).
-			Str("update_tier", updateTier).
-			Strs("target_pool_ids", targetPoolIDs).
-			Msg("SSE: Pool ID did not match any target pools")
 		return false
 	}
 
@@ -358,69 +304,15 @@ func (h *JackpotHandler) StreamUpdatesWebSocket(c *gin.Context) {
 	updates, cancel := h.svc.Listen(ctx)
 	defer cancel()
 
-	// Helper function to extract tier from pool ID
-	// Supports both formats:
-	//   - Legacy: "game-code:tier" (e.g., "cangaceiro-warrior:mini")
-	//   - New: "game-code-betMultiplier-tier" (e.g., "cangaceiro-warrior-1.5-mini")
-	extractTier := func(poolID string) string {
-		if strings.Contains(poolID, ":") {
-			// Legacy format: "game-code:tier"
-			parts := strings.Split(poolID, ":")
-			if len(parts) == 2 {
-				return parts[1]
-			}
-		} else if strings.Contains(poolID, "-") {
-			// New format: "game-code-betMultiplier-tier"
-			parts := strings.Split(poolID, "-")
-			if len(parts) >= 3 {
-				return parts[len(parts)-1] // Last part is tier
-			}
-		}
-		return ""
-	}
-
-	// Helper function to check if pool ID matches target pools
-	// Matches by tier since registered pools use legacy format but GetPoolID returns new format
 	isTargetPool := func(poolID string) bool {
 		if len(targetPoolIDs) == 0 {
-			return true // No filter, stream all
+			return true
 		}
-		
-		// Extract tier from incoming pool ID
-		updateTier := extractTier(poolID)
-		if updateTier == "" {
-			h.logger.Debug().Str("pool_id", poolID).Msg("WebSocket: Could not extract tier from pool ID, using exact match")
-			// Fallback to exact match
-			for _, targetID := range targetPoolIDs {
-				if poolID == targetID {
-					return true
-				}
-			}
-			return false
-		}
-		
-		// Check if tier matches any target pool ID
 		for _, targetID := range targetPoolIDs {
-			targetTier := extractTier(targetID)
-			if targetTier != "" && updateTier == targetTier {
-				h.logger.Debug().
-					Str("update_pool_id", poolID).
-					Str("target_pool_id", targetID).
-					Str("matched_tier", updateTier).
-					Msg("WebSocket: Pool ID matched by tier")
-				return true
-			}
-			// Also check exact match for backward compatibility
 			if poolID == targetID {
 				return true
 			}
 		}
-		
-		h.logger.Debug().
-			Str("update_pool_id", poolID).
-			Str("update_tier", updateTier).
-			Strs("target_pool_ids", targetPoolIDs).
-			Msg("WebSocket: Pool ID did not match any target pools")
 		return false
 	}
 

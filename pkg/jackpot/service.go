@@ -170,12 +170,14 @@ func (s *Service) GetCurrentPools(ctx context.Context) ([]Update, error) {
 
 // HandleKafkaUpdate buffers an external update (e.g. from Kafka).
 // Caller provides poolID + new amount. This is transport-agnostic.
+// Pools are created dynamically (pool_id includes bet_multiplier), so we don't require pre-registration.
+// We only check if pool_id starts with game code to filter pools belonging to this game.
 func (s *Service) HandleKafkaUpdate(update Update) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	// Only buffer updates for registered pools
-	if _, exists := s.pools[update.PoolID]; !exists {
-		// Pool not registered, ignore this update
+	// Check if pool belongs to this game (starts with game code)
+	if s.gameCode != "" && !strings.HasPrefix(update.PoolID, s.gameCode) {
+		// Pool doesn't belong to this game, ignore
 		return
 	}
 	if update.Timestamp.IsZero() {
@@ -196,84 +198,21 @@ func (s *Service) GetRegisteredPoolIDs() []string {
 	return poolIDs
 }
 
-// CreatePoolFilter creates a filter function that returns true only for registered pools.
+// CreatePoolFilter creates a filter function that returns true only for pools belonging to this game.
 // This can be used with kafka.Consumer.SetPoolFilter() to skip pools not belonging to this game.
-// Supports both pool ID formats:
-//   - Legacy: "game-code:tier" (e.g., "cangaceiro-warrior:mini")
-//   - New: "game-code-betMultiplier-tier" (e.g., "cangaceiro-warrior-1-mini")
+// Pools are created dynamically (pool_id includes bet_multiplier), so we only check game code prefix.
 func (s *Service) CreatePoolFilter() func(poolID string) bool {
 	return func(poolID string) bool {
 		s.mu.RLock()
 		defer s.mu.RUnlock()
 		
-		// First, check exact match (for legacy format)
-		if _, exists := s.pools[poolID]; exists {
-			return true
+		// If game code is set, check if pool_id starts with game code
+		if s.gameCode != "" {
+			return strings.HasPrefix(poolID, s.gameCode)
 		}
 		
-		// If no exact match, try to match by game code and tier
-		// Extract game code and tier from poolID
-		gameCode := s.gameCode
-		if gameCode == "" {
-			// If gameCode not set, fallback to checking all registered pools
-			// by extracting tier from poolID
-			var tier string
-			if strings.Contains(poolID, ":") {
-				// Legacy format: "game-code:tier"
-				parts := strings.Split(poolID, ":")
-				if len(parts) == 2 {
-					tier = parts[1]
-				}
-			} else if strings.Contains(poolID, "-") {
-				// New format: "game-code-betMultiplier-tier"
-				parts := strings.Split(poolID, "-")
-				if len(parts) >= 3 {
-					tier = parts[len(parts)-1] // Last part is tier
-				}
-			}
-			
-			// Check if any registered pool has this tier
-			if tier != "" {
-				for registeredPoolID := range s.pools {
-					if strings.HasSuffix(registeredPoolID, ":"+tier) {
-						return true
-					}
-				}
-			}
-			return false
-		}
-		
-		// Check if poolID starts with game code
-		if !strings.HasPrefix(poolID, gameCode) {
-			return false
-		}
-		
-		// Extract tier from poolID
-		var tier string
-		if strings.Contains(poolID, ":") {
-			// Legacy format: "game-code:tier"
-			parts := strings.Split(poolID, ":")
-			if len(parts) == 2 && parts[0] == gameCode {
-				tier = parts[1]
-			}
-		} else if strings.Contains(poolID, "-") {
-			// New format: "game-code-betMultiplier-tier"
-			// Remove game code prefix
-			remaining := strings.TrimPrefix(poolID, gameCode+"-")
-			parts := strings.Split(remaining, "-")
-			if len(parts) >= 2 {
-				tier = parts[len(parts)-1] // Last part is tier
-			}
-		}
-		
-		// Check if tier matches any registered pool
-		if tier != "" {
-			expectedPoolID := gameCode + ":" + tier
-			_, exists := s.pools[expectedPoolID]
-			return exists
-		}
-		
-		return false
+		// If no game code, accept all pools (backward compatibility)
+		return true
 	}
 }
 
