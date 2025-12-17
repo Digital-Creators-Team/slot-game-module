@@ -3,7 +3,9 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -343,15 +345,326 @@ Examples:
 	initCmd.Flags().IntP("paylines", "l", 20, "Number of paylines")
 	initCmd.Flags().Bool("force", false, "Overwrite existing .slotmodule.json")
 
+	// List command - list all games from GAMES.md
+	listCmd := &cobra.Command{
+		Use:   "ls",
+		Short: "List all games from games registry",
+		Long: `List all games registered in the games registry (GAMES.md).
+
+This command fetches and displays all games from the central games registry
+located at: https://git.futuregamestudio.net/be-shared/slot-game-module/-/blob/games-registry/GAMES.md
+
+Examples:
+  slotmodule ls
+  slotmodule ls --json  # Output as JSON`,
+		Run: runList,
+	}
+
+	listCmd.Flags().Bool("json", false, "Output as JSON format")
+
 	rootCmd.AddCommand(createCmd)
 	rootCmd.AddCommand(updateCmd)
 	rootCmd.AddCommand(updateAllCmd)
 	rootCmd.AddCommand(initCmd)
+	rootCmd.AddCommand(listCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+}
+
+// GameRegistryEntry represents a game entry in GAMES.md
+type GameRegistryEntry struct {
+	GameCode    string
+	ServiceName string
+	Port        int
+	NginxURL    string
+	RepoURL     string
+}
+
+// fetchGamesRegistry fetches GAMES.md from GitLab
+func fetchGamesRegistry() (string, error) {
+	// GitLab API endpoint for raw file
+	// Project: be-shared/slot-game-module
+	// Branch: games-registry
+	// File: GAMES.md
+	projectPath := "be-shared%2Fslot-game-module"
+	filePath := "GAMES.md"
+	branch := "games-registry"
+	
+	apiURL := fmt.Sprintf("https://git.futuregamestudio.net/api/v4/projects/%s/repository/files/%s/raw?ref=%s",
+		projectPath, url.QueryEscape(filePath), branch)
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Get(apiURL)
+	if err != nil {
+		return "", fmt.Errorf("failed to fetch GAMES.md: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode == http.StatusNotFound {
+		// File doesn't exist yet, that's okay - no games registered
+		return "", nil
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("GitLab API returned status %d", resp.StatusCode)
+	}
+
+	content, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read response: %w", err)
+	}
+
+	return string(content), nil
+}
+
+// parseGamesRegistry parses GAMES.md markdown table and returns entries
+func parseGamesRegistry(content string) ([]GameRegistryEntry, error) {
+	if content == "" {
+		return []GameRegistryEntry{}, nil
+	}
+
+	var entries []GameRegistryEntry
+	lines := strings.Split(content, "\n")
+
+	// Find the table header row
+	headerFound := false
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		
+		// Skip empty lines and comments
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		// Look for table header: | Game Code | Service Name | Port | ...
+		if strings.HasPrefix(line, "|") && strings.Contains(line, "Game Code") {
+			headerFound = true
+			continue
+		}
+
+		// Skip separator row: |-----------|...
+		if headerFound && strings.HasPrefix(line, "|") && strings.Contains(line, "---") {
+			continue
+		}
+
+		// Parse data rows
+		if headerFound && strings.HasPrefix(line, "|") {
+			entry := parseTableRow(line)
+			if entry != nil {
+				entries = append(entries, *entry)
+			}
+		}
+	}
+
+	return entries, nil
+}
+
+// parseTableRow parses a markdown table row into GameRegistryEntry
+func parseTableRow(line string) *GameRegistryEntry {
+	// Remove leading/trailing | and split by |
+	line = strings.TrimSpace(line)
+	if !strings.HasPrefix(line, "|") {
+		return nil
+	}
+	
+	// Remove leading and trailing |
+	line = strings.TrimPrefix(line, "|")
+	line = strings.TrimSuffix(line, "|")
+	line = strings.TrimSpace(line)
+
+	// Split by | and trim each part
+	parts := strings.Split(line, "|")
+	if len(parts) < 5 {
+		return nil
+	}
+
+	// Trim spaces from each part
+	for i := range parts {
+		parts[i] = strings.TrimSpace(parts[i])
+	}
+
+	// Skip if any part is empty (likely a separator row or invalid row)
+	if parts[0] == "" || parts[1] == "" || parts[2] == "" {
+		return nil
+	}
+
+	// Parse port
+	port, err := strconv.Atoi(parts[2])
+	if err != nil {
+		return nil
+	}
+
+	return &GameRegistryEntry{
+		GameCode:    parts[0],
+		ServiceName: parts[1],
+		Port:        port,
+		NginxURL:    parts[3],
+		RepoURL:     parts[4],
+	}
+}
+
+// checkGamesRegistry checks if game code or port already exists in GAMES.md
+func checkGamesRegistry(gameCode string, port int) error {
+	content, err := fetchGamesRegistry()
+	if err != nil {
+		// If we can't fetch, warn but don't block (network issues, etc.)
+		fmt.Fprintf(os.Stderr, "⚠️  Warning: Could not fetch games registry: %v\n", err)
+		fmt.Fprintf(os.Stderr, "⚠️  Continuing without validation. Please verify manually.\n")
+		return nil
+	}
+
+	entries, err := parseGamesRegistry(content)
+	if err != nil {
+		return fmt.Errorf("failed to parse games registry: %w", err)
+	}
+
+	// Check for duplicate game code
+	for _, entry := range entries {
+		if entry.GameCode == gameCode {
+			return fmt.Errorf("game code '%s' already exists in games registry (port: %d, service: %s)", 
+				gameCode, entry.Port, entry.ServiceName)
+		}
+	}
+
+	// Check for duplicate port
+	for _, entry := range entries {
+		if entry.Port == port {
+			return fmt.Errorf("port %d is already in use by game '%s' (service: %s)", 
+				port, entry.GameCode, entry.ServiceName)
+		}
+	}
+
+	return nil
+}
+
+// runList handles the ls command to list all games
+func runList(cmd *cobra.Command, args []string) {
+	outputJSON, _ := cmd.Flags().GetBool("json")
+
+	fmt.Println("📋 Fetching games registry...")
+	content, err := fetchGamesRegistry()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "❌ Error: Failed to fetch games registry: %v\n", err)
+		os.Exit(1)
+	}
+
+	entries, err := parseGamesRegistry(content)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "❌ Error: Failed to parse games registry: %v\n", err)
+		os.Exit(1)
+	}
+
+	if len(entries) == 0 {
+		fmt.Println("📭 No games found in registry")
+		return
+	}
+
+	if outputJSON {
+		// Output as JSON
+		jsonData, err := json.MarshalIndent(entries, "", "  ")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "❌ Error: Failed to marshal JSON: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println(string(jsonData))
+		return
+	}
+
+	// Output as formatted table
+	printGamesTable(entries)
+}
+
+// printGamesTable prints games in a formatted table
+func printGamesTable(entries []GameRegistryEntry) {
+	// Calculate column widths
+	maxGameCodeLen := len("Game Code")
+	maxServiceLen := len("Service Name")
+	maxPortLen := len("Port")
+	maxNginxLen := len("Nginx URL")
+	maxRepoLen := len("Repo URL")
+
+	for _, entry := range entries {
+		if len(entry.GameCode) > maxGameCodeLen {
+			maxGameCodeLen = len(entry.GameCode)
+		}
+		if len(entry.ServiceName) > maxServiceLen {
+			maxServiceLen = len(entry.ServiceName)
+		}
+		portStr := strconv.Itoa(entry.Port)
+		if len(portStr) > maxPortLen {
+			maxPortLen = len(portStr)
+		}
+		if len(entry.NginxURL) > maxNginxLen {
+			maxNginxLen = len(entry.NginxURL)
+		}
+		if len(entry.RepoURL) > maxRepoLen {
+			maxRepoLen = len(entry.RepoURL)
+		}
+	}
+
+	// Ensure minimum widths
+	if maxGameCodeLen < 9 {
+		maxGameCodeLen = 9
+	}
+	if maxServiceLen < 12 {
+		maxServiceLen = 12
+	}
+	if maxPortLen < 4 {
+		maxPortLen = 4
+	}
+	if maxNginxLen < 9 {
+		maxNginxLen = 9
+	}
+	if maxRepoLen < 9 {
+		maxRepoLen = 9
+	}
+
+	// Print header
+	fmt.Println()
+	header := fmt.Sprintf("| %-*s | %-*s | %-*s | %-*s | %-*s |",
+		maxGameCodeLen, "Game Code",
+		maxServiceLen, "Service Name",
+		maxPortLen, "Port",
+		maxNginxLen, "Nginx URL",
+		maxRepoLen, "Repo URL")
+	fmt.Println(header)
+
+	// Print separator
+	separator := fmt.Sprintf("|%s|%s|%s|%s|%s|",
+		strings.Repeat("-", maxGameCodeLen+2),
+		strings.Repeat("-", maxServiceLen+2),
+		strings.Repeat("-", maxPortLen+2),
+		strings.Repeat("-", maxNginxLen+2),
+		strings.Repeat("-", maxRepoLen+2))
+	fmt.Println(separator)
+
+	// Print rows
+	for _, entry := range entries {
+		portStr := strconv.Itoa(entry.Port)
+		row := fmt.Sprintf("| %-*s | %-*s | %-*s | %-*s | %-*s |",
+			maxGameCodeLen, entry.GameCode,
+			maxServiceLen, entry.ServiceName,
+			maxPortLen, portStr,
+			maxNginxLen, truncateString(entry.NginxURL, maxNginxLen),
+			maxRepoLen, truncateString(entry.RepoURL, maxRepoLen))
+		fmt.Println(row)
+	}
+
+	fmt.Printf("\n📊 Total: %d game(s)\n", len(entries))
+}
+
+// truncateString truncates a string to maxLen, adding "..." if needed
+func truncateString(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	if maxLen <= 3 {
+		return s[:maxLen]
+	}
+	return s[:maxLen-3] + "..."
 }
 
 func runCreate(cmd *cobra.Command, args []string) {
@@ -366,6 +679,14 @@ func runCreate(cmd *cobra.Command, args []string) {
 	name = strings.ToLower(strings.TrimSpace(name))
 	name = strings.ReplaceAll(name, " ", "-")
 	name = strings.ReplaceAll(name, "_", "-")
+
+	// Check if game code or port already exists in GAMES.md
+	fmt.Println("🔍 Checking games registry...")
+	if err := checkGamesRegistry(name, port); err != nil {
+		fmt.Fprintf(os.Stderr, "❌ Error: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Println("✓ Games registry check passed")
 
 	// Set default module path
 	if modulePath == "" {
