@@ -10,27 +10,38 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+const (
+	// DefaultBroadcastInterval is the default interval for broadcasting buffered updates
+	DefaultBroadcastInterval = 2 * time.Second
+	
+	// RefreshInterval is the interval for refreshing pool values from the reward provider
+	RefreshInterval = 60 * time.Second
+)
+
 // Service encapsulates pool registration, contributions, buffering, and broadcasting.
 // It is transport-agnostic: caller wires HTTP routes (e.g. /games/{code}/jackpot/updates)
 // and subscribes to updates via Listen().
 type Service struct {
-	mu       sync.RWMutex
-	pools    map[string]PoolConfig
-	buffer   map[string]Update
-	broad    *Broadcaster
-	logger   zerolog.Logger
-	interval time.Duration
-	ticker   *time.Ticker
-	stopChan chan struct{}
-	reward   RewardProvider
-	gameCode string
+	mu            sync.RWMutex
+	pools         map[string]PoolConfig
+	buffer        map[string]Update
+	broad         *Broadcaster
+	logger        zerolog.Logger
+	interval      time.Duration
+	ticker        *time.Ticker
+	refreshTicker *time.Ticker
+	stopChan      chan struct{}
+	reward        RewardProvider
+	gameCode      string
+	refreshing    bool // Flag to prevent concurrent refreshes
+	refreshMu     sync.Mutex
 }
 
 // NewService creates a new jackpot service.
 func NewService(cfg ServiceConfig) *Service {
 	interval := cfg.BroadcastInterval
 	if interval <= 0 {
-		interval = 2 * time.Second
+		interval = DefaultBroadcastInterval
 	}
 	s := &Service{
 		pools:    make(map[string]PoolConfig),
@@ -190,8 +201,6 @@ func (s *Service) GetPoolsByIDs(ctx context.Context, poolIDs []string, initValue
 
 	updates := make([]Update, 0, len(poolIDs))
 	for _, poolID := range poolIDs {
-		var amount decimal.Decimal
-		var updatedAt time.Time
 		var initValue decimal.Decimal
 
 		// Get init value first (needed for reward provider)
@@ -210,7 +219,22 @@ func (s *Service) GetPoolsByIDs(ctx context.Context, poolIDs []string, initValue
 			continue
 		}
 
-		// Get current amount from reward provider (source of truth)
+		// Check buffer first (most efficient - no provider call needed)
+		bufferedUpdate, hasBuffer := buffer[poolID]
+		
+		// If buffer exists and is recent (within refresh interval), use it directly
+		// This avoids unnecessary provider calls since we have periodic refresh
+		if hasBuffer {
+			age := time.Since(bufferedUpdate.Timestamp)
+			if age < RefreshInterval {
+				// Buffer is fresh, use it
+				updates = append(updates, bufferedUpdate)
+				continue
+			}
+			// Buffer exists but is stale, will check provider below
+		}
+
+		// Buffer doesn't exist or is stale: get from provider
 		var providerUpdate *Update
 		if store != nil {
 			poolData, err := store.GetPool(ctx, poolID, initValue)
@@ -223,9 +247,6 @@ func (s *Service) GetPoolsByIDs(ctx context.Context, poolIDs []string, initValue
 			}
 		}
 
-		// Check buffer for recent updates
-		bufferedUpdate, hasBuffer := buffer[poolID]
-
 		// Choose the most recent value: compare buffer vs provider
 		if hasBuffer && providerUpdate != nil {
 			// Both exist: use the one with newer timestamp
@@ -235,7 +256,7 @@ func (s *Service) GetPoolsByIDs(ctx context.Context, poolIDs []string, initValue
 				updates = append(updates, *providerUpdate)
 			}
 		} else if hasBuffer {
-			// Only buffer exists: use buffer
+			// Only buffer exists (but stale): use buffer anyway
 			updates = append(updates, bufferedUpdate)
 		} else if providerUpdate != nil {
 			// Only provider exists: use provider
@@ -290,12 +311,12 @@ func (s *Service) CreatePoolFilter() func(poolID string) bool {
 	return func(poolID string) bool {
 		s.mu.RLock()
 		defer s.mu.RUnlock()
-		
+
 		// If game code is set, check if pool_id starts with game code
 		if s.gameCode != "" {
 			return strings.HasPrefix(poolID, s.gameCode)
 		}
-		
+
 		// If no game code, accept all pools (backward compatibility)
 		return true
 	}
@@ -306,18 +327,23 @@ func (s *Service) Listen(ctx context.Context) (<-chan Update, context.CancelFunc
 	return s.broad.Listen(ctx)
 }
 
-// Stop stops the service ticker.
+// Stop stops the service tickers.
 func (s *Service) Stop() {
 	if s.ticker != nil {
 		s.ticker.Stop()
 	}
+	if s.refreshTicker != nil {
+		s.refreshTicker.Stop()
+	}
 	close(s.stopChan)
 }
 
-// start begins the flush loop.
+// start begins the flush loop and refresh loop.
 func (s *Service) start() {
 	s.ticker = time.NewTicker(s.interval)
+	s.refreshTicker = time.NewTicker(RefreshInterval)
 	go s.loop()
+	go s.refreshLoop()
 }
 
 func (s *Service) loop() {
@@ -327,6 +353,17 @@ func (s *Service) loop() {
 			return
 		case <-s.ticker.C:
 			s.flush()
+		}
+	}
+}
+
+func (s *Service) refreshLoop() {
+	for {
+		select {
+		case <-s.stopChan:
+			return
+		case <-s.refreshTicker.C:
+			s.refreshPoolsFromProvider(context.Background())
 		}
 	}
 }
@@ -351,5 +388,79 @@ func (s *Service) flush() {
 	}
 	if s.logger.GetLevel() <= zerolog.DebugLevel {
 		s.logger.Debug().Int("count", len(updates)).Msg("flushed jackpot updates")
+	}
+}
+
+// refreshPoolsFromProvider periodically refreshes pool values from the reward provider.
+// This ensures clients get accurate values even if Kafka updates are delayed or missing.
+// Only refreshes registered pools (pools with known init values).
+// This method is safe to call concurrently - it will skip if a refresh is already in progress.
+func (s *Service) refreshPoolsFromProvider(ctx context.Context) {
+	// Prevent concurrent refreshes
+	s.refreshMu.Lock()
+	if s.refreshing {
+		s.refreshMu.Unlock()
+		return
+	}
+	s.refreshing = true
+	s.refreshMu.Unlock()
+
+	defer func() {
+		s.refreshMu.Lock()
+		s.refreshing = false
+		s.refreshMu.Unlock()
+	}()
+
+	s.mu.RLock()
+	// Collect registered pools with their init values
+	poolIDsToRefresh := make(map[string]decimal.Decimal, len(s.pools))
+	for poolID, pool := range s.pools {
+		poolIDsToRefresh[poolID] = pool.Init
+	}
+	store := s.reward
+	s.mu.RUnlock()
+
+	if store == nil {
+		// No reward provider, nothing to refresh
+		return
+	}
+
+	if len(poolIDsToRefresh) == 0 {
+		// No registered pools to refresh
+		return
+	}
+
+	// Refresh each pool from provider
+	refreshedCount := 0
+	for poolID, initValue := range poolIDsToRefresh {
+		poolData, err := store.GetPool(ctx, poolID, initValue)
+		if err != nil {
+			// Log error but continue with other pools
+			s.logger.Debug().Err(err).Str("pool_id", poolID).Msg("Failed to refresh pool from provider")
+			continue
+		}
+
+		// Create update from provider data
+		update := Update{
+			PoolID:    poolID,
+			Amount:    poolData.Amount,
+			Timestamp: poolData.UpdatedAt,
+		}
+
+		// Update buffer with fresh data
+		s.mu.Lock()
+		// Only update if provider timestamp is newer than buffer
+		if existingUpdate, exists := s.buffer[poolID]; !exists || poolData.UpdatedAt.After(existingUpdate.Timestamp) {
+			s.buffer[poolID] = update
+			refreshedCount++
+		}
+		s.mu.Unlock()
+
+		// Broadcast the refreshed update immediately
+		s.broad.Send(update)
+	}
+
+	if refreshedCount > 0 {
+		s.logger.Debug().Int("count", refreshedCount).Msg("refreshed pools from provider")
 	}
 }

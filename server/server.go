@@ -93,7 +93,7 @@ func New(opts Options) *App {
 
 	// Jackpot service (buffered + broadcast interval)
 	app.jackpotService = jackpot.NewService(jackpot.ServiceConfig{
-		BroadcastInterval: 2 * time.Second,
+		BroadcastInterval: jackpot.DefaultBroadcastInterval,
 		Logger:            opts.Logger,
 	})
 
