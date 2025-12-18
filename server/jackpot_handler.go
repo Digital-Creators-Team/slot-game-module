@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"github.com/rs/zerolog"
+	"github.com/shopspring/decimal"
 )
 
 // SSE event types
@@ -149,7 +150,23 @@ func (h *JackpotHandler) StreamUpdates(c *gin.Context) {
 		Msg("SSE: Connection established, sending initial data")
 
 	// Send initial data with EventTypeUpdated for pools matching bet multiplier
-	if currentPools, err := h.svc.GetCurrentPools(ctx); err == nil {
+	// Use GetPoolsByIDs if we have target pool IDs, otherwise fallback to GetCurrentPools
+	var currentPools []jackpot.Update
+	var err error
+	if len(targetPoolIDs) > 0 {
+		// Create init value getter from game module if available
+		var initValueGetter func(poolID string) (decimal.Decimal, error)
+		if handler, ok := gameModule.(game.JackpotHandler); ok {
+			initValueGetter = func(poolID string) (decimal.Decimal, error) {
+				return handler.GetInitialPoolValue(ctx, poolID, betMultiplier)
+			}
+		}
+		currentPools, err = h.svc.GetPoolsByIDs(ctx, targetPoolIDs, initValueGetter)
+	} else {
+		currentPools, err = h.svc.GetCurrentPools(ctx)
+	}
+
+	if err == nil {
 		h.logger.Debug().Int("total_pools", len(currentPools)).Msg("SSE: Retrieved current pools")
 		sentCount := 0
 		for _, pool := range currentPools {
@@ -326,7 +343,22 @@ func (h *JackpotHandler) StreamUpdatesWebSocket(c *gin.Context) {
 		Msg("WebSocket: Connection established, sending initial data")
 
 	// Send initial data with EventTypeUpdated for pools matching bet multiplier
-	if currentPools, err := h.svc.GetCurrentPools(ctx); err == nil {
+	// Use GetPoolsByIDs if we have target pool IDs, otherwise fallback to GetCurrentPools
+	var currentPools []jackpot.Update
+	if len(targetPoolIDs) > 0 {
+		// Create init value getter from game module if available
+		var initValueGetter func(poolID string) (decimal.Decimal, error)
+		if handler, ok := gameModule.(game.JackpotHandler); ok {
+			initValueGetter = func(poolID string) (decimal.Decimal, error) {
+				return handler.GetInitialPoolValue(ctx, poolID, betMultiplier)
+			}
+		}
+		currentPools, err = h.svc.GetPoolsByIDs(ctx, targetPoolIDs, initValueGetter)
+	} else {
+		currentPools, err = h.svc.GetCurrentPools(ctx)
+	}
+
+	if err == nil {
 		h.logger.Debug().Int("total_pools", len(currentPools)).Msg("WebSocket: Retrieved current pools")
 		sentCount := 0
 		for _, pool := range currentPools {

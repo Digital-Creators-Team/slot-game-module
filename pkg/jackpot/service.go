@@ -168,6 +168,81 @@ func (s *Service) GetCurrentPools(ctx context.Context) ([]Update, error) {
 	return updates, nil
 }
 
+// GetPoolsByIDs returns the current state of pools by their IDs.
+// This method checks:
+// 1. Buffer (most recent update if available)
+// 2. Registered pools + reward provider
+// 3. Reward provider directly (if pool not registered but initValue is provided)
+// If initValueGetter is provided, it will be used to get init values for unregistered pools.
+// initValueGetter signature: func(poolID string) (decimal.Decimal, error)
+func (s *Service) GetPoolsByIDs(ctx context.Context, poolIDs []string, initValueGetter func(poolID string) (decimal.Decimal, error)) ([]Update, error) {
+	s.mu.RLock()
+	buffer := make(map[string]Update)
+	for k, v := range s.buffer {
+		buffer[k] = v
+	}
+	registeredPools := make(map[string]PoolConfig)
+	for k, v := range s.pools {
+		registeredPools[k] = v
+	}
+	store := s.reward
+	s.mu.RUnlock()
+
+	updates := make([]Update, 0, len(poolIDs))
+	for _, poolID := range poolIDs {
+		var amount decimal.Decimal
+		var updatedAt time.Time
+		var initValue decimal.Decimal
+
+		// Check buffer first (most recent update)
+		if bufferedUpdate, ok := buffer[poolID]; ok {
+			updates = append(updates, bufferedUpdate)
+			continue
+		}
+
+		// Check if pool is registered
+		if pool, ok := registeredPools[poolID]; ok {
+			initValue = pool.Init
+		} else if initValueGetter != nil {
+			// Try to get init value from game module
+			var err error
+			initValue, err = initValueGetter(poolID)
+			if err != nil {
+				// If we can't get init value, skip this pool
+				continue
+			}
+		} else {
+			// No init value available, skip this pool
+			continue
+		}
+
+		// Try to get current amount from reward provider
+		if store != nil {
+			poolData, err := store.GetPool(ctx, poolID, initValue)
+			if err != nil {
+				// If error, fallback to init value
+				amount = initValue
+				updatedAt = time.Now()
+			} else {
+				amount = poolData.Amount
+				updatedAt = poolData.UpdatedAt
+			}
+		} else {
+			// No provider, use init value
+			amount = initValue
+			updatedAt = time.Now()
+		}
+
+		updates = append(updates, Update{
+			PoolID:    poolID,
+			Amount:    amount,
+			Timestamp: updatedAt,
+		})
+	}
+
+	return updates, nil
+}
+
 // HandleKafkaUpdate buffers an external update (e.g. from Kafka).
 // Caller provides poolID + new amount. This is transport-agnostic.
 // Pools are created dynamically (pool_id includes bet_multiplier), so we don't require pre-registration.
