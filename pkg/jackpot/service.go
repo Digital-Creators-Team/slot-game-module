@@ -194,13 +194,7 @@ func (s *Service) GetPoolsByIDs(ctx context.Context, poolIDs []string, initValue
 		var updatedAt time.Time
 		var initValue decimal.Decimal
 
-		// Check buffer first (most recent update)
-		if bufferedUpdate, ok := buffer[poolID]; ok {
-			updates = append(updates, bufferedUpdate)
-			continue
-		}
-
-		// Check if pool is registered
+		// Get init value first (needed for reward provider)
 		if pool, ok := registeredPools[poolID]; ok {
 			initValue = pool.Init
 		} else if initValueGetter != nil {
@@ -216,28 +210,44 @@ func (s *Service) GetPoolsByIDs(ctx context.Context, poolIDs []string, initValue
 			continue
 		}
 
-		// Try to get current amount from reward provider
+		// Get current amount from reward provider (source of truth)
+		var providerUpdate *Update
 		if store != nil {
 			poolData, err := store.GetPool(ctx, poolID, initValue)
-			if err != nil {
-				// If error, fallback to init value
-				amount = initValue
-				updatedAt = time.Now()
-			} else {
-				amount = poolData.Amount
-				updatedAt = poolData.UpdatedAt
+			if err == nil {
+				providerUpdate = &Update{
+					PoolID:    poolID,
+					Amount:    poolData.Amount,
+					Timestamp: poolData.UpdatedAt,
+				}
 			}
-		} else {
-			// No provider, use init value
-			amount = initValue
-			updatedAt = time.Now()
 		}
 
-		updates = append(updates, Update{
-			PoolID:    poolID,
-			Amount:    amount,
-			Timestamp: updatedAt,
-		})
+		// Check buffer for recent updates
+		bufferedUpdate, hasBuffer := buffer[poolID]
+
+		// Choose the most recent value: compare buffer vs provider
+		if hasBuffer && providerUpdate != nil {
+			// Both exist: use the one with newer timestamp
+			if bufferedUpdate.Timestamp.After(providerUpdate.Timestamp) {
+				updates = append(updates, bufferedUpdate)
+			} else {
+				updates = append(updates, *providerUpdate)
+			}
+		} else if hasBuffer {
+			// Only buffer exists: use buffer
+			updates = append(updates, bufferedUpdate)
+		} else if providerUpdate != nil {
+			// Only provider exists: use provider
+			updates = append(updates, *providerUpdate)
+		} else {
+			// Neither exists: use init value
+			updates = append(updates, Update{
+				PoolID:    poolID,
+				Amount:    initValue,
+				Timestamp: time.Now(),
+			})
+		}
 	}
 
 	return updates, nil
