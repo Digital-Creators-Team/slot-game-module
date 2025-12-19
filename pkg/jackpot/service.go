@@ -64,6 +64,71 @@ func (s *Service) RegisterPool(cfg PoolConfig) {
 	s.pools[cfg.ID] = cfg
 }
 
+// InitializePoolsFromProvider initializes buffer with current pool values from provider.
+// This should be called after registering pools to ensure buffer has accurate data from the start.
+// If RewardProvider is not set, this method does nothing.
+func (s *Service) InitializePoolsFromProvider(ctx context.Context) error {
+	s.mu.RLock()
+	store := s.reward
+	pools := make([]PoolConfig, 0, len(s.pools))
+	for _, pool := range s.pools {
+		pools = append(pools, pool)
+	}
+	s.mu.RUnlock()
+
+	if store == nil {
+		s.logger.Debug().Msg("RewardProvider not set, skipping pool initialization")
+		return nil
+	}
+
+	if len(pools) == 0 {
+		s.logger.Debug().Msg("No pools registered, skipping initialization")
+		return nil
+	}
+
+	initializedCount := 0
+	for _, pool := range pools {
+		poolData, err := store.GetPool(ctx, pool.ID, pool.Init)
+		if err != nil {
+			s.logger.Debug().
+				Err(err).
+				Str("pool_id", pool.ID).
+				Msg("Failed to initialize pool from provider, using init value")
+			// Use init value as fallback
+			s.mu.Lock()
+			s.buffer[pool.ID] = Update{
+				PoolID:    pool.ID,
+				Amount:    pool.Init,
+				Timestamp: time.Now(),
+			}
+			s.mu.Unlock()
+			continue
+		}
+
+		// Update buffer with current value from provider
+		s.mu.Lock()
+		s.buffer[pool.ID] = Update{
+			PoolID:    pool.ID,
+			Amount:    poolData.Amount,
+			Timestamp: poolData.UpdatedAt,
+		}
+		s.mu.Unlock()
+
+		initializedCount++
+		s.logger.Debug().
+			Str("pool_id", pool.ID).
+			Float64("amount", poolData.Amount.InexactFloat64()).
+			Msg("Initialized pool from provider")
+	}
+
+	s.logger.Info().
+		Int("total_pools", len(pools)).
+		Int("initialized", initializedCount).
+		Msg("Initialized pools from provider")
+
+	return nil
+}
+
 // Contribute calculates contributions for a total bet using registered pools.
 // prog is treated as percentage (0.01 -> 1% of totalBet).
 func (s *Service) Contribute(totalBet decimal.Decimal) []Contribution {
@@ -119,6 +184,11 @@ func (s *Service) SetRewardProvider(store RewardProvider) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.reward = store
+	if store != nil {
+		s.logger.Debug().Msg("RewardProvider set on jackpot service")
+	} else {
+		s.logger.Warn().Msg("RewardProvider set to nil on jackpot service")
+	}
 }
 
 // SetGameCode sets the default game code used for persisting contributions.
@@ -219,22 +289,8 @@ func (s *Service) GetPoolsByIDs(ctx context.Context, poolIDs []string, initValue
 			continue
 		}
 
-		// Check buffer first (most efficient - no provider call needed)
-		bufferedUpdate, hasBuffer := buffer[poolID]
-		
-		// If buffer exists and is recent (within refresh interval), use it directly
-		// This avoids unnecessary provider calls since we have periodic refresh
-		if hasBuffer {
-			age := time.Since(bufferedUpdate.Timestamp)
-			if age < RefreshInterval {
-				// Buffer is fresh, use it
-				updates = append(updates, bufferedUpdate)
-				continue
-			}
-			// Buffer exists but is stale, will check provider below
-		}
-
-		// Buffer doesn't exist or is stale: get from provider
+		// Always get from provider first (source of truth)
+		// Buffer may contain stale or incorrect values from Kafka
 		var providerUpdate *Update
 		if store != nil {
 			poolData, err := store.GetPool(ctx, poolID, initValue)
@@ -244,25 +300,66 @@ func (s *Service) GetPoolsByIDs(ctx context.Context, poolIDs []string, initValue
 					Amount:    poolData.Amount,
 					Timestamp: poolData.UpdatedAt,
 				}
+			} else {
+				// Log error for debugging
+				s.logger.Debug().Err(err).Str("pool_id", poolID).Msg("Failed to get pool from provider")
 			}
+		} else {
+			// RewardProvider is not set - this is a configuration issue
+			s.logger.Warn().
+				Str("pool_id", poolID).
+				Msg("RewardProvider is nil - cannot get accurate pool value from provider. Please call SetRewardProvider() on jackpot service.")
 		}
 
+		// Check buffer for potentially newer updates
+		bufferedUpdate, hasBuffer := buffer[poolID]
+
 		// Choose the most recent value: compare buffer vs provider
+		// Always prefer provider unless buffer is clearly newer (more than a few seconds)
 		if hasBuffer && providerUpdate != nil {
 			// Both exist: use the one with newer timestamp
-			if bufferedUpdate.Timestamp.After(providerUpdate.Timestamp) {
+			// But only trust buffer if it's significantly newer (at least 1 second)
+			// This prevents using stale buffer values
+			timeDiff := bufferedUpdate.Timestamp.Sub(providerUpdate.Timestamp)
+			if timeDiff > 1*time.Second {
+				// Buffer is significantly newer, use it
+				s.logger.Debug().
+					Str("pool_id", poolID).
+					Float64("buffer_amount", bufferedUpdate.Amount.InexactFloat64()).
+					Float64("provider_amount", providerUpdate.Amount.InexactFloat64()).
+					Dur("time_diff", timeDiff).
+					Msg("Using buffer (newer than provider)")
 				updates = append(updates, bufferedUpdate)
 			} else {
+				// Provider is same or newer, use provider (more reliable)
+				s.logger.Debug().
+					Str("pool_id", poolID).
+					Float64("buffer_amount", bufferedUpdate.Amount.InexactFloat64()).
+					Float64("provider_amount", providerUpdate.Amount.InexactFloat64()).
+					Dur("time_diff", timeDiff).
+					Msg("Using provider (same or newer than buffer)")
 				updates = append(updates, *providerUpdate)
 			}
-		} else if hasBuffer {
-			// Only buffer exists (but stale): use buffer anyway
-			updates = append(updates, bufferedUpdate)
 		} else if providerUpdate != nil {
 			// Only provider exists: use provider
+			s.logger.Debug().
+				Str("pool_id", poolID).
+				Float64("provider_amount", providerUpdate.Amount.InexactFloat64()).
+				Msg("Using provider (no buffer)")
 			updates = append(updates, *providerUpdate)
+		} else if hasBuffer {
+			// Only buffer exists: use buffer as fallback
+			s.logger.Debug().
+				Str("pool_id", poolID).
+				Float64("buffer_amount", bufferedUpdate.Amount.InexactFloat64()).
+				Msg("Using buffer (no provider)")
+			updates = append(updates, bufferedUpdate)
 		} else {
 			// Neither exists: use init value
+			s.logger.Debug().
+				Str("pool_id", poolID).
+				Float64("init_amount", initValue.InexactFloat64()).
+				Msg("Using init value (no provider, no buffer)")
 			updates = append(updates, Update{
 				PoolID:    poolID,
 				Amount:    initValue,
@@ -278,6 +375,8 @@ func (s *Service) GetPoolsByIDs(ctx context.Context, poolIDs []string, initValue
 // Caller provides poolID + new amount. This is transport-agnostic.
 // Pools are created dynamically (pool_id includes bet_multiplier), so we don't require pre-registration.
 // We only check if pool_id starts with game code to filter pools belonging to this game.
+// Note: Updates from Kafka are buffered and will be broadcast via flush().
+// The refresh mechanism will periodically verify and correct buffer values from provider.
 func (s *Service) HandleKafkaUpdate(update Update) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -289,7 +388,27 @@ func (s *Service) HandleKafkaUpdate(update Update) {
 	if update.Timestamp.IsZero() {
 		update.Timestamp = time.Now()
 	}
+	
+	// Only update buffer if the new update is newer than existing one
+	// This prevents overwriting with stale Kafka messages
+	if existingUpdate, exists := s.buffer[update.PoolID]; exists {
+		if update.Timestamp.Before(existingUpdate.Timestamp) {
+			// New update is older, ignore it
+			s.logger.Debug().
+				Str("pool_id", update.PoolID).
+				Time("existing_timestamp", existingUpdate.Timestamp).
+				Time("new_timestamp", update.Timestamp).
+				Msg("Ignoring stale Kafka update")
+			return
+		}
+	}
+	
 	s.buffer[update.PoolID] = update
+	s.logger.Debug().
+		Str("pool_id", update.PoolID).
+		Float64("amount", update.Amount.InexactFloat64()).
+		Time("timestamp", update.Timestamp).
+		Msg("Buffered Kafka update")
 }
 
 // GetRegisteredPoolIDs returns a copy of all registered pool IDs.
