@@ -28,6 +28,10 @@ type ModuleContext struct {
 	// Player state (set by game service before calling game module methods)
 	// Endusers can access and modify this in their game module implementations
 	playerState *PlayerState
+
+	// Extra data from spin request (set by game service before calling game module methods)
+	// Endusers can access this in their game module implementations
+	spinRequestExtraData map[string]interface{}
 }
 
 // NewModuleContext creates a new ModuleContext
@@ -184,6 +188,35 @@ func (mc *ModuleContext) setPlayerState(state *PlayerState) {
 func SetPlayerStateForModule(ctx context.Context, state *PlayerState) {
 	if mc := FromContext(ctx); mc != nil {
 		mc.setPlayerState(state)
+	}
+}
+
+// setSpinRequestExtraData sets the extra data from spin request in the context
+// This is used internally by the game service
+func (mc *ModuleContext) setSpinRequestExtraData(extraData map[string]interface{}) {
+	mc.spinRequestExtraData = extraData
+}
+
+// GetSpinRequestExtraData returns the extra data from the spin request
+// This is set by the game service before calling game module methods (PlayNormalSpin, PlayFreeSpin, etc.)
+// Returns nil if not set
+// Endusers can use this to access custom data sent in the spin request
+//
+// Example usage in PlayNormalSpin:
+//   mc := game.MustFromContext(ctx)
+//   if extraData := mc.GetSpinRequestExtraData(); extraData != nil {
+//       customValue := extraData["customField"]
+//   }
+func (mc *ModuleContext) GetSpinRequestExtraData() map[string]interface{} {
+	return mc.spinRequestExtraData
+}
+
+// SetSpinRequestExtraDataForModule sets the extra data from spin request in the ModuleContext
+// This is a helper function for internal use by the game service
+// Endusers should use GetSpinRequestExtraData() to access the data
+func SetSpinRequestExtraDataForModule(ctx context.Context, extraData map[string]interface{}) {
+	if mc := FromContext(ctx); mc != nil {
+		mc.setSpinRequestExtraData(extraData)
 	}
 }
 

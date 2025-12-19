@@ -143,6 +143,8 @@ type SpinRequest struct {
 	BetMultiplier float32 `json:"betMultiplier" binding:"required" example:"1.0"`
 	// Optional cheat payout for testing
 	CheatPayout *game.CheatPayout `json:"cheatPayout,omitempty"`
+	// Optional extra data for game-specific customization
+	ExtraData map[string]interface{} `json:"extraData,omitempty"`
 }
 
 // Spin godoc
@@ -221,6 +223,7 @@ func (h *GameHandler) Spin(c *gin.Context) {
 		CurrencyID:    currencyID,
 		BetMultiplier: req.BetMultiplier,
 		CheatPayout:   req.CheatPayout,
+		ExtraData:     req.ExtraData,
 	})
 	if err != nil {
 		h.logger.Error().Err(err).
@@ -240,6 +243,7 @@ func (h *GameHandler) Spin(c *gin.Context) {
 		Str("session_id", result.SessionID).
 		Float64("total_bet", result.SpinResult.TotalBet.InexactFloat64()).
 		Float64("total_win", result.SpinResult.TotalWin.InexactFloat64()).
+		Float64("ending_balance", result.SpinResult.EndingBalance.InexactFloat64()).
 		Int("spin_type", result.SpinResult.SpinType).
 		Msg("Spin executed")
 

@@ -68,6 +68,7 @@ type SpinServiceRequest struct {
 	CurrencyID    string
 	BetMultiplier float32
 	CheatPayout   *game.CheatPayout
+	ExtraData     map[string]interface{}
 }
 
 // SpinResponse represents a spin response
@@ -117,6 +118,9 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 	// Set player state in ModuleContext so endusers can access and modify it
 	// Since playerState is a pointer, modifications by endusers are automatically reflected
 	game.SetPlayerStateForModule(ctx, playerState)
+
+	// Set extra data from spin request in ModuleContext so endusers can access it
+	game.SetSpinRequestExtraDataForModule(ctx, req.ExtraData)
 
 	// 4. Calculate total bet
 	totalBet := decimal.NewFromFloat32(req.BetMultiplier).Mul(decimal.NewFromInt(int64(gameConfig.PayLine)))

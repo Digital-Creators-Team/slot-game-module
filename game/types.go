@@ -27,23 +27,24 @@ type Winline struct {
 
 // SpinResult represents the result of a single spin
 type SpinResult struct {
-	Reels             [][]Symbol      `json:"reels,omitempty"`
-	Winlines          []Winline       `json:"winlines,omitempty"`
-	TotalWin          decimal.Decimal `json:"totalWin,omitempty"`
-	TotalBet          decimal.Decimal `json:"totalBet,omitempty"`
-	Multiplier        int             `json:"multiplier,omitempty"`
-	IsGetFreeSpin     *bool           `json:"isGetFreeSpin,omitempty"`
-	ResultFreeSpin    *int            `json:"resultFreeSpin,omitempty"`
-	FreeSpinBets      []*SpinResult   `json:"freeSpinBets,omitempty"`
-	IsGetJackpot      *bool           `json:"isGetJackpot,omitempty"`
-	TotalWinJackpot   decimal.Decimal `json:"totalWinJackpot,omitempty"`
-	EndingBalance     decimal.Decimal `json:"endingBalance,omitempty"`
-	RemainingFreeSpin *int            `json:"remainingFreeSpin,omitempty"`
-	TotalWinFreeSpin  decimal.Decimal `json:"totalWinFreeSpin,omitempty"`
-	IsLastFreeSpin    *bool           `json:"isLastFreeSpin,omitempty"`
-	WinTitle          string          `json:"winTitle,omitempty"`
-	SpinType          int             `json:"spinType,omitempty"` // 0 = normal, 1 = free spin
-	SubReel           []int           `json:"subReel,omitempty"`  // For games with sub reel (e.g., parrot treasure)
+	Reels             [][]Symbol           `json:"reels,omitempty"`
+	Winlines          []Winline            `json:"winlines,omitempty"`
+	TotalWin          decimal.Decimal      `json:"totalWin,omitempty"`
+	TotalBet          decimal.Decimal      `json:"totalBet,omitempty"`
+	Multiplier        int                  `json:"multiplier,omitempty"`
+	IsGetFreeSpin     *bool                `json:"isGetFreeSpin,omitempty"`
+	ResultFreeSpin    *int                 `json:"resultFreeSpin,omitempty"`
+	FreeSpinBets      []*SpinResult        `json:"freeSpinBets,omitempty"`
+	IsGetJackpot      *bool                `json:"isGetJackpot,omitempty"`
+	TotalWinJackpot   decimal.Decimal      `json:"totalWinJackpot,omitempty"`
+	EndingBalance     decimal.Decimal      `json:"endingBalance,omitempty"`
+	RemainingFreeSpin *int                 `json:"remainingFreeSpin,omitempty"`
+	TotalWinFreeSpin  decimal.Decimal      `json:"totalWinFreeSpin,omitempty"`
+	IsLastFreeSpin    *bool                `json:"isLastFreeSpin,omitempty"`
+	WinTitle          string               `json:"winTitle,omitempty"`
+	SpinType          int                  `json:"spinType,omitempty"` // 0 = normal, 1 = free spin
+	SubReel           []int                `json:"subReel,omitempty"`  // For games with sub reel (e.g., parrot treasure)
+	ExtraData         map[string]interface{} `json:"extraData,omitempty"` // Custom data for game-specific use
 }
 
 // SpinResponse represents the API response for a spin
@@ -62,9 +63,10 @@ type SpinResponse struct {
 	EndingBalance     decimal.Decimal `json:"endingBalance,omitempty"`
 	TotalBet          decimal.Decimal `json:"totalBet,omitempty"`
 	Multiplier        int             `json:"multiplier,omitempty"`
-	SpinType          int             `json:"spinType,omitempty"`
-	JackpotPrize      decimal.Decimal `json:"jackpotPrize,omitempty"`
-	SubReel           []int           `json:"subReel,omitempty"`
+	SpinType          int                  `json:"spinType,omitempty"`
+	JackpotPrize      decimal.Decimal      `json:"jackpotPrize,omitempty"`
+	SubReel           []int                `json:"subReel,omitempty"`
+	ExtraData         map[string]interface{} `json:"extraData,omitempty"` // Custom data for game-specific use
 }
 
 // ToSpinResponse converts SpinResult to SpinResponse format
@@ -92,6 +94,7 @@ func (sr *SpinResult) ToSpinResponse() *SpinResponse {
 		SpinType:          sr.SpinType,
 		JackpotPrize:      sr.TotalWinJackpot, // Alias for TotalWinJackpot
 		SubReel:           sr.SubReel,
+		ExtraData:         sr.ExtraData,
 	}
 }
 
@@ -272,7 +275,8 @@ type CheatPayout struct {
 
 // SpinRequest represents a spin request DTO
 type SpinRequest struct {
-	BetMultiplier float32      `json:"betMultiplier" binding:"required"`
-	GameCode      string       `json:"gameCode" binding:"required"`
-	CheatPayout   *CheatPayout `json:"cheatPayout,omitempty"`
+	BetMultiplier float32                `json:"betMultiplier" binding:"required"`
+	GameCode      string                 `json:"gameCode" binding:"required"`
+	CheatPayout   *CheatPayout           `json:"cheatPayout,omitempty"`
+	ExtraData     map[string]interface{} `json:"extraData,omitempty"` // Custom data for game-specific use
 }
