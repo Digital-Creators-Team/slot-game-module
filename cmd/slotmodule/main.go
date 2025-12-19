@@ -2341,7 +2341,7 @@ notify-{{.GameCode}}:
     - fgs-dind-runner-vn
 `
 
-var makefileTemplate = `.PHONY: run build test clean docker-build docker-run swagger vendor
+var makefileTemplate = `.PHONY: run build test clean docker-build docker-run swagger vendor update
 
 # Variables
 APP_NAME = {{.GameCode}}
@@ -2372,6 +2372,12 @@ deps:
 
 # Vendor dependencies (required for swagger to parse module annotations)
 vendor:
+	go mod vendor
+
+# Update slot-game-module to latest version, tidy, and vendor
+update:
+	go get -u git.futuregamestudio.net/be-shared/slot-game-module.git
+	go mod tidy
 	go mod vendor
 
 # Generate swagger docs
