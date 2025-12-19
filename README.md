@@ -20,6 +20,21 @@ A public Go module for building slot game services. This module provides a compl
 go get git.futuregamestudio.net/be-shared/slot-game-module.git
 ```
 
+## Updating Module Version
+
+To update the slot-game-module to the latest version:
+
+```bash
+go get -u git.futuregamestudio.net/be-shared/slot-game-module.git
+```
+
+This will update the module to the latest version and update your `go.mod` file accordingly. After updating, run:
+
+```bash
+go mod tidy
+go mod vendor  # if you're using vendoring
+```
+
 ## Quick Start
 
 ### Install CLI Tool

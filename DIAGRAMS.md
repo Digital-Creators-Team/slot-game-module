@@ -58,12 +58,13 @@ sequenceDiagram
     GM->>GM: Calculate winlines
     GM-->>GS: SpinResult
     
+    Note over GS,RP: Progressive amount before spin<br/>Contribute first, then claim if won
+    GS->>RP: Contribute(poolID, amount)
+    RP-->>GS: OK
+    
     alt IsGetJackpot
         GS->>RP: Claim(poolID)
         RP-->>GS: ClaimResult
-    else No Jackpot
-        GS->>RP: Contribute(poolID, amount)
-        RP-->>GS: OK
     end
     
     GS->>WP: Deposit(winnings)
@@ -142,20 +143,21 @@ sequenceDiagram
 
 ```mermaid
 flowchart TD
-    Start[Execute Spin] --> Check{IsGetJackpot?}
+    Start[Execute Spin] --> GetContrib[Get Contributions]
+    Note over GetContrib: Progressive amount before spin
+    
+    GetContrib --> Loop{For each pool}
+    Loop --> Contribute[Contribute Amount]
+    Contribute --> Loop
+    Loop -->|Done| Check{IsGetJackpot?}
     
     Check -->|Yes| GetWin[Get Win Info]
-    Check -->|No| GetContrib[Get Contributions]
-    
     GetWin --> Claim[Claim Jackpot]
     Claim --> UpdateWin[Update SpinResult]
     UpdateWin --> LogJackpot[Log Jackpot Win]
     LogJackpot --> End[End]
     
-    GetContrib --> Loop{For each pool}
-    Loop --> Contribute[Contribute Amount]
-    Contribute --> Loop
-    Loop -->|Done| End
+    Check -->|No| End
     
     style Check fill:#fff4e1
     style GetWin fill:#e8f5e9
