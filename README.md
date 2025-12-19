@@ -32,7 +32,7 @@ This will update the module to the latest version and update your `go.mod` file 
 
 ```bash
 go mod tidy
-go mod vendor  # if you're using vendoring
+go mod vendor
 ```
 
 ## Quick Start
