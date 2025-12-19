@@ -186,3 +186,4 @@ func (c *InvalidConfig) GetConfig() *Config {
 	// Return nil to indicate invalid config
 	return nil
 }
+

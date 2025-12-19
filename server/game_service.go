@@ -113,6 +113,10 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 		return nil, err
 	}
 
+	// Set player state in ModuleContext so endusers can access and modify it
+	// Since playerState is a pointer, modifications by endusers are automatically reflected
+	game.SetPlayerStateForModule(ctx, playerState)
+
 	// 4. Calculate total bet
 	totalBet := decimal.NewFromFloat32(req.BetMultiplier).Mul(decimal.NewFromInt(int64(gameConfig.PayLine)))
 
@@ -133,6 +137,11 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 			return nil, err
 		}
 	}
+
+	// Update timestamp before saving
+	// Note: Since playerState is a pointer, any modifications by endusers in PlayNormalSpin/PlayFreeSpin
+	// are automatically reflected here - no need to get state from ModuleContext again
+	playerState.UpdatedAt = time.Now()
 
 	// 6. Get ending balance
 	var balance decimal.Decimal
@@ -269,6 +278,7 @@ func (s *GameService) executeNormalSpin(
 	}
 
 	// 5. Update player state if free spins triggered
+	// Note: playerState is a pointer, so modifications by endusers in PlayNormalSpin are already reflected
 	if spinResult.IsGetFreeSpin != nil && *spinResult.IsGetFreeSpin {
 		if spinResult.ResultFreeSpin != nil && *spinResult.ResultFreeSpin > 0 {
 			playerState.IsFreeSpin = true
@@ -293,6 +303,7 @@ func (s *GameService) executeFreeSpin(
 	betMultiplier float32,
 ) (*game.SpinResult, error) {
 	// Get the next pre-generated free spin result
+	// Note: playerState is a pointer, so modifications by endusers are automatically reflected
 	if playerState.PlayedFreeSpin == nil {
 		playedCount := 0
 		playerState.PlayedFreeSpin = &playedCount
@@ -424,4 +435,3 @@ func (s *GameService) processJackpotWin(
 
 	return nil
 }
-

@@ -97,16 +97,17 @@ func (sr *SpinResult) ToSpinResponse() *SpinResponse {
 
 // PlayerState represents the current state of a player in a game
 type PlayerState struct {
-	IsFreeSpin          bool            `json:"isFreeSpin"`
-	RemainingFreeSpin   int             `json:"remainingFreeSpin"`
-	TotalWinFreeSpin    decimal.Decimal `json:"totalWinFreeSpin"`
-	BetMultiplier       float32         `json:"betMultiplier"`
-	FreeSpins           []*SpinResult   `json:"freeSpins,omitempty"`
-	PlayedFreeSpin      *int            `json:"playedFreeSpin,omitempty"`
-	IsLastFreeSpin      bool            `json:"isLastFreeSpin"`
-	SpinResult          *SpinResult     `json:"spinResult,omitempty"`
-	SpinResultTriggerFG *SpinResult     `json:"spinResultTriggerFG,omitempty"`
-	UpdatedAt           time.Time       `json:"updatedAt"`
+	IsFreeSpin          bool                 `json:"isFreeSpin"`
+	RemainingFreeSpin   int                  `json:"remainingFreeSpin"`
+	TotalWinFreeSpin    decimal.Decimal      `json:"totalWinFreeSpin"`
+	BetMultiplier       float32              `json:"betMultiplier"`
+	FreeSpins           []*SpinResult        `json:"freeSpins,omitempty"`
+	PlayedFreeSpin      *int                 `json:"playedFreeSpin,omitempty"`
+	IsLastFreeSpin      bool                 `json:"isLastFreeSpin"`
+	SpinResult          *SpinResult          `json:"spinResult,omitempty"`
+	SpinResultTriggerFG *SpinResult          `json:"spinResultTriggerFG,omitempty"`
+	UpdatedAt           time.Time            `json:"updatedAt"`
+	ExtraData           map[string]interface{} `json:"extraData,omitempty"` // Custom data for game-specific use
 }
 
 // ToJSON serializes PlayerState to JSON
@@ -120,6 +121,10 @@ func PlayerStateFromJSON(data []byte) (*PlayerState, error) {
 	if err := json.Unmarshal(data, &state); err != nil {
 		return nil, err
 	}
+	// Initialize ExtraData if nil (for backward compatibility with old states)
+	if state.ExtraData == nil {
+		state.ExtraData = make(map[string]interface{})
+	}
 	return &state, nil
 }
 
@@ -131,6 +136,7 @@ func NewPlayerState() *PlayerState {
 		TotalWinFreeSpin:  decimal.Zero,
 		BetMultiplier:     1.0,
 		UpdatedAt:         time.Now(),
+		ExtraData:         make(map[string]interface{}),
 	}
 }
 
@@ -143,6 +149,7 @@ func (p *PlayerState) Reset() {
 	p.PlayedFreeSpin = nil
 	p.IsLastFreeSpin = false
 	p.SpinResultTriggerFG = nil
+	p.ExtraData = make(map[string]interface{})
 	p.UpdatedAt = time.Now()
 }
 

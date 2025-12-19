@@ -24,6 +24,10 @@ type ModuleContext struct {
 	walletProvider interface{} // providers.WalletProvider
 	rewardProvider interface{} // providers.RewardProvider
 	logProvider    interface{} // providers.LogProvider
+
+	// Player state (set by game service before calling game module methods)
+	// Endusers can access and modify this in their game module implementations
+	playerState *PlayerState
 }
 
 // NewModuleContext creates a new ModuleContext
@@ -144,6 +148,43 @@ func (mc *ModuleContext) GetRewardProvider() interface{} {
 // Prefer using LogProvider() for type-safe access
 func (mc *ModuleContext) GetLogProvider() interface{} {
 	return mc.logProvider
+}
+
+// GetPlayerState returns the current player state
+// This is set by the game service before calling game module methods (PlayNormalSpin, PlayFreeSpin, etc.)
+// Returns nil if not set (should not happen in normal game module methods)
+// Endusers can use this to read and modify player state in their game implementations
+//
+// Since playerState is a pointer, direct modifications are automatically reflected.
+// No need to call any update method - just modify the state directly.
+//
+// Example usage in PlayNormalSpin:
+//   mc := game.MustFromContext(ctx)
+//   playerState := mc.GetPlayerState()
+//   if playerState != nil {
+//       // Read current state
+//       isFreeSpin := playerState.IsFreeSpin
+//       // Modify state directly - changes are automatically reflected
+//       playerState.ExtraData["customField"] = "customValue"
+//       playerState.BetMultiplier = 2.0
+//   }
+func (mc *ModuleContext) GetPlayerState() *PlayerState {
+	return mc.playerState
+}
+
+// setPlayerState sets the player state in the context
+// This is used internally by the game service to make player state available to game modules
+func (mc *ModuleContext) setPlayerState(state *PlayerState) {
+	mc.playerState = state
+}
+
+// SetPlayerStateForModule sets the player state in the ModuleContext
+// This is a helper function for internal use by the game service
+// Endusers should use GetPlayerState() to access and modify the state
+func SetPlayerStateForModule(ctx context.Context, state *PlayerState) {
+	if mc := FromContext(ctx); mc != nil {
+		mc.setPlayerState(state)
+	}
 }
 
 // WithContext attaches ModuleContext to a context

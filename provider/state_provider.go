@@ -44,6 +44,11 @@ func (p *StateProvider) GetPlayerState(ctx context.Context, userID, gameCode str
 		return nil, fmt.Errorf("failed to unmarshal state: %w", err)
 	}
 
+	// Initialize ExtraData if nil (for backward compatibility with old states)
+	if state.ExtraData == nil {
+		state.ExtraData = make(map[string]interface{})
+	}
+
 	return &state, nil
 }
 
