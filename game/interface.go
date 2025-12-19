@@ -3,6 +3,7 @@ package game
 import (
 	"context"
 
+	"github.com/samber/lo"
 	"github.com/shopspring/decimal"
 )
 
@@ -145,11 +146,7 @@ func (r *Registry) Get(gameCode string) (ModuleFactory, bool) {
 
 // GetAll returns all registered game codes
 func (r *Registry) GetAll() []string {
-	codes := make([]string, 0, len(r.factories))
-	for code := range r.factories {
-		codes = append(codes, code)
-	}
-	return codes
+	return lo.Keys(r.factories)
 }
 
 // DefaultRegistry is the default global registry

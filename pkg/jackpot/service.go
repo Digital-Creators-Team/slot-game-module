@@ -7,13 +7,14 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
+	"github.com/samber/lo"
 	"github.com/shopspring/decimal"
 )
 
 const (
 	// DefaultBroadcastInterval is the default interval for broadcasting buffered updates
 	DefaultBroadcastInterval = 2 * time.Second
-	
+
 	// RefreshInterval is the interval for refreshing pool values from the reward provider
 	RefreshInterval = 60 * time.Second
 )
@@ -70,10 +71,7 @@ func (s *Service) RegisterPool(cfg PoolConfig) {
 func (s *Service) InitializePoolsFromProvider(ctx context.Context) error {
 	s.mu.RLock()
 	store := s.reward
-	pools := make([]PoolConfig, 0, len(s.pools))
-	for _, pool := range s.pools {
-		pools = append(pools, pool)
-	}
+	pools := lo.Values(s.pools)
 	s.mu.RUnlock()
 
 	if store == nil {
@@ -135,18 +133,16 @@ func (s *Service) Contribute(totalBet decimal.Decimal) []Contribution {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	out := make([]Contribution, 0, len(s.pools))
-	for _, pool := range s.pools {
+	return lo.FilterMap(lo.Values(s.pools), func(pool PoolConfig, _ int) (Contribution, bool) {
 		amount := totalBet.Mul(pool.Prog)
 		if amount.IsZero() {
-			continue
+			return Contribution{}, false
 		}
-		out = append(out, Contribution{
+		return Contribution{
 			PoolID: pool.ID,
 			Amount: amount,
-		})
-	}
-	return out
+		}, true
+	})
 }
 
 // ContributeAndStore computes contributions and persists them via a RewardStore (e.g., providers.RewardProvider).
@@ -210,15 +206,11 @@ func (s *Service) RewardProvider() RewardProvider {
 // Otherwise, it returns pools with their init values.
 func (s *Service) GetCurrentPools(ctx context.Context) ([]Update, error) {
 	s.mu.RLock()
-	pools := make([]PoolConfig, 0, len(s.pools))
-	for _, pool := range s.pools {
-		pools = append(pools, pool)
-	}
+	pools := lo.Values(s.pools)
 	store := s.reward
 	s.mu.RUnlock()
 
-	updates := make([]Update, 0, len(pools))
-	for _, pool := range pools {
+	updates := lo.Map(pools, func(pool PoolConfig, _ int) Update {
 		var amount decimal.Decimal
 		var updatedAt time.Time
 
@@ -239,12 +231,12 @@ func (s *Service) GetCurrentPools(ctx context.Context) ([]Update, error) {
 			updatedAt = time.Now()
 		}
 
-		updates = append(updates, Update{
+		return Update{
 			PoolID:    pool.ID,
 			Amount:    amount,
 			Timestamp: updatedAt,
-		})
-	}
+		}
+	})
 
 	return updates, nil
 }
@@ -258,14 +250,8 @@ func (s *Service) GetCurrentPools(ctx context.Context) ([]Update, error) {
 // initValueGetter signature: func(poolID string) (decimal.Decimal, error)
 func (s *Service) GetPoolsByIDs(ctx context.Context, poolIDs []string, initValueGetter func(poolID string) (decimal.Decimal, error)) ([]Update, error) {
 	s.mu.RLock()
-	buffer := make(map[string]Update)
-	for k, v := range s.buffer {
-		buffer[k] = v
-	}
-	registeredPools := make(map[string]PoolConfig)
-	for k, v := range s.pools {
-		registeredPools[k] = v
-	}
+	buffer := lo.Assign(s.buffer)
+	registeredPools := lo.Assign(s.pools)
 	store := s.reward
 	s.mu.RUnlock()
 
@@ -388,7 +374,7 @@ func (s *Service) HandleKafkaUpdate(update Update) {
 	if update.Timestamp.IsZero() {
 		update.Timestamp = time.Now()
 	}
-	
+
 	// Only update buffer if the new update is newer than existing one
 	// This prevents overwriting with stale Kafka messages
 	if existingUpdate, exists := s.buffer[update.PoolID]; exists {
@@ -402,7 +388,7 @@ func (s *Service) HandleKafkaUpdate(update Update) {
 			return
 		}
 	}
-	
+
 	s.buffer[update.PoolID] = update
 	s.logger.Debug().
 		Str("pool_id", update.PoolID).
@@ -416,11 +402,7 @@ func (s *Service) HandleKafkaUpdate(update Update) {
 func (s *Service) GetRegisteredPoolIDs() []string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	poolIDs := make([]string, 0, len(s.pools))
-	for poolID := range s.pools {
-		poolIDs = append(poolIDs, poolID)
-	}
-	return poolIDs
+	return lo.Keys(s.pools)
 }
 
 // CreatePoolFilter creates a filter function that returns true only for pools belonging to this game.
@@ -495,10 +477,7 @@ func (s *Service) flush() {
 		return
 	}
 
-	updates := make([]Update, 0, len(s.buffer))
-	for _, u := range s.buffer {
-		updates = append(updates, u)
-	}
+	updates := lo.Values(s.buffer)
 	s.buffer = make(map[string]Update)
 	s.mu.Unlock()
 

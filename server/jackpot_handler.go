@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"github.com/rs/zerolog"
+	"github.com/samber/lo"
 	"github.com/shopspring/decimal"
 )
 
@@ -131,12 +132,7 @@ func (h *JackpotHandler) StreamUpdates(c *gin.Context) {
 		if len(targetPoolIDs) == 0 {
 			return true
 		}
-		for _, targetID := range targetPoolIDs {
-			if poolID == targetID {
-				return true
-			}
-		}
-		return false
+		return lo.Contains(targetPoolIDs, poolID)
 	}
 
 	// Send connected event
@@ -324,12 +320,7 @@ func (h *JackpotHandler) StreamUpdatesWebSocket(c *gin.Context) {
 		if len(targetPoolIDs) == 0 {
 			return true
 		}
-		for _, targetID := range targetPoolIDs {
-			if poolID == targetID {
-				return true
-			}
-		}
-		return false
+		return lo.Contains(targetPoolIDs, poolID)
 	}
 
 	// Send connected event
