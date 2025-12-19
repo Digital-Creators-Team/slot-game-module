@@ -143,8 +143,7 @@ sequenceDiagram
 
 ```mermaid
 flowchart TD
-    Start[Execute Spin] --> GetContrib[Get Contributions]
-    Note over GetContrib: Progressive amount before spin
+    Start[Execute Spin] --> GetContrib["Get Contributions<br/>(Progressive amount before spin)"]
     
     GetContrib --> Loop{For each pool}
     Loop --> Contribute[Contribute Amount]
