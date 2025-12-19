@@ -85,10 +85,11 @@ type SpinServiceResponse struct {
 // 3. Load player state
 // 4. Calculate total bet
 // 5. Execute spin (normal or free)
-// 6. Process jackpot (contribute or claim)
-// 7. Update wallet
-// 8. Log spin
-// 9. Save player state
+// 6. Contribute to jackpot (progressive amount before spin)
+// 7. Claim jackpot if won
+// 8. Update wallet
+// 9. Log spin
+// 10. Save player state
 func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) (*SpinServiceResponse, error) {
 	// 1. Validate input
 	if err := s.validateSpinRequest(req); err != nil {
@@ -254,20 +255,21 @@ func (s *GameService) executeNormalSpin(
 		return nil, errors.Wrap(err, errors.ErrInternalServerError, "failed to execute spin")
 	}
 
-	// 3. Process jackpot
+	// 3. Contribute to jackpot pools (before claiming)
+	// Progressive amount is calculated before spin, so we contribute first
+	if err := s.contributeToJackpot(ctx, req.UserID, gameCode, gameConfig, totalBet, spinResult); err != nil {
+		s.logger.Error().Err(err).Msg("Failed to contribute to jackpot")
+	}
+
+	// 4. Process jackpot win (if any)
 	if spinResult.IsGetJackpot != nil && *spinResult.IsGetJackpot {
 		// Claim jackpot
 		if err := s.processJackpotWin(ctx, spinResult, req.UserID, req.Username, gameCode, req.CurrencyID, gameConfig, totalBet); err != nil {
 			s.logger.Error().Err(err).Msg("Failed to process jackpot win")
 		}
-	} else {
-		// Contribute to jackpot pools
-		if err := s.contributeToJackpot(ctx, req.UserID, gameCode, gameConfig, totalBet, spinResult); err != nil {
-			s.logger.Error().Err(err).Msg("Failed to contribute to jackpot")
-		}
 	}
 
-	// 4. Deposit winnings to wallet
+	// 5. Deposit winnings to wallet
 	if spinResult.TotalWin.GreaterThan(decimal.Zero) {
 		if s.walletProvider == nil {
 			return nil, errors.New(errors.ErrInternalServerError, "wallet provider not configured")
@@ -277,7 +279,7 @@ func (s *GameService) executeNormalSpin(
 		}
 	}
 
-	// 5. Update player state if free spins triggered
+	// 6. Update player state if free spins triggered
 	// Note: playerState is a pointer, so modifications by endusers in PlayNormalSpin are already reflected
 	if spinResult.IsGetFreeSpin != nil && *spinResult.IsGetFreeSpin {
 		if spinResult.ResultFreeSpin != nil && *spinResult.ResultFreeSpin > 0 {
