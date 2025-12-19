@@ -29,19 +29,22 @@ type RewardProvider interface {
 
 // JackpotPool represents a jackpot pool response
 type JackpotPool struct {
-	PoolID    string          `json:"poolId"`
+	PoolID    string          `json:"pool_id"`
 	Amount    decimal.Decimal `json:"amount"`
-	UpdatedAt time.Time       `json:"updatedAt"`
+	UpdatedAt time.Time       `json:"updated_at"`
 }
 
 // JackpotClaim represents a jackpot claim response
 type JackpotClaim struct {
-	ClaimID   string          `json:"claimId"`
-	PoolID    string          `json:"poolId"`
-	UserID    string          `json:"userId"`
-	Amount    decimal.Decimal `json:"amount"`
-	Status    string          `json:"status"`
-	CreatedAt time.Time       `json:"createdAt"`
+	ClaimID    string          `json:"claim_id"`
+	PoolID     string          `json:"pool_id"`
+	UserID     string          `json:"user_id"`
+	CurrencyID string          `json:"currency_id"`
+	Amount     decimal.Decimal `json:"amount"`
+	GameID     string          `json:"game_id"`
+	Status     string          `json:"status"`
+	CreatedAt  time.Time       `json:"created_at"`
+	UpdatedAt  time.Time       `json:"updated_at"`
 }
 
 // BetType represents the type of bet history to retrieve
@@ -77,7 +80,7 @@ type JackpotLog struct {
 	UserID    string    `json:"userId"`
 	Username  string    `json:"username"` // Display name for history
 	GameCode  string    `json:"gameCode"`
-	Tier      string    `json:"tier"` // "mini", "minor", "grand"
+	Tier      string    `json:"tier"`      // "mini", "minor", "grand"
 	BetAmount float64   `json:"betAmount"` // Bet amount when jackpot won
 	WinAmount float64   `json:"winAmount"`
 	Currency  string    `json:"currency"` // e.g. "USD", "VND"
@@ -112,5 +115,3 @@ type BetHistoryResponse struct {
 	Total int   `json:"total"`
 	Items []Bet `json:"items"`
 }
-
-

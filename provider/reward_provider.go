@@ -95,29 +95,13 @@ func (p *RewardProvider) Claim(ctx context.Context, poolID, userID, gameCode str
 	}
 
 	var result struct {
-		Data struct {
-			ClaimID   string  `json:"claim_id"`
-			PoolID    string  `json:"pool_id"`
-			UserID    string  `json:"user_id"`
-			Amount    float64 `json:"amount"`
-			Status    string  `json:"status"`
-			CreatedAt string  `json:"created_at"`
-		} `json:"data"`
+		Data server.JackpotClaim `json:"data"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	createdAt, _ := time.Parse(time.RFC3339, result.Data.CreatedAt)
-
-	return &server.JackpotClaim{
-		ClaimID:   result.Data.ClaimID,
-		PoolID:    result.Data.PoolID,
-		UserID:    result.Data.UserID,
-		Amount:    decimal.NewFromFloat(result.Data.Amount),
-		Status:    result.Data.Status,
-		CreatedAt: createdAt,
-	}, nil
+	return &result.Data, nil
 }
 
 // GetPool retrieves current jackpot pool value
@@ -140,21 +124,11 @@ func (p *RewardProvider) GetPool(ctx context.Context, poolID string, initValue d
 	}
 
 	var result struct {
-		Data struct {
-			PoolID    string  `json:"pool_id"`
-			Amount    float64 `json:"amount"`
-			UpdatedAt string  `json:"updated_at"`
-		} `json:"data"`
+		Data server.JackpotPool `json:"data"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	updatedAt, _ := time.Parse(time.RFC3339, result.Data.UpdatedAt)
-
-	return &server.JackpotPool{
-		PoolID:    result.Data.PoolID,
-		Amount:    decimal.NewFromFloat(result.Data.Amount),
-		UpdatedAt: updatedAt,
-	}, nil
+	return &result.Data, nil
 }
