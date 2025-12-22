@@ -285,6 +285,15 @@ func (s *GameService) executeNormalSpin(
 		}
 	}
 
+	// Default state
+	playerState.BetMultiplier = req.BetMultiplier
+	playerState.SpinResult = spinResult
+
+	if !playerState.IsFreeSpin {
+		// Reset player state
+		playerState.Reset()
+	}
+
 	// 6. Update player state if free spins triggered
 	// Note: playerState is a pointer, so modifications by endusers in PlayNormalSpin are already reflected
 	if spinResult.IsGetFreeSpin != nil && *spinResult.IsGetFreeSpin {
@@ -292,7 +301,6 @@ func (s *GameService) executeNormalSpin(
 			playerState.IsFreeSpin = true
 			playerState.RemainingFreeSpin = *spinResult.ResultFreeSpin
 			playerState.TotalWinFreeSpin = decimal.Zero
-			playerState.BetMultiplier = req.BetMultiplier
 			playerState.FreeSpins = spinResult.FreeSpinBets
 			playerState.SpinResultTriggerFG = spinResult
 			playedCount := 0
@@ -344,8 +352,6 @@ func (s *GameService) executeFreeSpin(
 			Float64("total_win", playerState.TotalWinFreeSpin.InexactFloat64()).
 			Msg("Free spins completed")
 
-		// Reset player state
-		playerState.Reset()
 	}
 
 	return spinResult, nil
@@ -431,12 +437,12 @@ func (s *GameService) processJackpotWin(
 	}
 
 	// Claim jackpot
-		claim, err := s.rewardProvider.Claim(ctx, &providers.ClaimRequest{
-			PoolID:    jackpotWin.PoolID,
-			UserID:    userID,
-			GameCode:  gameCode,
-			InitValue: jackpotWin.InitValue,
-		})
+	claim, err := s.rewardProvider.Claim(ctx, &providers.ClaimRequest{
+		PoolID:    jackpotWin.PoolID,
+		UserID:    userID,
+		GameCode:  gameCode,
+		InitValue: jackpotWin.InitValue,
+	})
 	if err != nil {
 		return err
 	}
