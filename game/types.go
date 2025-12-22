@@ -15,6 +15,16 @@ type Symbol struct {
 	Type   int `json:"type"`
 }
 
+type WinType int
+
+const (
+	WinTypeNoWin WinType = iota
+	WinTypeNormalWin
+	WinTypeBigWin
+	WinTypeSuperWin
+	WinTypeMegaWin
+)
+
 // Winline represents a winning line on the game board
 type Winline struct {
 	Symbol      int             `json:"symbol"`
@@ -27,45 +37,45 @@ type Winline struct {
 
 // SpinResult represents the result of a single spin
 type SpinResult struct {
-	Reels             [][]Symbol           `json:"reels,omitempty"`
-	Winlines          []Winline            `json:"winlines,omitempty"`
-	TotalWin          decimal.Decimal      `json:"totalWin,omitempty"`
-	TotalBet          decimal.Decimal      `json:"totalBet,omitempty"`
-	Multiplier        int                  `json:"multiplier,omitempty"`
-	IsGetFreeSpin     *bool                `json:"isGetFreeSpin,omitempty"`
-	ResultFreeSpin    *int                 `json:"resultFreeSpin,omitempty"`
-	FreeSpinBets      []*SpinResult        `json:"freeSpinBets,omitempty"`
-	IsGetJackpot      *bool                `json:"isGetJackpot,omitempty"`
-	TotalWinJackpot   decimal.Decimal      `json:"totalWinJackpot,omitempty"`
-	EndingBalance     decimal.Decimal      `json:"endingBalance,omitempty"`
-	RemainingFreeSpin *int                 `json:"remainingFreeSpin,omitempty"`
-	TotalWinFreeSpin  decimal.Decimal      `json:"totalWinFreeSpin,omitempty"`
-	IsLastFreeSpin    *bool                `json:"isLastFreeSpin,omitempty"`
-	WinTitle          string               `json:"winTitle,omitempty"`
-	SpinType          int                  `json:"spinType,omitempty"` // 0 = normal, 1 = free spin
-	SubReel           []int                `json:"subReel,omitempty"`  // For games with sub reel (e.g., parrot treasure)
+	Reels             [][]Symbol             `json:"reels,omitempty"`
+	Winlines          []Winline              `json:"winlines,omitempty"`
+	TotalWin          decimal.Decimal        `json:"totalWin,omitempty"`
+	TotalBet          decimal.Decimal        `json:"totalBet,omitempty"`
+	Multiplier        int                    `json:"multiplier,omitempty"`
+	IsGetFreeSpin     *bool                  `json:"isGetFreeSpin,omitempty"`
+	ResultFreeSpin    *int                   `json:"resultFreeSpin,omitempty"`
+	FreeSpinBets      []*SpinResult          `json:"freeSpinBets,omitempty"`
+	IsGetJackpot      *bool                  `json:"isGetJackpot,omitempty"`
+	TotalWinJackpot   decimal.Decimal        `json:"totalWinJackpot,omitempty"`
+	EndingBalance     decimal.Decimal        `json:"endingBalance,omitempty"`
+	RemainingFreeSpin *int                   `json:"remainingFreeSpin,omitempty"`
+	TotalWinFreeSpin  decimal.Decimal        `json:"totalWinFreeSpin,omitempty"`
+	IsLastFreeSpin    *bool                  `json:"isLastFreeSpin,omitempty"`
+	WinTitle          WinType                `json:"winTitle,omitempty"`
+	SpinType          int                    `json:"spinType,omitempty"`  // 0 = normal, 1 = free spin
+	SubReel           []int                  `json:"subReel,omitempty"`   // For games with sub reel (e.g., parrot treasure)
 	ExtraData         map[string]interface{} `json:"extraData,omitempty"` // Custom data for game-specific use
 }
 
 // SpinResponse represents the API response for a spin
 type SpinResponse struct {
-	TotalWin          decimal.Decimal `json:"totalWin,omitempty"`
-	WinTitle          string          `json:"winTitle,omitempty"`
-	ResultFreeSpin    *int            `json:"resultFreeSpin,omitempty"`
-	TotalWinJackpot   decimal.Decimal `json:"totalWinJackpot,omitempty"`
-	IsGetFreeSpin     *bool           `json:"isGetFreeSpin,omitempty"`
-	IsGetJackpot      *bool           `json:"isGetJackpot,omitempty"`
-	Reels             [][]Symbol      `json:"reels,omitempty"`
-	Winlines          *[]Winline      `json:"winlines,omitempty"`
-	TotalWinFreeSpin  decimal.Decimal `json:"totalWinFreeSpin,omitempty"`
-	RemainingFreeSpin *int            `json:"remainingFreeSpin,omitempty"`
-	IsLastFreeSpin    *bool           `json:"isLastFreeSpin,omitempty"`
-	EndingBalance     decimal.Decimal `json:"endingBalance,omitempty"`
-	TotalBet          decimal.Decimal `json:"totalBet,omitempty"`
-	Multiplier        int             `json:"multiplier,omitempty"`
-	SpinType          int                  `json:"spinType,omitempty"`
-	JackpotPrize      decimal.Decimal      `json:"jackpotPrize,omitempty"`
-	SubReel           []int                `json:"subReel,omitempty"`
+	TotalWin          decimal.Decimal        `json:"totalWin,omitempty"`
+	WinTitle          WinType                `json:"winTitle,omitempty"`
+	ResultFreeSpin    *int                   `json:"resultFreeSpin,omitempty"`
+	TotalWinJackpot   decimal.Decimal        `json:"totalWinJackpot,omitempty"`
+	IsGetFreeSpin     *bool                  `json:"isGetFreeSpin,omitempty"`
+	IsGetJackpot      *bool                  `json:"isGetJackpot,omitempty"`
+	Reels             [][]Symbol             `json:"reels,omitempty"`
+	Winlines          *[]Winline             `json:"winlines,omitempty"`
+	TotalWinFreeSpin  decimal.Decimal        `json:"totalWinFreeSpin,omitempty"`
+	RemainingFreeSpin *int                   `json:"remainingFreeSpin,omitempty"`
+	IsLastFreeSpin    *bool                  `json:"isLastFreeSpin,omitempty"`
+	EndingBalance     decimal.Decimal        `json:"endingBalance,omitempty"`
+	TotalBet          decimal.Decimal        `json:"totalBet,omitempty"`
+	Multiplier        int                    `json:"multiplier,omitempty"`
+	SpinType          int                    `json:"spinType,omitempty"`
+	JackpotPrize      decimal.Decimal        `json:"jackpotPrize,omitempty"`
+	SubReel           []int                  `json:"subReel,omitempty"`
 	ExtraData         map[string]interface{} `json:"extraData,omitempty"` // Custom data for game-specific use
 }
 
@@ -100,16 +110,16 @@ func (sr *SpinResult) ToSpinResponse() *SpinResponse {
 
 // PlayerState represents the current state of a player in a game
 type PlayerState struct {
-	IsFreeSpin          bool                 `json:"isFreeSpin"`
-	RemainingFreeSpin   int                  `json:"remainingFreeSpin"`
-	TotalWinFreeSpin    decimal.Decimal      `json:"totalWinFreeSpin"`
-	BetMultiplier       float32              `json:"betMultiplier"`
-	FreeSpins           []*SpinResult        `json:"freeSpins,omitempty"`
-	PlayedFreeSpin      *int                 `json:"playedFreeSpin,omitempty"`
-	IsLastFreeSpin      bool                 `json:"isLastFreeSpin"`
-	SpinResult          *SpinResult          `json:"spinResult,omitempty"`
-	SpinResultTriggerFG *SpinResult          `json:"spinResultTriggerFG,omitempty"`
-	UpdatedAt           time.Time            `json:"updatedAt"`
+	IsFreeSpin          bool                   `json:"isFreeSpin"`
+	RemainingFreeSpin   int                    `json:"remainingFreeSpin"`
+	TotalWinFreeSpin    decimal.Decimal        `json:"totalWinFreeSpin"`
+	BetMultiplier       float32                `json:"betMultiplier"`
+	FreeSpins           []*SpinResult          `json:"-"`
+	PlayedFreeSpin      *int                   `json:"playedFreeSpin,omitempty"`
+	IsLastFreeSpin      bool                   `json:"isLastFreeSpin"`
+	SpinResult          *SpinResult            `json:"spinResult,omitempty"`
+	SpinResultTriggerFG *SpinResult            `json:"spinResultTriggerFG,omitempty"`
+	UpdatedAt           time.Time              `json:"updatedAt"`
 	ExtraData           map[string]interface{} `json:"extraData,omitempty"` // Custom data for game-specific use
 }
 
@@ -134,12 +144,7 @@ func PlayerStateFromJSON(data []byte) (*PlayerState, error) {
 // NewPlayerState creates a new default player state
 func NewPlayerState() *PlayerState {
 	return &PlayerState{
-		IsFreeSpin:        false,
-		RemainingFreeSpin: 0,
-		TotalWinFreeSpin:  decimal.Zero,
-		BetMultiplier:     1.0,
-		UpdatedAt:         time.Now(),
-		ExtraData:         make(map[string]interface{}),
+		UpdatedAt: time.Now(),
 	}
 }
 
@@ -261,13 +266,13 @@ type FreeSpinConfig struct {
 
 // CheatPosition represents cheat positions for testing
 type CheatPosition struct {
-	Sym []int `json:"sym"`
-	Pos []int `json:"pos"`
+	Sym []int `json:"symbols"`
+	Pos []int `json:"positions"`
 }
 
 // CheatPayout represents cheat payout configuration for testing
 type CheatPayout struct {
-	TriggerWinMode  *string        `json:"triggerWinMode,omitempty"`
+	TriggerWinMode  *WinType       `json:"triggerWinMode,omitempty"`
 	Position        *CheatPosition `json:"cheatPosition,omitempty"`
 	TriggerFreeGame *bool          `json:"triggerFreeGame,omitempty"`
 	TriggerJackpot  *bool          `json:"triggerJackpot,omitempty"`
