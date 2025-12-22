@@ -39,7 +39,7 @@ func NewJackpotHandler(app *App, svc *jackpot.Service) *JackpotHandler {
 		logger:          app.logger.With().Str("handler", "jackpot").Logger(),
 		heartbeatPeriod: 60 * time.Second,
 		upgrader: websocket.Upgrader{
-			CheckOrigin: func(r *http.Request) bool { return true },
+			CheckOrigin:     func(r *http.Request) bool { return true },
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
 		},
@@ -100,7 +100,7 @@ func (h *JackpotHandler) StreamUpdatesWebSocket(c *gin.Context) {
 		h.logger.Error().Err(err).Msg("Failed to upgrade to WebSocket")
 		return
 	}
-	defer conn.Close()
+	defer conn.Close() //nolint:errcheck
 
 	// Handle ping/pong
 	done := make(chan struct{})
@@ -182,33 +182,62 @@ func (h *JackpotHandler) streamUpdates(config *streamConfig, sender messageSende
 	heartbeat := time.NewTicker(h.heartbeatPeriod)
 	defer heartbeat.Stop()
 
+	// Batch updates that arrive close together (from same spin flush)
+	batchWindow := 10 * time.Millisecond
+	batchTimer := time.NewTimer(batchWindow)
+	batchTimer.Stop()
+	var pendingPools []PoolUpdate
+
+	flushBatch := func() {
+		if len(pendingPools) == 0 {
+			return
+		}
+		_ = sender.Send(&Response{
+			Type:      EventTypeUpdated,
+			Timestamp: time.Now().Unix(),
+			Pools:     pendingPools,
+		})
+		pendingPools = nil
+	}
+
 	for {
 		select {
 		case <-config.ctx.Done():
+			flushBatch()
 			return
 		case <-heartbeat.C:
+			flushBatch()
 			_ = sender.Send(&Response{
 				Type:      EventTypeHeartbeat,
 				Timestamp: time.Now().Unix(),
 			})
+		case <-batchTimer.C:
+			flushBatch()
+			batchTimer.Stop()
 		case update, ok := <-updates:
 			if !ok {
+				flushBatch()
 				return
 			}
 			if !config.isTargetPool(update.PoolID) {
 				continue
 			}
 
-			// Send update immediately (service already batches by spin_id)
-			_ = sender.Send(&Response{
-				Type:      EventTypeUpdated,
+			// Add to batch
+			pendingPools = append(pendingPools, PoolUpdate{
+				PoolID:    update.PoolID,
+				Amount:    update.Amount.InexactFloat64(),
 				Timestamp: update.Timestamp.Unix(),
-				Pools: []PoolUpdate{{
-					PoolID:    update.PoolID,
-					Amount:    update.Amount.InexactFloat64(),
-					Timestamp: update.Timestamp.Unix(),
-				}},
 			})
+
+			// Start/reset timer to batch updates from same spin
+			if !batchTimer.Stop() {
+				select {
+				case <-batchTimer.C:
+				default:
+				}
+			}
+			batchTimer.Reset(batchWindow)
 		}
 	}
 }

@@ -43,13 +43,13 @@ type Service struct {
 	gameCode      string
 	refreshing    bool // Flag to prevent concurrent refreshes
 	refreshMu     sync.Mutex
-	
+
 	// Flush timing per spin
 	spinTimers        map[string]*time.Timer // spin_id -> timer
 	spinTimersMu      sync.Mutex
-	spinLastUpdate    map[string]time.Time    // spin_id -> last update time
-	spinExpectedPools map[string]int          // spin_id -> expected total pools (0 = unknown)
-	flushChan         chan string             // Channel to signal flush for a specific spin_id
+	spinLastUpdate    map[string]time.Time // spin_id -> last update time
+	spinExpectedPools map[string]int       // spin_id -> expected total pools (0 = unknown)
+	flushChan         chan string          // Channel to signal flush for a specific spin_id
 }
 
 // NewService creates a new jackpot service.
@@ -59,14 +59,14 @@ func NewService(cfg ServiceConfig) *Service {
 		interval = DefaultBroadcastInterval
 	}
 	s := &Service{
-		pools:         make(map[string]PoolConfig),
-		buffer:        make(map[string]map[string]Update), // spin_id -> pool_id -> Update
-		broad:         NewBroadcaster(128),
-		logger:        cfg.Logger,
-		interval:      interval,
-		stopChan:      make(chan struct{}),
-		reward:        cfg.RewardProvider,
-		gameCode:      cfg.GameCode,
+		pools:             make(map[string]PoolConfig),
+		buffer:            make(map[string]map[string]Update), // spin_id -> pool_id -> Update
+		broad:             NewBroadcaster(128),
+		logger:            cfg.Logger,
+		interval:          interval,
+		stopChan:          make(chan struct{}),
+		reward:            cfg.RewardProvider,
+		gameCode:          cfg.GameCode,
 		spinTimers:        make(map[string]*time.Timer),
 		spinLastUpdate:    make(map[string]time.Time),
 		spinExpectedPools: make(map[string]int),
@@ -176,11 +176,11 @@ func (s *Service) ContributeAndStore(ctx context.Context, totalBet decimal.Decim
 	for _, c := range contribs {
 		// No spin_id for legacy calls - reward service will handle grouping
 		if err := store.Contribute(ctx, &providers.ContributeRequest{
-			PoolID:    c.PoolID,
-			UserID:    userID,
-			Amount:    c.Amount,
-			GameCode:  gameCode,
-			SpinID:    "",
+			PoolID:     c.PoolID,
+			UserID:     userID,
+			Amount:     c.Amount,
+			GameCode:   gameCode,
+			SpinID:     "",
 			TotalPools: 0,
 		}); err != nil {
 			return err
@@ -503,12 +503,12 @@ func (s *Service) HandleKafkaUpdate(update Update) {
 
 	s.buffer[spinID][update.PoolID] = update
 	s.spinLastUpdate[spinID] = time.Now()
-	
+
 	// Track expected pools if provided
 	if update.TotalPools > 0 {
 		s.spinExpectedPools[spinID] = update.TotalPools
 	}
-	
+
 	currentPoolCount := len(s.buffer[spinID])
 	expectedPools := s.spinExpectedPools[spinID]
 	wasNewSpin := currentPoolCount == 1 // First update for this spin
@@ -599,7 +599,7 @@ func (s *Service) start() {
 	// Max interval ticker - ensures we flush at least every interval
 	s.ticker = time.NewTicker(s.interval)
 	s.refreshTicker = time.NewTicker(RefreshInterval)
-	
+
 	go s.loop()
 	go s.refreshLoop()
 }
@@ -630,7 +630,6 @@ func (s *Service) loop() {
 	}
 }
 
-
 func (s *Service) refreshLoop() {
 	for {
 		select {
@@ -646,7 +645,7 @@ func (s *Service) refreshLoop() {
 func (s *Service) resetSpinTimer(spinID string) {
 	s.spinTimersMu.Lock()
 	defer s.spinTimersMu.Unlock()
-	
+
 	// Stop existing timer if any
 	if timer, exists := s.spinTimers[spinID]; exists && timer != nil {
 		if !timer.Stop() {
@@ -657,14 +656,14 @@ func (s *Service) resetSpinTimer(spinID string) {
 			}
 		}
 	}
-	
+
 	// Create new timer for this spin
 	timer := time.NewTimer(FlushIdleTimeout)
 	s.spinTimers[spinID] = timer
-	
+
 	// Start goroutine to wait for timer and signal flush
 	go func(spin string) {
-		select {
+		select { //nolint:staticcheck
 		case <-timer.C:
 			// Timer expired - signal flush for this spin
 			select {
@@ -807,7 +806,7 @@ func (s *Service) refreshPoolsFromProvider(ctx context.Context) {
 				}
 			}
 		}
-		
+
 		// Only update if provider timestamp is newer than buffer
 		if latestUpdate == nil || poolData.UpdatedAt.After(latestUpdate.Timestamp) {
 			// Store in refresh spin (or create if doesn't exist)
