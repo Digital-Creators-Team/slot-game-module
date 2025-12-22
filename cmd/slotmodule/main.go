@@ -1606,9 +1606,11 @@ func main() {
 		go func() {
 			for evt := range sub.Channel {
 				jackpotFeed <- jackpot.Update{
-					PoolID:    evt.PoolID,
-					Amount:    evt.Amount,
-					Timestamp: evt.UpdatedAt,
+					PoolID:     evt.PoolID,
+					Amount:     evt.NewAmount,
+					Timestamp:  evt.UpdatedAt,
+					SpinID:     evt.SpinID,     // Pass spin_id to group updates from the same spin
+					TotalPools: evt.TotalPools, // Pass total_pools to flush when complete
 				}
 			}
 		}()

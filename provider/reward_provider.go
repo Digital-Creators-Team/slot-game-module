@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"git.futuregamestudio.net/be-shared/slot-game-module.git/config"
+	"git.futuregamestudio.net/be-shared/slot-game-module.git/pkg/providers"
 	"git.futuregamestudio.net/be-shared/slot-game-module.git/server"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
@@ -38,23 +39,33 @@ func NewRewardProvider(cfg *config.Config, logger zerolog.Logger) *RewardProvide
 }
 
 // Contribute adds contribution to jackpot pool
-func (p *RewardProvider) Contribute(ctx context.Context, poolID, userID string, amount decimal.Decimal, gameCode string) error {
+func (p *RewardProvider) Contribute(ctx context.Context, req *providers.ContributeRequest) error {
 	url := fmt.Sprintf("%s/jackpot/contribute", p.baseURL)
 
-	body, _ := json.Marshal(map[string]interface{}{
-		"pool_id":   poolID,
-		"amount":    amount.String(),
-		"game_code": gameCode,
-		"user_id":   userID,
-	})
+	bodyMap := map[string]interface{}{
+		"pool_id":   req.PoolID,
+		"amount":    req.Amount.String(),
+		"game_code": req.GameCode,
+		"user_id":   req.UserID,
+	}
+	
+	// Add spin_id and total_pools if provided
+	if req.SpinID != "" {
+		bodyMap["spin_id"] = req.SpinID
+	}
+	if req.TotalPools > 0 {
+		bodyMap["total_pools"] = req.TotalPools
+	}
+	
+	body, _ := json.Marshal(bodyMap)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
-	req.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Content-Type", "application/json")
 
-	resp, err := p.httpClient.Do(req)
+	resp, err := p.httpClient.Do(httpReq)
 	if err != nil {
 		return fmt.Errorf("failed to contribute to jackpot: %w", err)
 	}
@@ -68,23 +79,23 @@ func (p *RewardProvider) Contribute(ctx context.Context, poolID, userID string, 
 }
 
 // Claim claims a jackpot pool and returns the claim
-func (p *RewardProvider) Claim(ctx context.Context, poolID, userID, gameCode string, initValue decimal.Decimal) (*server.JackpotClaim, error) {
+func (p *RewardProvider) Claim(ctx context.Context, req *providers.ClaimRequest) (*server.JackpotClaim, error) {
 	url := fmt.Sprintf("%s/jackpot/claim", p.baseURL)
 
 	body, _ := json.Marshal(map[string]interface{}{
-		"pool_id":    poolID,
-		"user_id":    userID,
-		"game_code":  gameCode,
-		"init_value": initValue.String(),
+		"pool_id":    req.PoolID,
+		"user_id":    req.UserID,
+		"game_code":  req.GameCode,
+		"init_value": req.InitValue.String(),
 	})
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
-	req.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Content-Type", "application/json")
 
-	resp, err := p.httpClient.Do(req)
+	resp, err := p.httpClient.Do(httpReq)
 	if err != nil {
 		return nil, fmt.Errorf("failed to claim jackpot: %w", err)
 	}

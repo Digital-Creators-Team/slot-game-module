@@ -20,10 +20,28 @@ type WalletProvider interface {
 	Deposit(ctx context.Context, userID, currencyID string, amount decimal.Decimal) error
 }
 
+// ContributeRequest represents a request to contribute to a jackpot pool
+type ContributeRequest struct {
+	PoolID     string          // Pool ID to contribute to
+	UserID     string          // User ID making the contribution
+	Amount     decimal.Decimal // Contribution amount
+	GameCode   string          // Game code
+	SpinID     string          // Optional: spin/round ID to group contributions from the same spin
+	TotalPools int            // Optional: total number of pools for this spin (for flush when complete)
+}
+
+// ClaimRequest represents a request to claim a jackpot pool
+type ClaimRequest struct {
+	PoolID    string          // Pool ID to claim from
+	UserID    string          // User ID claiming the jackpot
+	GameCode  string          // Game code
+	InitValue decimal.Decimal // Initial pool value for claim calculation
+}
+
 // RewardProvider interface for jackpot/reward operations
 type RewardProvider interface {
-	Contribute(ctx context.Context, poolID, userID string, amount decimal.Decimal, gameCode string) error
-	Claim(ctx context.Context, poolID, userID, gameCode string, initValue decimal.Decimal) (*JackpotClaim, error)
+	Contribute(ctx context.Context, req *ContributeRequest) error
+	Claim(ctx context.Context, req *ClaimRequest) (*JackpotClaim, error)
 	GetPool(ctx context.Context, poolID string, initValue decimal.Decimal) (*JackpotPool, error)
 }
 

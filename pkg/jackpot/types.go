@@ -26,6 +26,8 @@ type Update struct {
 	PoolID    string
 	Amount    decimal.Decimal
 	Timestamp time.Time
+	SpinID    string // Optional: spin/round ID to group updates from the same spin
+	TotalPools int   // Optional: total number of pools for this spin (0 = unknown, flush on timeout only)
 }
 
 // RewardProvider aliases the shared providers.RewardProvider (includes Contribute/Claim/GetPool).

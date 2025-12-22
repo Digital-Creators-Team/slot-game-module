@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
+
 	"git.futuregamestudio.net/be-shared/slot-game-module.git/errors"
 	"git.futuregamestudio.net/be-shared/slot-game-module.git/game"
 	"git.futuregamestudio.net/be-shared/slot-game-module.git/pkg/providers"
@@ -364,9 +366,25 @@ func (s *GameService) contributeToJackpot(ctx context.Context, userID, gameCode 
 			return fmt.Errorf("failed to get jackpot contributions: %w", err)
 		}
 
-		// Process each contribution
+		if len(contributions) == 0 {
+			return nil
+		}
+
+		// Generate spin_id for this contribution batch
+		// All contributions from the same spin will share the same spin_id
+		spinID := uuid.New().String()
+		totalPools := len(contributions)
+
+		// Process each contribution with the same spin_id and total_pools
 		for _, contrib := range contributions {
-			if err := s.rewardProvider.Contribute(ctx, contrib.PoolID, userID, contrib.Amount, gameCode); err != nil {
+			if err := s.rewardProvider.Contribute(ctx, &providers.ContributeRequest{
+				PoolID:     contrib.PoolID,
+				UserID:     userID,
+				Amount:     contrib.Amount,
+				GameCode:   gameCode,
+				SpinID:     spinID,
+				TotalPools: totalPools,
+			}); err != nil {
 				s.logger.Error().Err(err).Str("pool", contrib.PoolID).Msg("Failed to contribute to jackpot pool")
 			}
 		}
@@ -413,7 +431,12 @@ func (s *GameService) processJackpotWin(
 	}
 
 	// Claim jackpot
-	claim, err := s.rewardProvider.Claim(ctx, jackpotWin.PoolID, userID, gameCode, jackpotWin.InitValue)
+		claim, err := s.rewardProvider.Claim(ctx, &providers.ClaimRequest{
+			PoolID:    jackpotWin.PoolID,
+			UserID:    userID,
+			GameCode:  gameCode,
+			InitValue: jackpotWin.InitValue,
+		})
 	if err != nil {
 		return err
 	}

@@ -25,6 +25,8 @@ type PoolUpdateEvent struct {
 	Amount    decimal.Decimal `json:"delta"`      //contribute amount
 	NewAmount decimal.Decimal `json:"new_amount"` //pool amount
 	UpdatedAt time.Time       `json:"timestamp"`
+	SpinID    string          `json:"spin_id,omitempty"`     // Optional: spin/round ID to group updates from the same spin
+	TotalPools int            `json:"total_pools,omitempty"` // Optional: total number of pools for this spin (for flush when complete)
 }
 
 // PoolCache is an in-memory cache for pool amounts
