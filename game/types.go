@@ -51,8 +51,8 @@ type SpinResult struct {
 	RemainingFreeSpin *int                   `json:"remainingFreeSpin,omitempty"`
 	TotalWinFreeSpin  decimal.Decimal        `json:"totalWinFreeSpin,omitempty"`
 	IsLastFreeSpin    *bool                  `json:"isLastFreeSpin,omitempty"`
-	WinTitle          WinType                `json:"winTitle,omitempty"`
-	SpinType          int                    `json:"spinType,omitempty"`  // 0 = normal, 1 = free spin
+	WinTitle          WinType                `json:"winTitle"`
+	SpinType          int                    `json:"spinType"`  // 0 = normal, 1 = free spin
 	SubReel           []int                  `json:"subReel,omitempty"`   // For games with sub reel (e.g., parrot treasure)
 	ExtraData         map[string]interface{} `json:"extraData,omitempty"` // Custom data for game-specific use
 }
@@ -60,7 +60,7 @@ type SpinResult struct {
 // SpinResponse represents the API response for a spin
 type SpinResponse struct {
 	TotalWin          decimal.Decimal        `json:"totalWin,omitempty"`
-	WinTitle          WinType                `json:"winTitle,omitempty"`
+	WinTitle          WinType                `json:"winTitle"`
 	ResultFreeSpin    *int                   `json:"resultFreeSpin,omitempty"`
 	TotalWinJackpot   decimal.Decimal        `json:"totalWinJackpot,omitempty"`
 	IsGetFreeSpin     *bool                  `json:"isGetFreeSpin,omitempty"`
@@ -73,7 +73,7 @@ type SpinResponse struct {
 	EndingBalance     decimal.Decimal        `json:"endingBalance,omitempty"`
 	TotalBet          decimal.Decimal        `json:"totalBet,omitempty"`
 	Multiplier        int                    `json:"multiplier,omitempty"`
-	SpinType          int                    `json:"spinType,omitempty"`
+	SpinType          int                    `json:"spinType"`
 	JackpotPrize      decimal.Decimal        `json:"jackpotPrize,omitempty"`
 	SubReel           []int                  `json:"subReel,omitempty"`
 	ExtraData         map[string]interface{} `json:"extraData,omitempty"` // Custom data for game-specific use
@@ -114,7 +114,7 @@ type PlayerState struct {
 	RemainingFreeSpin   int                    `json:"remainingFreeSpin"`
 	TotalWinFreeSpin    decimal.Decimal        `json:"totalWinFreeSpin"`
 	BetMultiplier       float32                `json:"betMultiplier"`
-	FreeSpins           []*SpinResult          `json:"-"`
+	FreeSpins           []*SpinResult          `json:"freeSpins,omitempty"`
 	PlayedFreeSpin      *int                   `json:"playedFreeSpin,omitempty"`
 	IsLastFreeSpin      bool                   `json:"isLastFreeSpin"`
 	SpinResult          *SpinResult            `json:"spinResult,omitempty"`

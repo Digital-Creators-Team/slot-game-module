@@ -301,11 +301,15 @@ func (s *GameService) executeNormalSpin(
 			playerState.IsFreeSpin = true
 			playerState.RemainingFreeSpin = *spinResult.ResultFreeSpin
 			playerState.TotalWinFreeSpin = decimal.Zero
-			playerState.FreeSpins = spinResult.FreeSpinBets
 			playerState.SpinResultTriggerFG = spinResult
 			playedCount := 0
 			playerState.PlayedFreeSpin = &playedCount
 			playerState.IsLastFreeSpin = false
+
+			// Only store in the db
+			playerState.FreeSpins = spinResult.FreeSpinBets
+			spinResult.FreeSpinBets = nil
+
 		}
 	}
 
@@ -351,6 +355,9 @@ func (s *GameService) executeFreeSpin(
 		s.logger.Info().
 			Float64("total_win", playerState.TotalWinFreeSpin.InexactFloat64()).
 			Msg("Free spins completed")
+
+		// Exit free spin 
+		playerState.IsFreeSpin = false
 
 	}
 
