@@ -5,6 +5,7 @@ import (
 	"runtime/debug"
 	"time"
 
+	"git.futuregamestudio.net/be-shared/slot-game-module.git/types"
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog"
 )
@@ -32,15 +33,16 @@ func Recovery(logger zerolog.Logger) gin.HandlerFunc {
 					Msg("Panic recovered")
 
 				// Return error response
-				c.JSON(http.StatusInternalServerError, gin.H{
-					"status_code": http.StatusInternalServerError,
-					"is_success":  false,
-					"error": gin.H{
-						"timestamp":     time.Now(),
-						"path":          c.Request.URL.Path,
-						"error_message": "Internal server error",
+				errorResp := types.ErrorResponse{
+					StatusCode: http.StatusInternalServerError,
+					IsSuccess:  false,
+					Error: types.ErrorDetail{
+						Timestamp:    time.Now().Format(time.RFC3339),
+						Path:         c.Request.URL.Path,
+						ErrorMessage: "Internal server error",
 					},
-				})
+				}
+				c.JSON(http.StatusInternalServerError, errorResp)
 
 				c.Abort()
 			}

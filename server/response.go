@@ -2,37 +2,34 @@ package server
 
 import (
 	"net/http"
+	"time"
 
 	"git.futuregamestudio.net/be-shared/slot-game-module.git/errors"
+	"git.futuregamestudio.net/be-shared/slot-game-module.git/types"
 	"github.com/gin-gonic/gin"
 )
 
-// BaseResponse represents a standardized API response
-// @Description Standard API response wrapper
-type BaseResponse struct {
-	// HTTP status code
-	Code int `json:"code" example:"200"`
-	// Response data
-	Data interface{} `json:"data,omitempty"`
-	// Response message
-	Message string `json:"message,omitempty" example:"Success"`
-}
+// ErrorDetail is an alias for types.ErrorDetail
+type ErrorDetail = types.ErrorDetail
 
-// ErrorResponseBody represents an error response body
-// @Description Error response
-type ErrorResponseBody struct {
-	// Error message
-	Message string `json:"message" example:"Invalid request"`
-	// Error code
-	ErrorCode int `json:"errorCode" example:"400"`
-}
+// ErrorResponse is an alias for types.ErrorResponse
+type ErrorResponse = types.ErrorResponse
+
+// SuccessResponse is an alias for types.SuccessResponse
+type SuccessResponse[T any] = types.SuccessResponse[T]
+
+// BaseResponse is a type alias for SuccessResponse[interface{}] for backward compatibility with swagger
+// @Description Standard API response wrapper
+type BaseResponse = SuccessResponse[interface{}]
 
 // Success sends a success response
 func Success(c *gin.Context, statusCode int, data interface{}) {
-	c.JSON(statusCode, BaseResponse{
-		Code: statusCode,
-		Data: data,
-	})
+	successResp := types.SuccessResponse[interface{}]{
+		StatusCode: statusCode,
+		IsSuccess:  true,
+		Data:       data,
+	}
+	c.JSON(statusCode, successResp)
 }
 
 // OK sends a 200 OK response
@@ -52,26 +49,37 @@ func NoContent(c *gin.Context) {
 
 // Error sends an error response
 func Error(c *gin.Context, statusCode int, err error) {
+	var errorMsg string
 	if appErr, ok := err.(*errors.AppError); ok {
-		c.JSON(statusCode, gin.H{
-			"message":   appErr.Message,
-			"errorCode": appErr.Code,
-		})
-		return
+		errorMsg = appErr.Message
+	} else {
+		errorMsg = err.Error()
 	}
 
-	c.JSON(statusCode, gin.H{
-		"message":   err.Error(),
-		"errorCode": statusCode,
-	})
+	errorResp := types.ErrorResponse{
+		StatusCode: statusCode,
+		IsSuccess:  false,
+		Error: types.ErrorDetail{
+			Timestamp:    time.Now().Format(time.RFC3339),
+			Path:         c.Request.URL.Path,
+			ErrorMessage: errorMsg,
+		},
+	}
+	c.JSON(statusCode, errorResp)
 }
 
 // ErrorWithMessage sends an error response with a custom message
 func ErrorWithMessage(c *gin.Context, statusCode int, message string) {
-	c.JSON(statusCode, gin.H{
-		"message":   message,
-		"errorCode": statusCode,
-	})
+	errorResp := types.ErrorResponse{
+		StatusCode: statusCode,
+		IsSuccess:  false,
+		Error: types.ErrorDetail{
+			Timestamp:    time.Now().Format(time.RFC3339),
+			Path:         c.Request.URL.Path,
+			ErrorMessage: message,
+		},
+	}
+	c.JSON(statusCode, errorResp)
 }
 
 // BadRequest sends a 400 Bad Request response

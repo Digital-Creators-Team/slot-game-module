@@ -57,9 +57,9 @@ func (h *GameHandler) extractCurrencyID(c *gin.Context) string {
 // @Accept       json
 // @Produce      json
 // @Param        game_code   path      string  true  "Game code"
-// @Success      200  {object}  BaseResponse{data=game.AuthorizeResponse}
-// @Failure      401  {object}  BaseResponse
-// @Failure      500  {object}  BaseResponse
+// @Success      200  {object}  server.SuccessResponse{data=game.AuthorizeResponse}
+// @Failure      401  {object}  server.ErrorResponse
+// @Failure      500  {object}  server.ErrorResponse
 // @Security     BearerAuth
 // @Router       /games/{game_code}/authorize-game [post]
 func (h *GameHandler) Authorize(c *gin.Context) {
@@ -155,10 +155,10 @@ type SpinRequest struct {
 // @Produce      json
 // @Param        game_code   path      string       true  "Game code"
 // @Param        request     body      SpinRequest  true  "Spin request"
-// @Success      200      {object}  BaseResponse{data=game.SpinResponse}
-// @Failure      400      {object}  BaseResponse
-// @Failure      401      {object}  BaseResponse
-// @Failure      500      {object}  BaseResponse
+// @Success      200      {object}  server.SuccessResponse{data=game.SpinResponse}
+// @Failure      400      {object}  server.ErrorResponse
+// @Failure      401      {object}  server.ErrorResponse
+// @Failure      500      {object}  server.ErrorResponse
 // @Security     BearerAuth
 // @Router       /games/{game_code}/spin [post]
 //
@@ -265,8 +265,8 @@ type GameConfigResponse struct {
 // @Accept       json
 // @Produce      json
 // @Param        game_code   path      string  true  "Game code"
-// @Success      200  {object}  BaseResponse{data=GameConfigResponse}
-// @Failure      500  {object}  BaseResponse
+// @Success      200  {object}  server.SuccessResponse{data=GameConfigResponse}
+// @Failure      500  {object}  server.ErrorResponse
 // @Router       /games/{game_code}/config [get]
 func (h *GameHandler) GetConfig(c *gin.Context) {
 	ctx := c.Request.Context()
@@ -303,9 +303,9 @@ func (h *GameHandler) GetConfig(c *gin.Context) {
 // @Accept       json
 // @Produce      json
 // @Param        game_code   path      string       true  "Game code"
-// @Success      200  {object}  BaseResponse{data=game.PlayerState}
-// @Failure      401  {object}  BaseResponse
-// @Failure      500  {object}  BaseResponse
+// @Success      200  {object}  server.SuccessResponse{data=game.PlayerState}
+// @Failure      401  {object}  server.ErrorResponse
+// @Failure      500  {object}  server.ErrorResponse
 // @Security     BearerAuth
 // @Router       /games/{game_code}/get-player-state [get]
 func (h *GameHandler) GetState(c *gin.Context) {
@@ -355,10 +355,10 @@ type BetHistoryQueryParams struct {
 // @Param        gameCode   query     string  true   "Game code"
 // @Param        limit      query     int     true   "Items per page"
 // @Param        page       query     int     true   "Page number (0-based)"
-// @Success      200        {object}  BaseResponse{data=BetHistoryResponse}
-// @Failure      400        {object}  BaseResponse
-// @Failure      401        {object}  BaseResponse
-// @Failure      500        {object}  BaseResponse
+// @Success      200        {object}  server.SuccessResponse{data=BetHistoryResponse}
+// @Failure      400        {object}  server.ErrorResponse
+// @Failure      401        {object}  server.ErrorResponse
+// @Failure      500        {object}  server.ErrorResponse
 // @Security     BearerAuth
 // @Router       /games/{game_code}/bet-history [get]
 func (h *GameHandler) GetBetHistory(c *gin.Context) {

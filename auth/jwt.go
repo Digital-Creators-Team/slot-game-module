@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	coreErrors "git.futuregamestudio.net/be-shared/slot-game-module.git/errors"
+	"git.futuregamestudio.net/be-shared/slot-game-module.git/types"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/rs/zerolog"
@@ -71,11 +71,16 @@ func JWTMiddlewareWithConfig(config JWTConfig, logger zerolog.Logger) gin.Handle
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
 			logger.Warn().Msg("Missing Authorization header")
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"status_code": http.StatusUnauthorized,
-				"is_success":  false,
-				"error":       coreErrors.New(http.StatusUnauthorized, "Missing Authorization header").Response(),
-			})
+			errorResp := types.ErrorResponse{
+				StatusCode: http.StatusUnauthorized,
+				IsSuccess:  false,
+				Error: types.ErrorDetail{
+					Timestamp:    time.Now().Format(time.RFC3339),
+					Path:         c.Request.URL.Path,
+					ErrorMessage: "Missing Authorization header",
+				},
+			}
+			c.JSON(http.StatusUnauthorized, errorResp)
 			c.Abort()
 			return
 		}
@@ -84,11 +89,16 @@ func JWTMiddlewareWithConfig(config JWTConfig, logger zerolog.Logger) gin.Handle
 		parts := strings.SplitN(authHeader, " ", 2)
 		if len(parts) != 2 || parts[0] != config.TokenPrefix {
 			logger.Warn().Str("auth_header", authHeader).Msg("Invalid Authorization header format")
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"status_code": http.StatusUnauthorized,
-				"is_success":  false,
-				"error":       coreErrors.New(http.StatusUnauthorized, "Invalid Authorization header format. Expected: Bearer <token>").Response(),
-			})
+			errorResp := types.ErrorResponse{
+				StatusCode: http.StatusUnauthorized,
+				IsSuccess:  false,
+				Error: types.ErrorDetail{
+					Timestamp:    time.Now().Format(time.RFC3339),
+					Path:         c.Request.URL.Path,
+					ErrorMessage: "Invalid Authorization header format. Expected: Bearer <token>",
+				},
+			}
+			c.JSON(http.StatusUnauthorized, errorResp)
 			c.Abort()
 			return
 		}
@@ -106,11 +116,16 @@ func JWTMiddlewareWithConfig(config JWTConfig, logger zerolog.Logger) gin.Handle
 
 		if err != nil {
 			logger.Warn().Err(err).Msg("Failed to parse JWT token")
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"status_code": http.StatusUnauthorized,
-				"is_success":  false,
-				"error":       coreErrors.NewWithDebug(http.StatusUnauthorized, "Invalid or expired token", err.Error()).Response(),
-			})
+			errorResp := types.ErrorResponse{
+				StatusCode: http.StatusUnauthorized,
+				IsSuccess:  false,
+				Error: types.ErrorDetail{
+					Timestamp:    time.Now().Format(time.RFC3339),
+					Path:         c.Request.URL.Path,
+					ErrorMessage: "Invalid or expired token",
+				},
+			}
+			c.JSON(http.StatusUnauthorized, errorResp)
 			c.Abort()
 			return
 		}
@@ -119,11 +134,16 @@ func JWTMiddlewareWithConfig(config JWTConfig, logger zerolog.Logger) gin.Handle
 		claims, ok := token.Claims.(*Claims)
 		if !ok || !token.Valid {
 			logger.Warn().Msg("Invalid token claims")
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"status_code": http.StatusUnauthorized,
-				"is_success":  false,
-				"error":       coreErrors.New(http.StatusUnauthorized, "Invalid token claims").Response(),
-			})
+			errorResp := types.ErrorResponse{
+				StatusCode: http.StatusUnauthorized,
+				IsSuccess:  false,
+				Error: types.ErrorDetail{
+					Timestamp:    time.Now().Format(time.RFC3339),
+					Path:         c.Request.URL.Path,
+					ErrorMessage: "Invalid token claims",
+				},
+			}
+			c.JSON(http.StatusUnauthorized, errorResp)
 			c.Abort()
 			return
 		}

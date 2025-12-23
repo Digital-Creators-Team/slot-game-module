@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"git.futuregamestudio.net/be-shared/slot-game-module.git/types"
 	"github.com/gin-gonic/gin"
 )
 
@@ -31,13 +32,16 @@ func Timeout(timeout time.Duration) gin.HandlerFunc {
 			// Request completed normally
 		case <-ctx.Done():
 			// Timeout exceeded
-			c.AbortWithStatusJSON(http.StatusRequestTimeout, gin.H{
-				"status_code": http.StatusRequestTimeout,
-				"is_success":  false,
-				"error": gin.H{
-					"message": "Request timeout",
+			errorResp := types.ErrorResponse{
+				StatusCode: http.StatusRequestTimeout,
+				IsSuccess:  false,
+				Error: types.ErrorDetail{
+					Timestamp:    time.Now().Format(time.RFC3339),
+					Path:         c.Request.URL.Path,
+					ErrorMessage: "Request timeout",
 				},
-			})
+			}
+			c.AbortWithStatusJSON(http.StatusRequestTimeout, errorResp)
 		}
 	}
 }

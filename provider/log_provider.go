@@ -10,6 +10,7 @@ import (
 	"git.futuregamestudio.net/be-shared/slot-game-module.git/config"
 	"git.futuregamestudio.net/be-shared/slot-game-module.git/events/kafka"
 	"git.futuregamestudio.net/be-shared/slot-game-module.git/server"
+	"git.futuregamestudio.net/be-shared/slot-game-module.git/types"
 	"github.com/google/uuid"
 	"github.com/mitchellh/mapstructure"
 	"github.com/rs/zerolog"
@@ -179,13 +180,12 @@ type DataAuditEvent struct {
 	Total int        `json:"total"`
 }
 
-// LogServiceResponse wraps the log service response
+// LogServiceResponse wraps the log service response (can be success or error)
 type LogServiceResponse struct {
-	IsSuccess bool           `json:"isSuccess"`
-	Data      DataAuditEvent `json:"data"`
-	Error     *struct {
-		ErrorMessage string `json:"errorMessage"`
-	} `json:"error,omitempty"`
+	StatusCode int            `json:"status_code"`
+	IsSuccess  bool           `json:"is_success"`
+	Data       DataAuditEvent `json:"data,omitempty"`
+	Error      types.ErrorDetail `json:"error,omitempty"`
 }
 
 // GetBetHistory gets bet history for a user
@@ -234,7 +234,7 @@ func (p *LogProvider) GetBetHistory(ctx context.Context, query *server.BetHistor
 
 	if !result.IsSuccess {
 		errMsg := "unknown error"
-		if result.Error != nil {
+		if result.Error.ErrorMessage != "" {
 			errMsg = result.Error.ErrorMessage
 		}
 		return nil, fmt.Errorf("log service error: %s", errMsg)

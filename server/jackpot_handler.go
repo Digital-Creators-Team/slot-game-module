@@ -124,19 +124,19 @@ func (h *JackpotHandler) StreamUpdatesWebSocket(c *gin.Context) {
 func (h *JackpotHandler) prepareStreamConfig(c *gin.Context) (*streamConfig, error) {
 	betMultiplierStr := c.Query("bet_multiplier")
 	if betMultiplierStr == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "bet_multiplier query parameter is required"})
+		ErrorWithMessage(c, http.StatusBadRequest, "bet_multiplier query parameter is required")
 		return nil, fmt.Errorf("missing bet_multiplier")
 	}
 
 	var betMultiplier float32
 	if _, err := fmt.Sscanf(betMultiplierStr, "%f", &betMultiplier); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid bet_multiplier format"})
+		ErrorWithMessage(c, http.StatusBadRequest, "invalid bet_multiplier format")
 		return nil, err
 	}
 
 	gameModule := h.app.GetGame()
 	if gameModule == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "game module not registered"})
+		ErrorWithMessage(c, http.StatusInternalServerError, "game module not registered")
 		return nil, fmt.Errorf("game module not registered")
 	}
 
@@ -146,7 +146,7 @@ func (h *JackpotHandler) prepareStreamConfig(c *gin.Context) (*streamConfig, err
 		poolIDs, err := handler.GetPoolID(c.Request.Context(), gameCode, betMultiplier)
 		if err != nil {
 			h.logger.Error().Err(err).Msg("Failed to get pool IDs")
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get pool IDs"})
+			ErrorWithMessage(c, http.StatusInternalServerError, "failed to get pool IDs")
 			return nil, err
 		}
 		targetPoolIDs = poolIDs
@@ -183,7 +183,8 @@ func (h *JackpotHandler) streamUpdates(config *streamConfig, sender messageSende
 	defer heartbeat.Stop()
 
 	// Batch updates that arrive close together (from same spin flush)
-	batchWindow := 10 * time.Millisecond
+	// Use a small window to collect updates from the same flush
+	batchWindow := 5 * time.Millisecond
 	batchTimer := time.NewTimer(batchWindow)
 	batchTimer.Stop()
 	var pendingPools []PoolUpdate
@@ -230,14 +231,44 @@ func (h *JackpotHandler) streamUpdates(config *streamConfig, sender messageSende
 				Timestamp: update.Timestamp.Unix(),
 			})
 
-			// Start/reset timer to batch updates from same spin
-			if !batchTimer.Stop() {
+			// Try to collect more updates from the same flush immediately
+			// by checking if there are more updates available without blocking
+			collected := false
+			for {
 				select {
-				case <-batchTimer.C:
+				case nextUpdate, nextOk := <-updates:
+					if !nextOk {
+						flushBatch()
+						return
+					}
+					if config.isTargetPool(nextUpdate.PoolID) {
+						pendingPools = append(pendingPools, PoolUpdate{
+							PoolID:    nextUpdate.PoolID,
+							Amount:    nextUpdate.Amount.InexactFloat64(),
+							Timestamp: nextUpdate.Timestamp.Unix(),
+						})
+						collected = true
+					}
 				default:
+					// No more updates immediately available
+					goto doneCollecting
 				}
 			}
-			batchTimer.Reset(batchWindow)
+		doneCollecting:
+			// If we collected multiple updates, send immediately
+			// Otherwise, start timer to wait for more
+			if collected {
+				flushBatch()
+			} else {
+				// Start/reset timer to batch updates from same spin
+				if !batchTimer.Stop() {
+					select {
+					case <-batchTimer.C:
+					default:
+					}
+				}
+				batchTimer.Reset(batchWindow)
+			}
 		}
 	}
 }
