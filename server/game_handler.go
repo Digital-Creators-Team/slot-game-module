@@ -57,7 +57,7 @@ func (h *GameHandler) extractCurrencyID(c *gin.Context) string {
 // @Accept       json
 // @Produce      json
 // @Param        game_code   path      string  true  "Game code"
-// @Success      200  {object}  server.SuccessResponse{data=game.AuthorizeResponse}
+// @Success      200  {object}  server.SuccessResponse[game.AuthorizeResponse]
 // @Failure      401  {object}  server.ErrorResponse
 // @Failure      500  {object}  server.ErrorResponse
 // @Security     BearerAuth
@@ -155,7 +155,7 @@ type SpinRequest struct {
 // @Produce      json
 // @Param        game_code   path      string       true  "Game code"
 // @Param        request     body      SpinRequest  true  "Spin request"
-// @Success      200      {object}  server.SuccessResponse{data=game.SpinResponse}
+// @Success      200      {object}  server.SuccessResponse[game.SpinResponse]
 // @Failure      400      {object}  server.ErrorResponse
 // @Failure      401      {object}  server.ErrorResponse
 // @Failure      500      {object}  server.ErrorResponse
@@ -265,7 +265,7 @@ type GameConfigResponse struct {
 // @Accept       json
 // @Produce      json
 // @Param        game_code   path      string  true  "Game code"
-// @Success      200  {object}  server.SuccessResponse{data=GameConfigResponse}
+// @Success      200  {object}  server.SuccessResponse[GameConfigResponse]
 // @Failure      500  {object}  server.ErrorResponse
 // @Router       /games/{game_code}/config [get]
 func (h *GameHandler) GetConfig(c *gin.Context) {
@@ -303,7 +303,7 @@ func (h *GameHandler) GetConfig(c *gin.Context) {
 // @Accept       json
 // @Produce      json
 // @Param        game_code   path      string       true  "Game code"
-// @Success      200  {object}  server.SuccessResponse{data=game.PlayerState}
+// @Success      200  {object}  server.SuccessResponse[game.PlayerState]
 // @Failure      401  {object}  server.ErrorResponse
 // @Failure      500  {object}  server.ErrorResponse
 // @Security     BearerAuth
@@ -355,7 +355,7 @@ type BetHistoryQueryParams struct {
 // @Param        gameCode   query     string  true   "Game code"
 // @Param        limit      query     int     true   "Items per page"
 // @Param        page       query     int     true   "Page number (0-based)"
-// @Success      200        {object}  server.SuccessResponse{data=BetHistoryResponse}
+// @Success      200        {object}  server.SuccessResponse[BetHistoryResponse]
 // @Failure      400        {object}  server.ErrorResponse
 // @Failure      401        {object}  server.ErrorResponse
 // @Failure      500        {object}  server.ErrorResponse

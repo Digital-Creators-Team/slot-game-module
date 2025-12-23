@@ -10,12 +10,15 @@ import (
 )
 
 // ErrorDetail is an alias for types.ErrorDetail
+// @Description Error payload details
 type ErrorDetail = types.ErrorDetail
 
 // ErrorResponse is an alias for types.ErrorResponse
+// @Description Standardized error response
 type ErrorResponse = types.ErrorResponse
 
-// SuccessResponse is an alias for types.SuccessResponse
+// SuccessResponse is a type alias for types.SuccessResponse[T]
+// @Description Standardized success response
 type SuccessResponse[T any] = types.SuccessResponse[T]
 
 // BaseResponse is a type alias for SuccessResponse[interface{}] for backward compatibility with swagger
