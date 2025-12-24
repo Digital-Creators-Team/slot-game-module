@@ -52,7 +52,7 @@ type SpinResult struct {
 	TotalWinFreeSpin  decimal.Decimal        `json:"totalWinFreeSpin,omitempty"`
 	IsLastFreeSpin    *bool                  `json:"isLastFreeSpin,omitempty"`
 	WinTitle          WinType                `json:"winTitle"`
-	SpinType          int                    `json:"spinType"`  // 0 = normal, 1 = free spin
+	SpinType          int                    `json:"spinType"`            // 0 = normal, 1 = free spin
 	SubReel           []int                  `json:"subReel,omitempty"`   // For games with sub reel (e.g., parrot treasure)
 	ExtraData         map[string]interface{} `json:"extraData,omitempty"` // Custom data for game-specific use
 }
@@ -272,10 +272,11 @@ type CheatPosition struct {
 
 // CheatPayout represents cheat payout configuration for testing
 type CheatPayout struct {
-	TriggerWinMode  *WinType       `json:"triggerWinMode,omitempty"`
-	Position        *CheatPosition `json:"cheatPosition,omitempty"`
-	TriggerFreeGame *bool          `json:"triggerFreeGame,omitempty"`
-	TriggerJackpot  *bool          `json:"triggerJackpot,omitempty"`
+	TriggerWinMode  *WinType               `json:"triggerWinMode,omitempty"`
+	Position        *CheatPosition         `json:"cheatPosition,omitempty"`
+	TriggerFreeGame *bool                  `json:"triggerFreeGame,omitempty"`
+	TriggerJackpot  *bool                  `json:"triggerJackpot,omitempty"`
+	ExtraData       map[string]interface{} `json:"extraData,omitempty"` // Custom data for game-specific use
 }
 
 // SpinRequest represents a spin request DTO
