@@ -104,29 +104,42 @@ func (h *JackpotHandler) StreamUpdatesWebSocket(c *gin.Context) {
 	}
 	defer conn.Close() //nolint:errcheck
 
-	// Set write deadline to prevent blocking indefinitely
 	writeDeadline := 10 * time.Second
 	conn.SetWriteDeadline(time.Now().Add(writeDeadline))
 
-	// Handle ping/pong and detect connection close
 	done := make(chan struct{})
+	
+	// Detect connection close
 	go func() {
 		defer close(done)
-		for {
-			// Set read deadline for ping/pong
-			conn.SetReadDeadline(time.Now().Add(60 * time.Second))
-			if _, _, err := conn.ReadMessage(); err != nil {
-				if websocket.IsUnexpectedCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-					// Log unexpected close errors (including EOF)
-					if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
-						h.logger.Warn().Err(err).Msg("WebSocket connection closed unexpectedly (EOF)")
-					} else {
-						h.logger.Warn().Err(err).Msg("WebSocket connection closed unexpectedly")
-					}
+		conn.SetReadDeadline(time.Now().Add(10 * time.Minute))
+		if _, _, err := conn.ReadMessage(); err != nil {
+			if websocket.IsUnexpectedCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+				if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+					h.logger.Warn().Err(err).Msg("WebSocket connection closed unexpectedly (EOF)")
 				} else {
-					h.logger.Debug().Err(err).Msg("WebSocket closed normally")
+					h.logger.Warn().Err(err).Msg("WebSocket connection closed unexpectedly")
 				}
+			} else {
+				h.logger.Debug().Err(err).Msg("WebSocket closed normally")
+			}
+		}
+	}()
+
+	// Send ping to keep connection alive
+	pingTicker := time.NewTicker(30 * time.Second)
+	go func() {
+		defer pingTicker.Stop()
+		for {
+			select {
+			case <-done:
 				return
+			case <-pingTicker.C:
+				deadline := time.Now().Add(5 * time.Second)
+				if err := conn.WriteControl(websocket.PingMessage, []byte{}, deadline); err != nil {
+					h.logger.Debug().Err(err).Msg("Failed to send ping")
+					return
+				}
 			}
 		}
 	}()
