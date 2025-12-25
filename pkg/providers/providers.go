@@ -27,7 +27,7 @@ type ContributeRequest struct {
 	Amount     decimal.Decimal // Contribution amount
 	GameCode   string          // Game code
 	SpinID     string          // Optional: spin/round ID to group contributions from the same spin
-	TotalPools int            // Optional: total number of pools for this spin (for flush when complete)
+	TotalPools int             // Optional: total number of pools for this spin (for flush when complete)
 }
 
 // ClaimRequest represents a request to claim a jackpot pool
@@ -83,26 +83,30 @@ type LogProvider interface {
 
 // SpinLog represents a spin log entry to be saved
 type SpinLog struct {
-	UserID     string      `json:"userId"`
-	Username   string      `json:"username"`
-	GameCode   string      `json:"gameCode"`
-	BetAmount  float64     `json:"betAmount"`
-	WinAmount  float64     `json:"winAmount"`
-	SpinType   int         `json:"spinType"` // 0 = normal, 1 = free spin
-	SpinResult interface{} `json:"spinResult"`
-	Timestamp  time.Time   `json:"timestamp"`
+	UserID       string      `json:"userId"`
+	Username     string      `json:"username"`
+	GameCode     string      `json:"gameCode"`
+	BetAmount    float64     `json:"betAmount"`
+	WinAmount    float64     `json:"winAmount"`
+	SpinType     int         `json:"spinType"` // 0 = normal, 1 = free spin
+	IsGetJackpot *bool       `json:"isGetJackpot"`
+	SpinResult   interface{} `json:"spinResult"`
+	Timestamp    time.Time   `json:"timestamp"`
 }
 
 // JackpotLog represents a jackpot log entry to be saved
 type JackpotLog struct {
-	UserID    string    `json:"userId"`
-	Username  string    `json:"username"` // Display name for history
-	GameCode  string    `json:"gameCode"`
-	Tier      string    `json:"tier"`      // "mini", "minor", "grand"
-	BetAmount float64   `json:"betAmount"` // Bet amount when jackpot won
-	WinAmount float64   `json:"winAmount"`
-	Currency  string    `json:"currency"` // e.g. "USD", "VND"
-	Timestamp time.Time `json:"timestamp"`
+	UserID          string      `json:"userId"`
+	Username        string      `json:"username"` // Display name for history
+	GameCode        string      `json:"gameCode"`
+	Tier            string      `json:"tier"`      // "mini", "minor", "grand"
+	BetAmount       float64     `json:"betAmount"` // Bet amount when jackpot won
+	WinAmount       float64     `json:"winAmount"`
+	Currency        string      `json:"currency"` // e.g. "USD", "VND"
+	TotalWinJackpot float64     `json:"totalWinJackpot,omitempty"`
+	SpinType        int         `mapstructure:"spinType" json:"spinType"`
+	SpinResult      interface{} `json:"spinResult"`
+	Timestamp       time.Time   `json:"timestamp"`
 }
 
 // BetHistoryQuery represents query parameters for bet history

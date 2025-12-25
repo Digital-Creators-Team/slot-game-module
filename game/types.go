@@ -51,6 +51,7 @@ type SpinResult struct {
 	RemainingFreeSpin *int                   `json:"remainingFreeSpin,omitempty"`
 	TotalWinFreeSpin  decimal.Decimal        `json:"totalWinFreeSpin,omitempty"`
 	IsLastFreeSpin    *bool                  `json:"isLastFreeSpin,omitempty"`
+	JackpotType       *string                `json:"jackpotType,omitempty"`
 	WinTitle          WinType                `json:"winTitle"`
 	SpinType          int                    `json:"spinType"`            // 0 = normal, 1 = free spin
 	SubReel           []int                  `json:"subReel,omitempty"`   // For games with sub reel (e.g., parrot treasure)
