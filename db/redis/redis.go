@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"git.futuregamestudio.net/be-shared/slot-game-module.git/config"
+	"github.com/Digital-Creators-Team/slot-game-module/config"
 	"github.com/go-redis/redis/v8"
 )
 

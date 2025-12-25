@@ -26,8 +26,8 @@ type SwaggerHostUpdater func(host string)
 // Example usage in game's main.go:
 //
 //	import (
-//	    _ "git.futuregamestudio.net/fgs/backend/game-xxx/docs"
-//	    "git.futuregamestudio.net/fgs/backend/game-xxx/docs"
+//	    _ "github.com/Digital-Creators-Team/game-xxx/docs"
+//	    "github.com/Digital-Creators-Team/game-xxx/docs"
 //	)
 //
 //	app.RegisterSwagger(server.SwaggerInfo{

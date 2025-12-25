@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/rs/zerolog"
-	"git.futuregamestudio.net/be-shared/slot-game-module.git/pkg/providers"
+	"github.com/Digital-Creators-Team/slot-game-module/pkg/providers"
 )
 
 // ModuleContext provides access to dependencies and services for game modules

@@ -1,10 +1,10 @@
 package wire
 
 import (
-	"git.futuregamestudio.net/be-shared/slot-game-module.git/config"
-	"git.futuregamestudio.net/be-shared/slot-game-module.git/db/redis"
-	"git.futuregamestudio.net/be-shared/slot-game-module.git/logging"
-	"git.futuregamestudio.net/be-shared/slot-game-module.git/server"
+	"github.com/Digital-Creators-Team/slot-game-module/config"
+	"github.com/Digital-Creators-Team/slot-game-module/db/redis"
+	"github.com/Digital-Creators-Team/slot-game-module/logging"
+	"github.com/Digital-Creators-Team/slot-game-module/server"
 	"github.com/google/wire"
 	"github.com/rs/zerolog"
 )

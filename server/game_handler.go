@@ -1,9 +1,9 @@
 package server
 
 import (
-	"git.futuregamestudio.net/be-shared/slot-game-module.git/auth"
-	"git.futuregamestudio.net/be-shared/slot-game-module.git/errors"
-	"git.futuregamestudio.net/be-shared/slot-game-module.git/game"
+	"github.com/Digital-Creators-Team/slot-game-module/auth"
+	"github.com/Digital-Creators-Team/slot-game-module/errors"
+	"github.com/Digital-Creators-Team/slot-game-module/game"
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog"
 )

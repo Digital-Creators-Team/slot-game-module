@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	coreredis "git.futuregamestudio.net/be-shared/slot-game-module.git/db/redis"
-	"git.futuregamestudio.net/be-shared/slot-game-module.git/game"
+	coreredis "github.com/Digital-Creators-Team/slot-game-module/db/redis"
+	"github.com/Digital-Creators-Team/slot-game-module/game"
 	"github.com/rs/zerolog"
 )
 

@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"time"
 
-	"git.futuregamestudio.net/be-shared/slot-game-module.git/game"
-	"git.futuregamestudio.net/be-shared/slot-game-module.git/pkg/jackpot"
+	"github.com/Digital-Creators-Team/slot-game-module/game"
+	"github.com/Digital-Creators-Team/slot-game-module/pkg/jackpot"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"github.com/rs/zerolog"

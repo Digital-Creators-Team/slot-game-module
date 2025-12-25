@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"git.futuregamestudio.net/be-shared/slot-game-module.git/logging"
+	"github.com/Digital-Creators-Team/slot-game-module/logging"
 	"github.com/spf13/viper"
 )
 

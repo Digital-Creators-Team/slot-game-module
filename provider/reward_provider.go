@@ -8,9 +8,9 @@ import (
 	"net/http"
 	"time"
 
-	"git.futuregamestudio.net/be-shared/slot-game-module.git/config"
-	"git.futuregamestudio.net/be-shared/slot-game-module.git/pkg/providers"
-	"git.futuregamestudio.net/be-shared/slot-game-module.git/server"
+	"github.com/Digital-Creators-Team/slot-game-module/config"
+	"github.com/Digital-Creators-Team/slot-game-module/pkg/providers"
+	"github.com/Digital-Creators-Team/slot-game-module/server"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
 )
