@@ -92,20 +92,18 @@ func (h *GameHandler) Authorize(c *gin.Context) {
 		return
 	}
 
-	// Extract *Config from ConfigNormalizer (handles both *Config and custom configs that embed Config)
-	gameConfig, err := game.GetConfigFromNormalizer(cfg)
-	if err != nil {
-		h.logger.Error().Err(err).Msg("Failed to extract game config")
-		InternalError(c, errors.New(errors.ErrInternalServerError, "Invalid game config"))
-		return
-	}
-
 	// Get player state - requires StateProvider
 	playerState, err := h.app.stateProvider.GetPlayerState(ctx, userID, gameModule.GetGameCode())
 	if err != nil {
 		h.logger.Error().Err(err).Msg("Failed to get player state")
 		InternalError(c, errors.Wrap(err, errors.ErrPlayerStateError, "Failed to get player state"))
 		return
+	}
+
+	// rm freeSpins, BE logic is only stored in db
+	s, ok := playerState.(*game.PlayerState)
+	if ok {
+		s.FreeSpins = nil
 	}
 
 	// Get balance - requires WalletProvider
@@ -123,8 +121,8 @@ func (h *GameHandler) Authorize(c *gin.Context) {
 
 	// Build response
 	response := game.AuthorizeResponse{
-		LastState:  playerState,
-		GameConfig: gameConfig,
+		LastState:  s,
+		GameConfig: cfg.Normalize(),
 		Player: game.Player{
 			UserID:   userID,
 			Username: username,

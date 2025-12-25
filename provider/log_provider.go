@@ -18,23 +18,23 @@ import (
 
 // SpinDetails represents spin log details for mapstructure decoding
 type SpinDetails struct {
-	SessionID  string      `mapstructure:"session_id" json:"sessionId"`
+	SessionID  string      `mapstructure:"sessionId" json:"sessionId"`
 	Username   string      `mapstructure:"username" json:"username"`
-	GameCode   string      `mapstructure:"game_code" json:"gameCode"`
-	BetAmount  float64     `mapstructure:"bet_amount" json:"betAmount"`
-	WinAmount  float64     `mapstructure:"win_amount" json:"winAmount"`
-	SpinType   int         `mapstructure:"spin_type" json:"spinType"`
-	SpinResult interface{} `mapstructure:"spin_result" json:"spinResult"`
+	GameCode   string      `mapstructure:"gameCode" json:"gameCode"`
+	BetAmount  float64     `mapstructure:"betAmount" json:"betAmount"`
+	WinAmount  float64     `mapstructure:"winAmount" json:"winAmount"`
+	SpinType   int         `mapstructure:"spinType" json:"spinType"`
+	SpinResult interface{} `mapstructure:"spinResult" json:"spinResult"`
 }
 
 // JackpotDetails represents jackpot log details for mapstructure decoding
 type JackpotDetails struct {
-	SessionID string  `mapstructure:"session_id" json:"sessionId"`
+	SessionID string  `mapstructure:"sessionId" json:"sessionId"`
 	Username  string  `mapstructure:"username" json:"username"`
-	GameCode  string  `mapstructure:"game_code" json:"gameCode"`
+	GameCode  string  `mapstructure:"gameCode" json:"gameCode"`
 	Tier      string  `mapstructure:"tier" json:"tier"`
-	BetAmount float64 `mapstructure:"bet_amount" json:"betAmount"`
-	WinAmount float64 `mapstructure:"win_amount" json:"winAmount"`
+	BetAmount float64 `mapstructure:"betAmount" json:"betAmount"`
+	WinAmount float64 `mapstructure:"winAmount" json:"winAmount"`
 	Currency  string  `mapstructure:"currency" json:"currency"`
 }
 
@@ -182,9 +182,9 @@ type DataAuditEvent struct {
 
 // LogServiceResponse wraps the log service response (can be success or error)
 type LogServiceResponse struct {
-	StatusCode int            `json:"status_code"`
-	IsSuccess  bool           `json:"is_success"`
-	Data       DataAuditEvent `json:"data,omitempty"`
+	StatusCode int               `json:"status_code"`
+	IsSuccess  bool              `json:"is_success"`
+	Data       DataAuditEvent    `json:"data,omitempty"`
 	Error      types.ErrorDetail `json:"error,omitempty"`
 }
 
@@ -279,7 +279,7 @@ func (p *LogProvider) convertToBet(entry LogEntry, betType server.BetType) *serv
 				if reels, ok := resultMap["reels"]; ok {
 					bet.Reels = reels
 				}
-				if winLines, ok := resultMap["winLines"]; ok {
+				if winLines, ok := resultMap["winlines"]; ok {
 					bet.WinLines = winLines
 				}
 				if subReel, ok := resultMap["subReel"]; ok {
