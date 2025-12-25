@@ -37,7 +37,7 @@ func NewJackpotHandler(app *App, svc *jackpot.Service) *JackpotHandler {
 		svc:             svc,
 		app:             app,
 		logger:          app.logger.With().Str("handler", "jackpot").Logger(),
-		heartbeatPeriod: 60 * time.Second,
+		heartbeatPeriod: 30 * time.Second,
 		upgrader: websocket.Upgrader{
 			CheckOrigin:     func(r *http.Request) bool { return true },
 			ReadBufferSize:  1024,
