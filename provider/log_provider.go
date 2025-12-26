@@ -29,13 +29,16 @@ type SpinDetails struct {
 
 // JackpotDetails represents jackpot log details for mapstructure decoding
 type JackpotDetails struct {
-	SessionID string  `mapstructure:"sessionId" json:"sessionId"`
-	Username  string  `mapstructure:"username" json:"username"`
-	GameCode  string  `mapstructure:"gameCode" json:"gameCode"`
-	Tier      string  `mapstructure:"tier" json:"tier"`
-	BetAmount float64 `mapstructure:"betAmount" json:"betAmount"`
-	WinAmount float64 `mapstructure:"winAmount" json:"winAmount"`
-	Currency  string  `mapstructure:"currency" json:"currency"`
+	SessionID       string      `mapstructure:"sessionId" json:"sessionId"`
+	Username        string      `mapstructure:"username" json:"username"`
+	GameCode        string      `mapstructure:"gameCode" json:"gameCode"`
+	Tier            string      `mapstructure:"tier" json:"tier"`
+	BetAmount       float64     `mapstructure:"betAmount" json:"betAmount"`
+	WinAmount       float64     `mapstructure:"winAmount" json:"winAmount"`
+	TotalWinJackpot float64     `mapstructure:"totalWinJackpot" json:"totalWinJackpot"`
+	Currency        string      `mapstructure:"currency" json:"currency"`
+	SpinType        int         `mapstructure:"spinType" json:"spinType"`
+	SpinResult      interface{} `mapstructure:"spinResult" json:"spinResult"`
 }
 
 // LogProvider implements server.LogProvider using Kafka and HTTP
@@ -113,9 +116,9 @@ func (p *LogProvider) LogSpin(ctx context.Context, log *server.SpinLog) (string,
 	}
 
 	// Set action based on spin type
-	if log.SpinType == 1 {
-		event.Action = "free_spin"
-	}
+	// if log.SpinType == 1 {
+	// 	event.Action = "free_spin"
+	// }
 
 	if err := p.kafkaProducer.SendMessage(p.auditTopic, sessionID, event); err != nil {
 		p.logger.Error().Err(err).Msg("Failed to send spin log to Kafka")
@@ -141,13 +144,16 @@ func (p *LogProvider) LogJackpot(ctx context.Context, log *server.JackpotLog) (s
 		SourceService: log.GameCode,
 		Action:        "jackpot",
 		Details: JackpotDetails{
-			SessionID: sessionID,
-			Username:  log.Username,
-			GameCode:  log.GameCode,
-			Tier:      log.Tier,
-			BetAmount: log.BetAmount,
-			WinAmount: log.WinAmount,
-			Currency:  log.Currency,
+			SessionID:       sessionID,
+			Username:        log.Username,
+			GameCode:        log.GameCode,
+			Tier:            log.Tier,
+			BetAmount:       log.BetAmount,
+			WinAmount:       log.WinAmount,
+			Currency:        log.Currency,
+			SpinType:        log.SpinType,
+			TotalWinJackpot: log.TotalWinJackpot,
+			SpinResult:      log.SpinResult,
 		},
 		Result:  "success",
 		TraceID: sessionID,
@@ -287,7 +293,6 @@ func (p *LogProvider) convertToBet(entry LogEntry, betType server.BetType) *serv
 				}
 			}
 		}
-
 	case server.BetTypeJackpot:
 		var details JackpotDetails
 		if err := mapstructure.Decode(entry.Details, &details); err != nil {
@@ -295,9 +300,25 @@ func (p *LogProvider) convertToBet(entry LogEntry, betType server.BetType) *serv
 			return nil
 		}
 		bet.TotalBet = details.BetAmount
-		bet.TotalWin = 0
-		bet.TotalWinJackpot = details.WinAmount
+		bet.TotalWin = details.WinAmount
 		bet.Username = &details.Username
+		bet.TotalWinJackpot = details.TotalWinJackpot
+		bet.IsFreeSpin = details.SpinType == 1
+
+		if details.SpinResult != nil {
+			if resultMap, ok := details.SpinResult.(map[string]interface{}); ok {
+				if reels, ok := resultMap["reels"]; ok {
+					bet.Reels = reels
+				}
+				if winLines, ok := resultMap["winlines"]; ok {
+					bet.WinLines = winLines
+				}
+				if subReel, ok := resultMap["subReel"]; ok {
+					bet.SubReel = subReel
+				}
+
+			}
+		}
 	}
 
 	return bet

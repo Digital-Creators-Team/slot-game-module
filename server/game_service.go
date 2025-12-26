@@ -145,12 +145,20 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 		}
 	}
 
+	// 6. Process jackpot win (if any)
+	if spinResult.IsGetJackpot != nil && *spinResult.IsGetJackpot {
+		// Claim jackpot
+		if err := s.processJackpotWin(ctx, spinResult, req.UserID, req.Username, gameCode, req.CurrencyID, gameConfig, totalBet); err != nil {
+			s.logger.Error().Err(err).Msg("Failed to process jackpot win")
+		}
+	}
+
 	// Update timestamp before saving
 	// Note: Since playerState is a pointer, any modifications by endusers in PlayNormalSpin/PlayFreeSpin
 	// are automatically reflected here - no need to get state from ModuleContext again
 	playerState.UpdatedAt = time.Now()
 
-	// 6. Get ending balance
+	// 7. Get ending balance
 	var balance decimal.Decimal
 	if s.walletProvider != nil {
 		balance, err = s.walletProvider.GetBalance(ctx, req.UserID, req.CurrencyID)
@@ -162,23 +170,44 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 		s.logger.Warn().Msg("Wallet provider not configured, ending balance will be zero")
 		balance = decimal.Zero
 	}
+
 	spinResult.EndingBalance = balance
 
-	// 7. Log spin
+	// 8. Log spin
 	if s.logProvider != nil {
-		sessionID, err = s.logProvider.LogSpin(ctx, &SpinLog{
-			UserID:     req.UserID,
-			Username:   req.Username,
-			GameCode:   gameCode,
-			BetAmount:  spinResult.TotalBet.InexactFloat64(),
-			WinAmount:  spinResult.TotalWin.InexactFloat64(),
-			SpinType:   spinResult.SpinType,
-			SpinResult: spinResult,
-			Timestamp:  time.Now().UTC(),
-		})
-		if err != nil {
-			s.logger.Error().Err(err).Msg("Failed to log spin")
+		if spinResult.IsGetJackpot != nil && *spinResult.IsGetJackpot {
+			sessionID, err = s.logProvider.LogJackpot(ctx, &JackpotLog{
+				UserID:          req.UserID,
+				Username:        req.Username,
+				GameCode:        gameCode,
+				Tier:            *spinResult.JackpotType,
+				BetAmount:       totalBet.InexactFloat64(),
+				WinAmount:       spinResult.TotalWin.InexactFloat64(),
+				TotalWinJackpot: spinResult.TotalWinJackpot.InexactFloat64(),
+				SpinType:        spinResult.SpinType,
+				Currency:        req.CurrencyID,
+				SpinResult:      spinResult,
+				Timestamp:       time.Now().UTC(),
+			})
+			if err != nil {
+				s.logger.Error().Err(err).Msg("Failed to log jackpot")
+			}
+		} else {
+			sessionID, err = s.logProvider.LogSpin(ctx, &SpinLog{
+				UserID:     req.UserID,
+				Username:   req.Username,
+				GameCode:   gameCode,
+				BetAmount:  spinResult.TotalBet.InexactFloat64(),
+				WinAmount:  spinResult.TotalWin.InexactFloat64(),
+				SpinType:   spinResult.SpinType,
+				SpinResult: spinResult,
+				Timestamp:  time.Now().UTC(),
+			})
+			if err != nil {
+				s.logger.Error().Err(err).Msg("Failed to log spin")
+			}
 		}
+
 	}
 
 	// 8. Save player state
@@ -267,14 +296,6 @@ func (s *GameService) executeNormalSpin(
 		s.logger.Error().Err(err).Msg("Failed to contribute to jackpot")
 	}
 
-	// 4. Process jackpot win (if any)
-	if spinResult.IsGetJackpot != nil && *spinResult.IsGetJackpot {
-		// Claim jackpot
-		if err := s.processJackpotWin(ctx, spinResult, req.UserID, req.Username, gameCode, req.CurrencyID, gameConfig, totalBet); err != nil {
-			s.logger.Error().Err(err).Msg("Failed to process jackpot win")
-		}
-	}
-
 	// 5. Deposit winnings to wallet
 	if spinResult.TotalWin.GreaterThan(decimal.Zero) {
 		if s.walletProvider == nil {
@@ -356,7 +377,7 @@ func (s *GameService) executeFreeSpin(
 			Float64("total_win", playerState.TotalWinFreeSpin.InexactFloat64()).
 			Msg("Free spins completed")
 
-		// Exit free spin 
+		// Exit free spin
 		playerState.IsFreeSpin = false
 
 	}
@@ -456,24 +477,35 @@ func (s *GameService) processJackpotWin(
 
 	// Update spin result with jackpot win
 	spinResult.TotalWinJackpot = claim.Amount
-	spinResult.TotalWin = spinResult.TotalWin.Add(claim.Amount)
+	spinResult.JackpotType = &jackpotWin.Tier
+	// spinResult.TotalWin = spinResult.TotalWin.Add(claim.Amount)
 
-	// Log jackpot win
-	if s.logProvider != nil {
-		_, err := s.logProvider.LogJackpot(ctx, &JackpotLog{
-			UserID:    userID,
-			Username:  username,
-			GameCode:  gameCode,
-			Tier:      jackpotWin.Tier,
-			BetAmount: totalBet.InexactFloat64(),
-			WinAmount: claim.Amount.InexactFloat64(),
-			Currency:  currency,
-			Timestamp: time.Now().UTC(),
-		})
-		if err != nil {
-			s.logger.Error().Err(err).Msg("Failed to log jackpot")
+	// Payout for jackpot win
+	if claim.Amount.GreaterThan(decimal.Zero) {
+		if s.walletProvider == nil {
+			return errors.New(errors.ErrInternalServerError, "wallet provider not configured")
+		}
+		if err := s.walletProvider.Deposit(ctx, userID, currency, claim.Amount); err != nil {
+			return errors.Wrap(err, errors.ErrWalletError, "failed to deposit winnings")
 		}
 	}
+
+	// Log jackpot win
+	// if s.logProvider != nil {
+	// 	_, err := s.logProvider.LogJackpot(ctx, &JackpotLog{
+	// 		UserID:    userID,
+	// 		Username:  username,
+	// 		GameCode:  gameCode,
+	// 		Tier:      jackpotWin.Tier,
+	// 		BetAmount: totalBet.InexactFloat64(),
+	// 		WinAmount: claim.Amount.InexactFloat64(),
+	// 		Currency:  currency,
+	// 		Timestamp: time.Now().UTC(),
+	// 	})
+	// 	if err != nil {
+	// 		s.logger.Error().Err(err).Msg("Failed to log jackpot")
+	// 	}
+	// }
 
 	return nil
 }

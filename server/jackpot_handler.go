@@ -3,7 +3,9 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
@@ -37,7 +39,7 @@ func NewJackpotHandler(app *App, svc *jackpot.Service) *JackpotHandler {
 		svc:             svc,
 		app:             app,
 		logger:          app.logger.With().Str("handler", "jackpot").Logger(),
-		heartbeatPeriod: 60 * time.Second,
+		heartbeatPeriod: 30 * time.Second,
 		upgrader: websocket.Upgrader{
 			CheckOrigin:     func(r *http.Request) bool { return true },
 			ReadBufferSize:  1024,
@@ -102,21 +104,52 @@ func (h *JackpotHandler) StreamUpdatesWebSocket(c *gin.Context) {
 	}
 	defer conn.Close() //nolint:errcheck
 
-	// Handle ping/pong
+	writeDeadline := 10 * time.Second
+	conn.SetWriteDeadline(time.Now().Add(writeDeadline)) //nolint:errcheck
+
 	done := make(chan struct{})
+
+	// Detect connection close
 	go func() {
 		defer close(done)
-		for {
-			if _, _, err := conn.ReadMessage(); err != nil {
-				if !websocket.IsUnexpectedCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-					h.logger.Debug().Err(err).Msg("WebSocket closed")
+		conn.SetReadDeadline(time.Now().Add(10 * time.Minute)) //nolint:errcheck
+		if _, _, err := conn.ReadMessage(); err != nil {
+			if websocket.IsUnexpectedCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+				if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+					h.logger.Warn().Err(err).Msg("WebSocket connection closed unexpectedly (EOF)")
+				} else {
+					h.logger.Warn().Err(err).Msg("WebSocket connection closed unexpectedly")
 				}
-				return
+			} else {
+				h.logger.Debug().Err(err).Msg("WebSocket closed normally")
 			}
 		}
 	}()
 
-	sender := &wsSender{conn: conn}
+	// Send ping to keep connection alive
+	pingTicker := time.NewTicker(30 * time.Second)
+	go func() {
+		defer pingTicker.Stop()
+		for {
+			select {
+			case <-done:
+				return
+			case <-pingTicker.C:
+				deadline := time.Now().Add(5 * time.Second)
+				if err := conn.WriteControl(websocket.PingMessage, []byte{}, deadline); err != nil {
+					h.logger.Debug().Err(err).Msg("Failed to send ping")
+					return
+				}
+			}
+		}
+	}()
+
+	sender := &wsSender{
+		conn:        conn,
+		done:        done,
+		logger:      h.logger,
+		writeDeadline: writeDeadline,
+	}
 	h.streamUpdates(config, sender)
 }
 
@@ -170,10 +203,13 @@ func (h *JackpotHandler) streamUpdates(config *streamConfig, sender messageSende
 	defer cancel()
 
 	// Send connected event
-	_ = sender.Send(&Response{
+	if err := sender.Send(&Response{
 		Type:      EventTypeConnected,
 		Timestamp: time.Now().Unix(),
-	})
+	}); err != nil {
+		h.logger.Warn().Err(err).Msg("Failed to send connected event, stopping stream")
+		return
+	}
 
 	// Send initial pool data
 	h.sendInitialPools(config, sender)
@@ -189,16 +225,29 @@ func (h *JackpotHandler) streamUpdates(config *streamConfig, sender messageSende
 	batchTimer.Stop()
 	var pendingPools []PoolUpdate
 
-	flushBatch := func() {
+	flushBatch := func() bool {
 		if len(pendingPools) == 0 {
-			return
+			return true
 		}
-		_ = sender.Send(&Response{
+		if err := sender.Send(&Response{
 			Type:      EventTypeUpdated,
 			Timestamp: time.Now().Unix(),
 			Pools:     pendingPools,
-		})
+		}); err != nil {
+			h.logger.Warn().
+				Err(err).
+				Int("pool_count", len(pendingPools)).
+				Msg("Failed to send batch update, stopping stream")
+			return false
+		}
 		pendingPools = nil
+		return true
+	}
+
+	// Check if sender has a done channel (for WebSocket)
+	var doneChan <-chan struct{}
+	if wsSender, ok := sender.(*wsSender); ok {
+		doneChan = wsSender.done
 	}
 
 	for {
@@ -206,14 +255,26 @@ func (h *JackpotHandler) streamUpdates(config *streamConfig, sender messageSende
 		case <-config.ctx.Done():
 			flushBatch()
 			return
-		case <-heartbeat.C:
+		case <-doneChan:
+			// WebSocket connection closed
+			h.logger.Debug().Msg("WebSocket connection closed, stopping stream")
 			flushBatch()
-			_ = sender.Send(&Response{
+			return
+		case <-heartbeat.C:
+			if !flushBatch() {
+				return
+			}
+			if err := sender.Send(&Response{
 				Type:      EventTypeHeartbeat,
 				Timestamp: time.Now().Unix(),
-			})
+			}); err != nil {
+				h.logger.Warn().Err(err).Msg("Failed to send heartbeat, stopping stream")
+				return
+			}
 		case <-batchTimer.C:
-			flushBatch()
+			if !flushBatch() {
+				return
+			}
 			batchTimer.Stop()
 		case update, ok := <-updates:
 			if !ok {
@@ -238,7 +299,9 @@ func (h *JackpotHandler) streamUpdates(config *streamConfig, sender messageSende
 				select {
 				case nextUpdate, nextOk := <-updates:
 					if !nextOk {
-						flushBatch()
+						if !flushBatch() {
+							return
+						}
 						return
 					}
 					if config.isTargetPool(nextUpdate.PoolID) {
@@ -258,7 +321,9 @@ func (h *JackpotHandler) streamUpdates(config *streamConfig, sender messageSende
 			// If we collected multiple updates, send immediately
 			// Otherwise, start timer to wait for more
 			if collected {
-				flushBatch()
+				if !flushBatch() {
+					return
+				}
 			} else {
 				// Start/reset timer to batch updates from same spin
 				if !batchTimer.Stop() {
@@ -309,11 +374,13 @@ func (h *JackpotHandler) sendInitialPools(config *streamConfig, sender messageSe
 	}
 
 	if len(pools) > 0 {
-		_ = sender.Send(&Response{
+		if err := sender.Send(&Response{
 			Type:      EventTypeUpdated,
 			Timestamp: time.Now().Unix(),
 			Pools:     pools,
-		})
+		}); err != nil {
+			h.logger.Warn().Err(err).Int("pool_count", len(pools)).Msg("Failed to send initial pools")
+		}
 	}
 }
 
@@ -342,13 +409,62 @@ func (s *sseSender) Send(resp *Response) error {
 
 // wsSender sends messages via WebSocket.
 type wsSender struct {
-	conn *websocket.Conn
+	conn         *websocket.Conn
+	done         <-chan struct{}
+	logger       zerolog.Logger
+	writeDeadline time.Duration
 }
 
 func (s *wsSender) Send(resp *Response) error {
+	// Check if connection is already closed
+	select {
+	case <-s.done:
+		s.logger.Debug().Str("event_type", resp.Type).Msg("Connection already closed, skipping send")
+		return io.EOF
+	default:
+	}
+
+	// Set write deadline before each write
+	deadline := time.Now().Add(s.writeDeadline)
+	if err := s.conn.SetWriteDeadline(deadline); err != nil {
+		s.logger.Warn().Err(err).Msg("Failed to set write deadline")
+	}
+
 	payload, err := json.Marshal(resp)
 	if err != nil {
+		s.logger.Error().Err(err).Str("event_type", resp.Type).Msg("Failed to marshal response")
 		return err
 	}
-	return s.conn.WriteMessage(websocket.TextMessage, payload)
+
+	err = s.conn.WriteMessage(websocket.TextMessage, payload)
+	if err != nil {
+		// Log detailed error information
+		if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+			s.logger.Warn().
+				Err(err).
+				Str("event_type", resp.Type).
+				Int("payload_size", len(payload)).
+				Msg("WebSocket WriteMessage failed: connection closed (EOF)")
+		} else if websocket.IsUnexpectedCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+			s.logger.Warn().
+				Err(err).
+				Str("event_type", resp.Type).
+				Int("payload_size", len(payload)).
+				Msg("WebSocket WriteMessage failed: unexpected close error")
+		} else {
+			s.logger.Warn().
+				Err(err).
+				Str("event_type", resp.Type).
+				Int("payload_size", len(payload)).
+				Msg("WebSocket WriteMessage failed")
+		}
+		return err
+	}
+
+	s.logger.Debug().
+		Str("event_type", resp.Type).
+		Int("payload_size", len(payload)).
+		Msg("WebSocket message sent successfully")
+
+	return nil
 }
