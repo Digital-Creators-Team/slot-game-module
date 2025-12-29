@@ -1,4 +1,4 @@
-module git.futuregamestudio.net/be-shared/slot-game-module.git
+module github.com/Digital-Creators-Team/slot-game-module
 
 go 1.25.4
 

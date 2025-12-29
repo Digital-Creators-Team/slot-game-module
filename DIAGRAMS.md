@@ -390,7 +390,7 @@ flowchart TD
     C --> C1["Base code<br/>main.go,<br/>module.go,<br/>config.go"]
     C --> C2["Config files<br/>config.yaml,<br/>module-base.yml,<br/>game_code.yaml"]
     C --> C3["Docker & Compose"]
-    C --> C4["GitLab CI<br/>.gitlab-ci.yml"]
+    C --> C4["GitHub Actions<br/>.github/workflows/ci.yml"]
     C --> C5["Makefile,<br/>README,<br/>.gitignore"]
     C --> C6["Swagger placeholder<br/>docs/docs.go"]
     C --> C7["Metadata<br/>.slotmodule.json"]
@@ -405,7 +405,7 @@ flowchart TD
 flowchart TD
     A["Developer<br/>slotmodule update"] --> B["Load .slotmodule.json"]
     B --> C["Resolve template data"]
-    C --> D["List updatable files<br/>(Dockerfile, compose,<br/>.gitlab-ci.yml, Makefile,<br/>main/module/config,<br/>README)"]
+    C --> D["List updatable files<br/>(Dockerfile, compose,<br/>.github/workflows/ci.yml, Makefile,<br/>main/module/config,<br/>README)"]
     D --> E["Select files<br/>--files or all"]
     E --> F["Generate new content<br/>from templates"]
     F --> G["Diff & prompt<br/>dry-run / force / backup"]

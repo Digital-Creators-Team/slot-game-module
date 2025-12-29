@@ -1,6 +1,6 @@
 package game
 
-import "git.futuregamestudio.net/be-shared/slot-game-module.git/pkg/providers"
+import "github.com/Digital-Creators-Team/slot-game-module/pkg/providers"
 
 // Alias provider interfaces/types from pkg/providers to avoid duplication.
 type (

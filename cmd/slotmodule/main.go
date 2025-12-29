@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -20,7 +19,7 @@ import (
 
 const (
 	// Module path for version checking
-	modulePathForCheck = "git.futuregamestudio.net/be-shared/slot-game-module.git"
+	modulePathForCheck = "github.com/Digital-Creators-Team/slot-game-module"
 	// Go proxy URL (can use proxy.golang.org or private proxy)
 	goProxyURL = "https://proxy.golang.org"
 	// Set to true to block usage if outdated, false to just warn
@@ -114,8 +113,8 @@ func fetchLatestVersion() (string, error) {
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		// Try GitLab API as fallback
-		return fetchLatestVersionFromGitLab()
+		// Try GitHub API as fallback
+		return fetchLatestVersionFromGitHub()
 	}
 
 	var result struct {
@@ -128,10 +127,10 @@ func fetchLatestVersion() (string, error) {
 	return result.Version, nil
 }
 
-// fetchLatestVersionFromGitLab fetches version from GitLab tags API
-func fetchLatestVersionFromGitLab() (string, error) {
-	// GitLab API for tags (adjust project ID or path as needed)
-	url := "https://git.futuregamestudio.net/api/v4/projects/be-shared%2Fslot-game-module/repository/tags?per_page=1"
+// fetchLatestVersionFromGitHub fetches version from GitHub tags API
+func fetchLatestVersionFromGitHub() (string, error) {
+	// GitHub API for tags
+	url := "https://api.github.com/repos/Digital-Creators-Team/slot-game-module/tags?per_page=1"
 
 	client := &http.Client{Timeout: 5 * time.Second}
 	resp, err := client.Get(url)
@@ -141,7 +140,7 @@ func fetchLatestVersionFromGitLab() (string, error) {
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("GitLab API returned status %d", resp.StatusCode)
+		return "", fmt.Errorf("GitHub API returned status %d", resp.StatusCode)
 	}
 
 	var tags []struct {
@@ -202,7 +201,7 @@ func getUpdatableFiles() []UpdatableFile {
 	return []UpdatableFile{
 		{Name: "Dockerfile", Path: "Dockerfile", Template: dockerfileTemplate, Description: "Docker build configuration", Category: "build"},
 		{Name: "docker-compose.yml", Path: "docker-compose.yml", Template: dockerComposeTemplate, Description: "Docker Compose configuration", Category: "build"},
-		{Name: ".gitlab-ci.yml", Path: ".gitlab-ci.yml", Template: gitlabCITemplate, Description: "GitLab CI/CD pipeline", Category: "ci"},
+		{Name: ".github/workflows/ci.yml", Path: ".github/workflows/ci.yml", Template: githubCITemplate, Description: "GitHub Actions CI/CD pipeline", Category: "ci"},
 		{Name: "Makefile", Path: "Makefile", Template: makefileTemplate, Description: "Build tasks and commands", Category: "build"},
 		{Name: "README.md", Path: "README.md", Template: readmeTemplate, Description: "Project documentation", Category: "docs"},
 		{Name: ".gitignore", Path: ".gitignore", Template: gitignoreTemplate, Description: "Git ignore rules", Category: "config"},
@@ -225,7 +224,7 @@ This CLI generates a complete project structure with:
 - Game logic template
 - Configuration files
 - Docker & Docker Compose
-- GitLab CI/CD
+- GitHub Actions CI/CD
 - Makefile
 - README
 
@@ -257,7 +256,7 @@ Example:
 	createCmd.Flags().StringP("name", "n", "", "Game code/name (required, e.g., beach-party)")
 	createCmd.Flags().IntP("port", "p", 8080, "Server port")
 	createCmd.Flags().StringP("output", "o", ".", "Output directory")
-	createCmd.Flags().StringP("module", "m", "", "Go module path (default: git.futuregamestudio.net/fgs/backend/game-{name})")
+	createCmd.Flags().StringP("module", "m", "", "Go module path (default: github.com/Digital-Creators-Team/game-{name})")
 	createCmd.Flags().IntP("paylines", "l", 20, "Number of paylines")
 	createCmd.Flags().BoolP("with-wire", "w", false, "Include Wire dependency injection")
 	createCmd.Flags().Bool("no-setup", false, "Skip running post-setup commands (go mod tidy, swag init)")
@@ -277,7 +276,7 @@ Examples:
   slotmodule update ./game-beach-party
 
   # Update specific files only
-  slotmodule update ./game-beach-party --files Dockerfile,Makefile,.gitlab-ci.yml
+  slotmodule update ./game-beach-party --files Dockerfile,Makefile,.github/workflows/ci.yml
 
   # Preview changes without applying (dry-run)
   slotmodule update ./game-beach-party --dry-run
@@ -352,7 +351,7 @@ Examples:
 		Long: `List all games registered in the games registry (GAMES.md).
 
 This command fetches and displays all games from the central games registry
-located at: https://git.futuregamestudio.net/be-shared/slot-game-module/-/blob/games-registry/GAMES.md
+located at: https://github.com/Digital-Creators-Team/slot-game-module/blob/games-registry/GAMES.md
 
 Examples:
   slotmodule ls
@@ -383,18 +382,19 @@ type GameRegistryEntry struct {
 	RepoURL     string
 }
 
-// fetchGamesRegistry fetches GAMES.md from GitLab
+// fetchGamesRegistry fetches GAMES.md from GitHub
 func fetchGamesRegistry() (string, error) {
-	// GitLab API endpoint for raw file
-	// Project: be-shared/slot-game-module
+	// GitHub API endpoint for raw file
+	// Repository: Digital-Creators-Team/slot-game-module
 	// Branch: games-registry
 	// File: GAMES.md
-	projectPath := "be-shared%2Fslot-game-module"
+	owner := "Digital-Creators-Team"
+	repo := "slot-game-module"
 	filePath := "GAMES.md"
 	branch := "games-registry"
 
-	apiURL := fmt.Sprintf("https://git.futuregamestudio.net/api/v4/projects/%s/repository/files/%s/raw?ref=%s",
-		projectPath, url.QueryEscape(filePath), branch)
+	apiURL := fmt.Sprintf("https://raw.githubusercontent.com/%s/%s/%s/%s",
+		owner, repo, branch, filePath)
 
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Get(apiURL)
@@ -409,7 +409,7 @@ func fetchGamesRegistry() (string, error) {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("GitLab API returned status %d", resp.StatusCode)
+		return "", fmt.Errorf("GitHub API returned status %d", resp.StatusCode)
 	}
 
 	content, err := io.ReadAll(resp.Body)
@@ -690,7 +690,7 @@ func runCreate(cmd *cobra.Command, args []string) {
 
 	// Set default module path
 	if modulePath == "" {
-		modulePath = fmt.Sprintf("git.futuregamestudio.net/fgs/backend/game-%s", name)
+		modulePath = fmt.Sprintf("github.com/Digital-Creators-Team/game-%s", name)
 	}
 
 	// Create project directory
@@ -709,7 +709,7 @@ func runCreate(cmd *cobra.Command, args []string) {
 		Port:              port,
 		PayLines:          paylines,
 		WithWire:          withWire,
-		CoreModulePath:    "git.futuregamestudio.net/be-shared/slot-game-module.git",
+		CoreModulePath:    "github.com/Digital-Creators-Team/slot-game-module",
 		CoreModuleVersion: getCoreModuleVersion(),
 	}
 
@@ -728,7 +728,7 @@ func runCreate(cmd *cobra.Command, args []string) {
 		{fmt.Sprintf("config/%s.yaml", data.GameCodeSnake), gameSpecificConfigTemplate},
 		{"Dockerfile", dockerfileTemplate},
 		{"docker-compose.yml", dockerComposeTemplate},
-		{".gitlab-ci.yml", gitlabCITemplate},
+		{".github/workflows/ci.yml", githubCITemplate},
 		{"Makefile", makefileTemplate},
 		{"README.md", readmeTemplate},
 		{".gitignore", gitignoreTemplate},
@@ -1105,7 +1105,7 @@ func printUpdatableFiles() {
 
 	fmt.Println("Usage examples:")
 	fmt.Println("  slotmodule update ./game-xyz --files Dockerfile,Makefile")
-	fmt.Println("  slotmodule update ./game-xyz --files .gitlab-ci.yml --dry-run")
+	fmt.Println("  slotmodule update ./game-xyz --files .github/workflows/ci.yml --dry-run")
 	fmt.Println("  slotmodule update-all ./games --files Dockerfile")
 }
 
@@ -1188,7 +1188,7 @@ func runInit(cmd *cobra.Command, args []string) {
 		if modulePath != "" {
 			fmt.Printf("🔍 Auto-detected module path: %s\n", modulePath)
 		} else {
-			modulePath = fmt.Sprintf("git.futuregamestudio.net/fgs/backend/game-%s", name)
+			modulePath = fmt.Sprintf("github.com/Digital-Creators-Team/game-%s", name)
 			fmt.Printf("📝 Using default module path: %s\n", modulePath)
 		}
 	}
@@ -1212,7 +1212,7 @@ func runInit(cmd *cobra.Command, args []string) {
 		Port:              port,
 		PayLines:          paylines,
 		WithWire:          false,
-		CoreModulePath:    "git.futuregamestudio.net/be-shared/slot-game-module.git",
+		CoreModulePath:    "github.com/Digital-Creators-Team/slot-game-module",
 		CoreModuleVersion: getCoreModuleVersion(),
 	}
 
@@ -1258,7 +1258,7 @@ func detectGameCode(projectDir string) string {
 		if len(lines) > 0 && strings.HasPrefix(lines[0], "module ") {
 			modulePath := strings.TrimPrefix(lines[0], "module ")
 			modulePath = strings.TrimSpace(modulePath)
-			// e.g., "git.futuregamestudio.net/fgs/backend/game-beach-party" -> "beach-party"
+			// e.g., "github.com/Digital-Creators-Team/game-beach-party" -> "beach-party"
 			parts := strings.Split(modulePath, "/")
 			if len(parts) > 0 {
 				lastPart := parts[len(parts)-1]
@@ -2264,83 +2264,26 @@ networks:
     driver: bridge
 `
 
-var gitlabCITemplate = `stages:
-  - build
-  - deploy
-  - notify
+var githubCITemplate = `name: Pipeline Build & Deploy
 
-workflow:
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "main"'
-    - when: always
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [main]
 
-include:
-  - project: "fgs/devops/cicd"
-    ref: feat/template-service-cicd
-    file:
-      - templates/service.yml
+permissions:
+  packages: write
+  contents: read
 
-variables:
-  CONTAINER_NAME: game-service-{{.GameCode}}
-  SERVICE_NAME: game-service-{{.GameCode}}
-  PORTS: "{{.Port}}:{{.Port}}"
-  NETWORKS: "net"
-  GAME_CODE: "{{.GameCode}}"
-  GAME_SLUG: "{{.GameCode}}"
-  GAME_PATH: "{{.GameCode}}"
-  GAME_PORT: "{{.Port}}"
-  # Optional: Override games documentation settings (defaults shown below)
-  # GAMES_DOC_REPO: "be-shared/slot-game-module"  # Default: central repo for all games
-  # GAMES_FILE_PATH: "GAMES.md"                    # Default: root/GAMES.md, can be "docs/GAMES.md" etc.
-  # NGINX_DOMAIN: "data.futuregamestudio.net"      # Default: matches nginx server_name config
-
-build-{{.GameCode}}:
-  extends: .build
-  stage: build
-  tags:
-    - fgs-dind-runner-vn
-
-deploy-{{.GameCode}}:
-  extends: .deploy
-  stage: deploy
-  needs:
-    - build-{{.GameCode}}
-  tags:
-    - fgs-dind-runner-vn
-
-update-nginx-{{.GameCode}}:
-  extends:
-    - .service
-    - .update-nginx
-  needs:
-    - deploy-{{.GameCode}}
-  rules:
-    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
-      when: on_success
-      allow_failure: false
-  tags:
-    - fgs-vn
-
-update-games-documentation-{{.GameCode}}:
-  extends:
-    - .service
-    - .update-games-documentation
-  needs:
-    - update-nginx-{{.GameCode}}
-  rules:
-    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
-      when: on_success
-      allow_failure: false
-  tags:
-    - fgs-vn
-
-notify-{{.GameCode}}:
-  extends: .notify
-  stage: notify
-  needs:
-    - update-nginx-{{.GameCode}}
-  tags:
-    - fgs-dind-runner-vn
+jobs:
+  ci:
+    uses: Digital-Creators-Team/fgs-actions/.github/workflows/ci-docker-build.yml@main
+    with:
+      app_name: game-{{.GameCode}}
+      build_context: .
+      dockerfile: Dockerfile
+      ports: "{{.Port}}:{{.Port}}"
+    secrets: inherit
 `
 
 var makefileTemplate = `.PHONY: run build test clean docker-build docker-run swagger vendor update
@@ -2378,7 +2321,7 @@ vendor:
 
 # Update slot-game-module to latest version, tidy, and vendor
 update:
-	go get -u git.futuregamestudio.net/be-shared/slot-game-module.git
+	go get -u github.com/Digital-Creators-Team/slot-game-module
 	go mod tidy
 	go mod vendor
 
@@ -2418,7 +2361,7 @@ release: swagger build
 
 var readmeTemplate = `# {{.GameCodeUpper}} Game Service
 
-A slot game service built using the [Slot Game Module](https://git.futuregamestudio.net/be-shared/slot-game-module.git).
+A slot game service built using the [Slot Game Module](https://github.com/Digital-Creators-Team/slot-game-module).
 
 ## Quick Start
 
@@ -2518,7 +2461,7 @@ Edit ` + "`config/config.yaml`" + ` for app configuration and ` + "`config/{{.Ga
 ├── main.go                   # Entry point
 ├── Dockerfile
 ├── docker-compose.yml
-├── .gitlab-ci.yml
+├── .github/workflows/ci.yml
 └── Makefile
 ` + "```" + `
 

@@ -17,7 +17,7 @@ A public Go module for building slot game services. This module provides a compl
 ## Installation
 
 ```bash
-go get git.futuregamestudio.net/be-shared/slot-game-module.git
+go get github.com/Digital-Creators-Team/slot-game-module
 ```
 
 ## Updating Module Version
@@ -25,7 +25,7 @@ go get git.futuregamestudio.net/be-shared/slot-game-module.git
 To update the slot-game-module to the latest version:
 
 ```bash
-go get -u git.futuregamestudio.net/be-shared/slot-game-module.git
+go get -u github.com/Digital-Creators-Team/slot-game-module
 ```
 
 This will update the module to the latest version and update your `go.mod` file accordingly. After updating, run:
@@ -40,7 +40,7 @@ go mod vendor
 ### Install CLI Tool
 
 ```bash
-go install git.futuregamestudio.net/be-shared/slot-game-module.git/cmd/slotmodule@latest
+go install github.com/Digital-Creators-Team/slot-game-module/cmd/slotmodule@latest
 ```
 
 ### Create a New Game
@@ -65,7 +65,7 @@ package logic
 
 import (
     "context"
-    "git.futuregamestudio.net/be-shared/slot-game-module.git/game"
+    "github.com/Digital-Creators-Team/slot-game-module/game"
 )
 
 type MyGameModule struct {
@@ -88,8 +88,8 @@ func (m *MyGameModule) PlayNormalSpin(ctx context.Context, betMultiplier float32
 
 ```go
 import (
-    "git.futuregamestudio.net/be-shared/slot-game-module.git/server"
-    "git.futuregamestudio.net/be-shared/slot-game-module.git/game"
+    "github.com/Digital-Creators-Team/slot-game-module/server"
+    "github.com/Digital-Creators-Team/slot-game-module/game"
 )
 
 // Create your game module
@@ -140,7 +140,7 @@ game:
 
 ## Games Registry
 
-See the list of all deployed games: [Games Registry](https://git.futuregamestudio.net/be-shared/slot-game-module/-/blob/games-registry/GAMES.md)
+See the list of all deployed games: [Games Registry](https://github.com/Digital-Creators-Team/slot-game-module/blob/games-registry/GAMES.md)
 
 ## License
 

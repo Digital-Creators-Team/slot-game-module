@@ -3,7 +3,7 @@ package jackpot
 import (
 	"time"
 
-	"git.futuregamestudio.net/be-shared/slot-game-module.git/pkg/providers"
+	"github.com/Digital-Creators-Team/slot-game-module/pkg/providers"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
 )

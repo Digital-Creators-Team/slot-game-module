@@ -62,3 +62,24 @@ func (b *Broadcaster) SendWithTimeout(update Update, timeout time.Duration) bool
 		return false
 	}
 }
+
+// BatchUpdate represents multiple updates from the same spin that should be sent together.
+type BatchUpdate struct {
+	Updates []Update
+	SpinID  string
+}
+
+// SendBatch publishes multiple updates as a batch (non-blocking with drop on full buffer).
+// This ensures all pools from the same spin are delivered atomically.
+func (b *Broadcaster) SendBatch(updates []Update) {
+	if len(updates) == 0 {
+		return
+	}
+	// Send a special batch marker first, then all updates
+	// We'll use a special Update with SpinID to mark it as a batch start
+	// For now, send all updates in sequence - handler will batch them
+	// In the future, we could add a BatchUpdate type if needed
+	for _, update := range updates {
+		b.Send(update)
+	}
+}

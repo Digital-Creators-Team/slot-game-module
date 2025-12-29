@@ -7,9 +7,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"git.futuregamestudio.net/be-shared/slot-game-module.git/errors"
-	"git.futuregamestudio.net/be-shared/slot-game-module.git/game"
-	"git.futuregamestudio.net/be-shared/slot-game-module.git/pkg/providers"
+	"github.com/Digital-Creators-Team/slot-game-module/errors"
+	"github.com/Digital-Creators-Team/slot-game-module/game"
+	"github.com/Digital-Creators-Team/slot-game-module/pkg/providers"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
 )

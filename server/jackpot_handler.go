@@ -9,8 +9,8 @@ import (
 	"net/http"
 	"time"
 
-	"git.futuregamestudio.net/be-shared/slot-game-module.git/game"
-	"git.futuregamestudio.net/be-shared/slot-game-module.git/pkg/jackpot"
+	"github.com/Digital-Creators-Team/slot-game-module/game"
+	"github.com/Digital-Creators-Team/slot-game-module/pkg/jackpot"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"github.com/rs/zerolog"
@@ -105,14 +105,14 @@ func (h *JackpotHandler) StreamUpdatesWebSocket(c *gin.Context) {
 	defer conn.Close() //nolint:errcheck
 
 	writeDeadline := 10 * time.Second
-	conn.SetWriteDeadline(time.Now().Add(writeDeadline))
+	conn.SetWriteDeadline(time.Now().Add(writeDeadline)) //nolint:errcheck
 
 	done := make(chan struct{})
-	
+
 	// Detect connection close
 	go func() {
 		defer close(done)
-		conn.SetReadDeadline(time.Now().Add(10 * time.Minute))
+		conn.SetReadDeadline(time.Now().Add(10 * time.Minute)) //nolint:errcheck
 		if _, _, err := conn.ReadMessage(); err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 				if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
@@ -145,9 +145,9 @@ func (h *JackpotHandler) StreamUpdatesWebSocket(c *gin.Context) {
 	}()
 
 	sender := &wsSender{
-		conn:        conn,
-		done:        done,
-		logger:      h.logger,
+		conn:          conn,
+		done:          done,
+		logger:        h.logger,
 		writeDeadline: writeDeadline,
 	}
 	h.streamUpdates(config, sender)
@@ -409,9 +409,9 @@ func (s *sseSender) Send(resp *Response) error {
 
 // wsSender sends messages via WebSocket.
 type wsSender struct {
-	conn         *websocket.Conn
-	done         <-chan struct{}
-	logger       zerolog.Logger
+	conn          *websocket.Conn
+	done          <-chan struct{}
+	logger        zerolog.Logger
 	writeDeadline time.Duration
 }
 

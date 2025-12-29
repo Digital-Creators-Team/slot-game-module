@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"git.futuregamestudio.net/be-shared/slot-game-module.git/types"
+	"github.com/Digital-Creators-Team/slot-game-module/types"
 	"github.com/gin-gonic/gin"
 )
 

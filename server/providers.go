@@ -1,6 +1,6 @@
 package server
 
-import "git.futuregamestudio.net/be-shared/slot-game-module.git/pkg/providers"
+import "github.com/Digital-Creators-Team/slot-game-module/pkg/providers"
 
 // Re-export provider interfaces/types from pkg/providers to keep a single source of truth.
 type (
