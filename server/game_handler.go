@@ -61,7 +61,7 @@ func (h *GameHandler) extractCurrencyID(c *gin.Context) string {
 // @Failure      401  {object}  server.ErrorResponse
 // @Failure      500  {object}  server.ErrorResponse
 // @Security     BearerAuth
-// @Router       /games/{game_code}/authorize-game [post]
+// @Router       /games/{game_code}/authorize-game [get]
 func (h *GameHandler) Authorize(c *gin.Context) {
 	ctx := c.Request.Context()
 

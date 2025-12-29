@@ -267,7 +267,7 @@ func (a *App) healthCheck(c *gin.Context) {
 // Flow: HTTP Request -> gameRoutes -> GameHandler -> GameService -> GameModule
 //
 // Routes registered:
-//   - POST /api/games/{game_code}/authorize-game  -> GameHandler.Authorize (requires auth)
+//   - GET /api/games/{game_code}/authorize-game  -> GameHandler.Authorize (requires auth)
 //   - POST /api/games/{game_code}/spin            -> GameHandler.Spin -> GameService -> GameModule (requires auth)
 //   - GET  /api/games/{game_code}/config          -> GameHandler.GetConfig (public, no auth)
 //   - GET  /api/games/{game_code}/get-player-state -> GameHandler.GetState (requires auth)
@@ -299,7 +299,7 @@ func (a *App) RegisterCommonGameRoutes() {
 			authRoutes.Use(auth.JWTMiddleware(a.config.JWT.Secret, a.logger), // JWT middleware sets user info
 				a.ModuleContextMiddleware())
 			{
-				authRoutes.POST("/authorize-game", a.gameHandler.Authorize)
+				authRoutes.GET("/authorize-game", a.gameHandler.Authorize)
 				authRoutes.POST("/spin", a.gameHandler.Spin)
 				authRoutes.GET("/get-player-state", a.gameHandler.GetState)
 				authRoutes.GET("/bet-history", a.gameHandler.GetBetHistory)
