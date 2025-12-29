@@ -2416,12 +2416,11 @@ make swagger
 |--------|----------|-------------|
 | GET | ` + "`/health`" + ` | Health check |
 | GET | ` + "`/swagger/*`" + ` | Swagger UI |
-| POST | ` + "`/api/games/{{.GameCode}}/authorize-game`" + ` | Authorize game |
+| GET | ` + "`/api/games/{{.GameCode}}/authorize-game`" + ` | Authorize game |
 | POST | ` + "`/api/games/{{.GameCode}}/spin`" + ` | Execute spin |
 | GET | ` + "`/api/games/{{.GameCode}}/config`" + ` | Get config |
 | GET | ` + "`/api/games/{{.GameCode}}/get-player-state`" + ` | Get player state |
 | POST | ` + "`/api/games/{{.GameCode}}/jackpot/updates`" + ` | SSE jackpot updates |
-| GET | ` + "`/api/games/{{.GameCode}}/jackpot-info`" + ` | Get jackpot info |
 
 ## Example Requests
 
