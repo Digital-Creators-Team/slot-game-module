@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/Digital-Creators-Team/slot-game-module/game"
@@ -48,21 +49,41 @@ func NewJackpotHandler(app *App, svc *jackpot.Service) *JackpotHandler {
 	}
 }
 
-// Response represents the payload sent to clients.
 type Response struct {
-	Type      string       `json:"type"`
-	Timestamp int64        `json:"timestamp"`
-	Pools     []PoolUpdate `json:"pools,omitempty"` // Batch updates
+	Type      string                `json:"type"`
+	Timestamp int64                 `json:"timestamp"`
+	Pools     map[string]PoolUpdate `json:"pools,omitempty"`
 }
 
-// PoolUpdate represents a single pool update.
 type PoolUpdate struct {
-	PoolID    string  `json:"pool_id"`
 	Amount    float64 `json:"amount"`
 	Timestamp int64   `json:"timestamp"`
 }
 
-// streamConfig holds configuration for streaming updates.
+func extractPoolType(poolID string) string {
+	if idx := strings.LastIndex(poolID, ":"); idx >= 0 {
+		return poolID[idx+1:]
+	}
+	parts := strings.Split(poolID, "-")
+	if len(parts) > 0 {
+		return parts[len(parts)-1]
+	}
+	return poolID
+}
+
+func validatePoolIDMatch(poolID string, betMultiplier float32) bool {
+	if strings.Contains(poolID, ":") {
+		return true
+	}
+	betMultiplierStr := fmt.Sprintf("%g", betMultiplier)
+	betMultiplierStrAlt := fmt.Sprintf("%.1f", betMultiplier)
+	containsBetMultiplier := strings.Contains(poolID, betMultiplierStr) || strings.Contains(poolID, betMultiplierStrAlt)
+	if !containsBetMultiplier {
+		return true
+	}
+	return containsBetMultiplier
+}
+
 type streamConfig struct {
 	betMultiplier float32
 	targetPoolIDs []string
@@ -223,7 +244,7 @@ func (h *JackpotHandler) streamUpdates(config *streamConfig, sender messageSende
 	batchWindow := 5 * time.Millisecond
 	batchTimer := time.NewTimer(batchWindow)
 	batchTimer.Stop()
-	var pendingPools []PoolUpdate
+	pendingPools := make(map[string]PoolUpdate)
 
 	flushBatch := func() bool {
 		if len(pendingPools) == 0 {
@@ -240,7 +261,7 @@ func (h *JackpotHandler) streamUpdates(config *streamConfig, sender messageSende
 				Msg("Failed to send batch update, stopping stream")
 			return false
 		}
-		pendingPools = nil
+		pendingPools = make(map[string]PoolUpdate)
 		return true
 	}
 
@@ -285,12 +306,19 @@ func (h *JackpotHandler) streamUpdates(config *streamConfig, sender messageSende
 				continue
 			}
 
-			// Add to batch
-			pendingPools = append(pendingPools, PoolUpdate{
-				PoolID:    update.PoolID,
+			if !validatePoolIDMatch(update.PoolID, config.betMultiplier) {
+				h.logger.Warn().
+					Str("pool_id", update.PoolID).
+					Float32("expected_bet_multiplier", config.betMultiplier).
+					Msg("Pool ID does not match expected bet multiplier, skipping")
+				continue
+			}
+
+			poolType := extractPoolType(update.PoolID)
+			pendingPools[poolType] = PoolUpdate{
 				Amount:    update.Amount.InexactFloat64(),
 				Timestamp: update.Timestamp.Unix(),
-			})
+			}
 
 			// Try to collect more updates from the same flush immediately
 			// by checking if there are more updates available without blocking
@@ -305,11 +333,18 @@ func (h *JackpotHandler) streamUpdates(config *streamConfig, sender messageSende
 						return
 					}
 					if config.isTargetPool(nextUpdate.PoolID) {
-						pendingPools = append(pendingPools, PoolUpdate{
-							PoolID:    nextUpdate.PoolID,
+						if !validatePoolIDMatch(nextUpdate.PoolID, config.betMultiplier) {
+							h.logger.Warn().
+								Str("pool_id", nextUpdate.PoolID).
+								Float32("expected_bet_multiplier", config.betMultiplier).
+								Msg("Pool ID does not match expected bet multiplier, skipping")
+							continue
+						}
+						nextPoolType := extractPoolType(nextUpdate.PoolID)
+						pendingPools[nextPoolType] = PoolUpdate{
 							Amount:    nextUpdate.Amount.InexactFloat64(),
 							Timestamp: nextUpdate.Timestamp.Unix(),
-						})
+						}
 						collected = true
 					}
 				default:
@@ -361,15 +396,14 @@ func (h *JackpotHandler) sendInitialPools(config *streamConfig, sender messageSe
 		return
 	}
 
-	// Filter and send pools
-	pools := make([]PoolUpdate, 0, len(currentPools))
+	pools := make(map[string]PoolUpdate)
 	for _, pool := range currentPools {
 		if config.isTargetPool(pool.PoolID) {
-			pools = append(pools, PoolUpdate{
-				PoolID:    pool.PoolID,
+			poolType := extractPoolType(pool.PoolID)
+			pools[poolType] = PoolUpdate{
 				Amount:    pool.Amount.InexactFloat64(),
 				Timestamp: pool.Timestamp.Unix(),
-			})
+			}
 		}
 	}
 
