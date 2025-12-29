@@ -156,7 +156,8 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 	// Update timestamp before saving
 	// Note: Since playerState is a pointer, any modifications by endusers in PlayNormalSpin/PlayFreeSpin
 	// are automatically reflected here - no need to get state from ModuleContext again
-	playerState.UpdatedAt = time.Now()
+	t := time.Now()
+	playerState.UpdatedAt = &t
 
 	// 7. Get ending balance
 	var balance decimal.Decimal
@@ -321,7 +322,7 @@ func (s *GameService) executeNormalSpin(
 		if spinResult.ResultFreeSpin != nil && *spinResult.ResultFreeSpin > 0 {
 			playerState.IsFreeSpin = true
 			playerState.RemainingFreeSpin = *spinResult.ResultFreeSpin
-			playerState.TotalWinFreeSpin = decimal.Zero
+			playerState.TotalWinFreeSpin = &decimal.Zero
 			playerState.SpinResultTriggerFG = spinResult
 			playedCount := 0
 			playerState.PlayedFreeSpin = &playedCount
@@ -360,12 +361,13 @@ func (s *GameService) executeFreeSpin(
 	// Update player state
 	*playerState.PlayedFreeSpin++
 	playerState.RemainingFreeSpin--
-	playerState.TotalWinFreeSpin = playerState.TotalWinFreeSpin.Add(spinResult.TotalWin)
+	tmp := playerState.TotalWinFreeSpin.Add(spinResult.TotalWin)
+	playerState.TotalWinFreeSpin = &tmp
 
 	// Update spin result with free spin info
 	spinResult.RemainingFreeSpin = &playerState.RemainingFreeSpin
 	totalWinFS := playerState.TotalWinFreeSpin
-	spinResult.TotalWinFreeSpin = totalWinFS
+	spinResult.TotalWinFreeSpin = *totalWinFS
 
 	// Check if this is the last free spin
 	if playerState.RemainingFreeSpin == 0 {
