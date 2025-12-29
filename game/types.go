@@ -111,16 +111,16 @@ func (sr *SpinResult) ToSpinResponse() *SpinResponse {
 
 // PlayerState represents the current state of a player in a game
 type PlayerState struct {
-	IsFreeSpin          bool                   `json:"isFreeSpin"`
-	RemainingFreeSpin   int                    `json:"remainingFreeSpin"`
-	TotalWinFreeSpin    decimal.Decimal        `json:"totalWinFreeSpin"`
-	BetMultiplier       float32                `json:"betMultiplier"`
+	IsFreeSpin          bool                   `json:"isFreeSpin,omitempty"`
+	RemainingFreeSpin   int                    `json:"remainingFreeSpin,omitempty"`
+	TotalWinFreeSpin    *decimal.Decimal       `json:"totalWinFreeSpin,omitempty"`
+	BetMultiplier       float32                `json:"betMultiplier,omitempty"`
 	FreeSpins           []*SpinResult          `json:"freeSpins,omitempty"`
 	PlayedFreeSpin      *int                   `json:"playedFreeSpin,omitempty"`
-	IsLastFreeSpin      bool                   `json:"isLastFreeSpin"`
+	IsLastFreeSpin      bool                   `json:"isLastFreeSpin,omitempty"`
 	SpinResult          *SpinResult            `json:"spinResult,omitempty"`
 	SpinResultTriggerFG *SpinResult            `json:"spinResultTriggerFG,omitempty"`
-	UpdatedAt           time.Time              `json:"updatedAt"`
+	UpdatedAt           *time.Time             `json:"updatedAt,omitempty"`
 	ExtraData           map[string]interface{} `json:"extraData,omitempty"` // Custom data for game-specific use
 }
 
@@ -144,22 +144,22 @@ func PlayerStateFromJSON(data []byte) (*PlayerState, error) {
 
 // NewPlayerState creates a new default player state
 func NewPlayerState() *PlayerState {
-	return &PlayerState{
-		UpdatedAt: time.Now(),
-	}
+	return &PlayerState{}
 }
 
 // Reset resets the player state to default values
 func (p *PlayerState) Reset() {
+
 	p.IsFreeSpin = false
 	p.RemainingFreeSpin = 0
-	p.TotalWinFreeSpin = decimal.Zero
+	p.TotalWinFreeSpin = nil
 	p.FreeSpins = nil
 	p.PlayedFreeSpin = nil
 	p.IsLastFreeSpin = false
 	p.SpinResultTriggerFG = nil
 	p.ExtraData = make(map[string]interface{})
-	p.UpdatedAt = time.Now()
+	t := time.Now()
+	p.UpdatedAt = &t
 }
 
 // Player represents player information

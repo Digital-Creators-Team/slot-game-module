@@ -145,9 +145,9 @@ func (h *JackpotHandler) StreamUpdatesWebSocket(c *gin.Context) {
 	}()
 
 	sender := &wsSender{
-		conn:        conn,
-		done:        done,
-		logger:      h.logger,
+		conn:          conn,
+		done:          done,
+		logger:        h.logger,
 		writeDeadline: writeDeadline,
 	}
 	h.streamUpdates(config, sender)
@@ -409,9 +409,9 @@ func (s *sseSender) Send(resp *Response) error {
 
 // wsSender sends messages via WebSocket.
 type wsSender struct {
-	conn         *websocket.Conn
-	done         <-chan struct{}
-	logger       zerolog.Logger
+	conn          *websocket.Conn
+	done          <-chan struct{}
+	logger        zerolog.Logger
 	writeDeadline time.Duration
 }
 
