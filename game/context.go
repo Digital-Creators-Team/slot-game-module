@@ -32,6 +32,10 @@ type ModuleContext struct {
 	// Extra data from spin request (set by game service before calling game module methods)
 	// Endusers can access this in their game module implementations
 	spinRequestExtraData map[string]interface{}
+
+	// Cheat payout from spin request (set by game service before calling game module methods)
+	// Endusers can access this in their game module implementations
+	spinRequestCheatPayout *CheatPayout
 }
 
 // NewModuleContext creates a new ModuleContext
@@ -217,6 +221,37 @@ func (mc *ModuleContext) GetSpinRequestExtraData() map[string]interface{} {
 func SetSpinRequestExtraDataForModule(ctx context.Context, extraData map[string]interface{}) {
 	if mc := FromContext(ctx); mc != nil {
 		mc.setSpinRequestExtraData(extraData)
+	}
+}
+
+// setSpinRequestCheatPayout sets the cheat payout from spin request in the context
+// This is used internally by the game service
+func (mc *ModuleContext) setSpinRequestCheatPayout(cheatPayout *CheatPayout) {
+	mc.spinRequestCheatPayout = cheatPayout
+}
+
+// GetSpinRequestCheatPayout returns the cheat payout from the spin request
+// This is set by the game service before calling game module methods (PlayNormalSpin, PlayFreeSpin, etc.)
+// Returns nil if not set
+// Endusers can use this to access cheat payout configuration sent in the spin request
+//
+// Example usage in PlayNormalSpin:
+//   mc := game.MustFromContext(ctx)
+//   if cheatPayout := mc.GetSpinRequestCheatPayout(); cheatPayout != nil {
+//       if cheatPayout.TriggerWinMode != nil {
+//           // Use cheat payout configuration
+//       }
+//   }
+func (mc *ModuleContext) GetSpinRequestCheatPayout() *CheatPayout {
+	return mc.spinRequestCheatPayout
+}
+
+// SetSpinRequestCheatPayoutForModule sets the cheat payout from spin request in the ModuleContext
+// This is a helper function for internal use by the game service
+// Endusers should use GetSpinRequestCheatPayout() to access the data
+func SetSpinRequestCheatPayoutForModule(ctx context.Context, cheatPayout *CheatPayout) {
+	if mc := FromContext(ctx); mc != nil {
+		mc.setSpinRequestCheatPayout(cheatPayout)
 	}
 }
 

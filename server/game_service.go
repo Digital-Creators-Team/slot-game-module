@@ -124,6 +124,9 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 	// Set extra data from spin request in ModuleContext so endusers can access it
 	game.SetSpinRequestExtraDataForModule(ctx, req.ExtraData)
 
+	// Set cheat payout from spin request in ModuleContext so endusers can access it
+	game.SetSpinRequestCheatPayoutForModule(ctx, req.CheatPayout)
+
 	// 4. Calculate total bet
 	totalBet := decimal.NewFromFloat32(req.BetMultiplier).Mul(decimal.NewFromInt(int64(gameConfig.PayLine)))
 
