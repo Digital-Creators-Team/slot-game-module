@@ -279,11 +279,3 @@ type CheatPayout struct {
 	TriggerJackpot  *bool                  `json:"triggerJackpot,omitempty"`
 	ExtraData       map[string]interface{} `json:"extraData,omitempty"` // Custom data for game-specific use
 }
-
-// SpinRequest represents a spin request DTO
-type SpinRequest struct {
-	BetMultiplier float32                `json:"betMultiplier" binding:"required"`
-	GameCode      string                 `json:"gameCode" binding:"required"`
-	CheatPayout   *CheatPayout           `json:"cheatPayout,omitempty"`
-	ExtraData     map[string]interface{} `json:"extraData,omitempty"` // Custom data for game-specific use
-}
