@@ -202,6 +202,7 @@ func getUpdatableFiles() []UpdatableFile {
 		{Name: "Dockerfile", Path: "Dockerfile", Template: dockerfileTemplate, Description: "Docker build configuration", Category: "build"},
 		{Name: "docker-compose.yml", Path: "docker-compose.yml", Template: dockerComposeTemplate, Description: "Docker Compose configuration", Category: "build"},
 		{Name: ".github/workflows/ci.yml", Path: ".github/workflows/ci.yml", Template: githubCITemplate, Description: "GitHub Actions CI/CD pipeline", Category: "ci"},
+		{Name: ".github/workflows/update-module.yml", Path: ".github/workflows/update-module.yml", Template: githubUpdateModuleTemplate, Description: "GitHub Actions workflow to update slot-game-module dependency", Category: "ci"},
 		{Name: "Makefile", Path: "Makefile", Template: makefileTemplate, Description: "Build tasks and commands", Category: "build"},
 		{Name: "README.md", Path: "README.md", Template: readmeTemplate, Description: "Project documentation", Category: "docs"},
 		{Name: ".gitignore", Path: ".gitignore", Template: gitignoreTemplate, Description: "Git ignore rules", Category: "config"},
@@ -729,6 +730,7 @@ func runCreate(cmd *cobra.Command, args []string) {
 		{"Dockerfile", dockerfileTemplate},
 		{"docker-compose.yml", dockerComposeTemplate},
 		{".github/workflows/ci.yml", githubCITemplate},
+		{".github/workflows/update-module.yml", githubUpdateModuleTemplate},
 		{"Makefile", makefileTemplate},
 		{"README.md", readmeTemplate},
 		{".gitignore", gitignoreTemplate},
@@ -2284,6 +2286,24 @@ jobs:
       dockerfile: Dockerfile
       ports: "{{.Port}}:{{.Port}}"
     secrets: inherit
+`
+
+var githubUpdateModuleTemplate = `name: Update Slot Game Module
+
+on:
+  repository_dispatch:
+    types: [slot-game-module-released]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update:
+    uses: Digital-Creators-Team/fgs-actions/.github/workflows/update-go-module.yml@v1
+    with:
+      module: ${{ github.event.client_payload.module }}
+      version: ${{ github.event.client_payload.version }}
 `
 
 var makefileTemplate = `.PHONY: run build test clean docker-build docker-run swagger vendor update
