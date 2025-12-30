@@ -361,6 +361,11 @@ func (s *GameService) executeFreeSpin(
 
 	spinResult := playerState.FreeSpins[playedIndex]
 
+	// Retrigger in free game
+	if spinResult.IsGetFreeSpin != nil && *spinResult.IsGetFreeSpin && spinResult.ResultFreeSpin != nil && *spinResult.ResultFreeSpin > 0 {
+		playerState.RemainingFreeSpin += *spinResult.ResultFreeSpin
+	}
+
 	// Update player state
 	*playerState.PlayedFreeSpin++
 	playerState.RemainingFreeSpin--
