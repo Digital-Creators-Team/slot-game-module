@@ -82,4 +82,14 @@ jobs:
           git tag -a "$NEW_TAG" -m "Release $NEW_TAG"
           git push origin "$NEW_TAG"
           echo "✅ Released $NEW_TAG"
-
+      - name: Create GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          NEW_TAG="${{ steps.calc_version.outputs.new_tag }}"
+          
+          gh release create "$NEW_TAG" \
+            --title "🚀 Release $NEW_TAG" \
+            --notes "### Changes
+          - Automated release from CI
+          - Version: $NEW_TAG"
