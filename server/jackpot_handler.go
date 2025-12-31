@@ -128,39 +128,38 @@ func (h *JackpotHandler) StreamUpdatesWebSocket(c *gin.Context) {
 	writeDeadline := 10 * time.Second
 	conn.SetWriteDeadline(time.Now().Add(writeDeadline)) //nolint:errcheck
 
+	// Set ping handler to automatically respond to WebSocket PingMessage control frames
+	// This handles standard WebSocket ping/pong protocol
+	conn.SetPingHandler(func(appData string) error {
+		deadline := time.Now().Add(5 * time.Second)
+		return conn.WriteControl(websocket.PongMessage, []byte(appData), deadline)
+	})
+
 	done := make(chan struct{})
 
-	// Detect connection close
+	// Handle incoming messages from client
 	go func() {
 		defer close(done)
-		conn.SetReadDeadline(time.Now().Add(10 * time.Minute)) //nolint:errcheck
-		if _, _, err := conn.ReadMessage(); err != nil {
-			if websocket.IsUnexpectedCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
-					h.logger.Warn().Err(err).Msg("WebSocket connection closed unexpectedly (EOF)")
-				} else {
-					h.logger.Warn().Err(err).Msg("WebSocket connection closed unexpectedly")
-				}
-			} else {
-				h.logger.Debug().Err(err).Msg("WebSocket closed normally")
-			}
-		}
-	}()
-
-	// Send ping to keep connection alive
-	pingTicker := time.NewTicker(30 * time.Second)
-	go func() {
-		defer pingTicker.Stop()
 		for {
-			select {
-			case <-done:
-				return
-			case <-pingTicker.C:
-				deadline := time.Now().Add(5 * time.Second)
-				if err := conn.WriteControl(websocket.PingMessage, []byte{}, deadline); err != nil {
-					h.logger.Debug().Err(err).Msg("Failed to send ping")
-					return
+			conn.SetReadDeadline(time.Now().Add(10 * time.Minute)) //nolint:errcheck
+			messageType, message, err := conn.ReadMessage()
+			if err != nil {
+				if websocket.IsUnexpectedCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+					if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+						h.logger.Warn().Err(err).Msg("WebSocket connection closed unexpectedly (EOF)")
+					} else {
+						h.logger.Warn().Err(err).Msg("WebSocket connection closed unexpectedly")
+					}
+				} else {
+					h.logger.Debug().Err(err).Msg("WebSocket closed normally")
 				}
+				return
+			}
+
+			// Handle ping/pong messages (both text and binary)
+			if h.handlePingPong(conn, messageType, message) {
+				// If ping was handled, continue to next message
+				continue
 			}
 		}
 	}()
@@ -172,6 +171,49 @@ func (h *JackpotHandler) StreamUpdatesWebSocket(c *gin.Context) {
 		writeDeadline: writeDeadline,
 	}
 	h.streamUpdates(config, sender)
+}
+
+// handlePingPong handles ping messages from client (both text and binary).
+// Returns true if a ping message was handled, false otherwise.
+// Client sends: {"type":"ping"} (text or binary)
+// Server responds: {"type":"pong"} (same message type as received)
+func (h *JackpotHandler) handlePingPong(conn *websocket.Conn, messageType int, message []byte) bool {
+	// Only handle text and binary messages
+	if messageType != websocket.TextMessage && messageType != websocket.BinaryMessage {
+		return false
+	}
+
+	var msg map[string]interface{}
+	if err := json.Unmarshal(message, &msg); err != nil {
+		return false
+	}
+
+	msgType, ok := msg["type"].(string)
+	if !ok || msgType != "ping" {
+		return false
+	}
+
+	// Respond with pong
+	pongResponse := map[string]string{"type": "pong"}
+	pongPayload, err := json.Marshal(pongResponse)
+	if err != nil {
+		h.logger.Debug().Err(err).Msg("Failed to marshal pong response")
+		return true
+	}
+
+	deadline := time.Now().Add(5 * time.Second)
+	if err := conn.SetWriteDeadline(deadline); err != nil {
+		h.logger.Debug().Err(err).Msg("Failed to set write deadline for pong")
+		return true
+	}
+
+	// Send pong with the same message type as received (text or binary)
+	if err := conn.WriteMessage(messageType, pongPayload); err != nil {
+		h.logger.Debug().Err(err).Msg("Failed to send pong")
+		return true
+	}
+
+	return true
 }
 
 // prepareStreamConfig extracts and validates stream configuration.
