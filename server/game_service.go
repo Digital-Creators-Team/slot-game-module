@@ -136,7 +136,7 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 
 	if playerState.IsFreeSpin && playerState.RemainingFreeSpin > 0 {
 		// Execute free spin
-		spinResult, err = s.executeFreeSpin(ctx, playerState, req.BetMultiplier)
+		spinResult, err = s.executeFreeSpin(ctx, req, playerState, req.BetMultiplier)
 		if err != nil {
 			return nil, err
 		}
@@ -344,6 +344,7 @@ func (s *GameService) executeNormalSpin(
 // executeFreeSpin executes a free spin
 func (s *GameService) executeFreeSpin(
 	ctx context.Context,
+	req *SpinServiceRequest,
 	playerState *game.PlayerState,
 	betMultiplier float32,
 ) (*game.SpinResult, error) {
@@ -364,6 +365,15 @@ func (s *GameService) executeFreeSpin(
 	// Retrigger in free game
 	if spinResult.IsGetFreeSpin != nil && *spinResult.IsGetFreeSpin && spinResult.ResultFreeSpin != nil && *spinResult.ResultFreeSpin > 0 {
 		playerState.RemainingFreeSpin += *spinResult.ResultFreeSpin
+	}
+
+	if spinResult.TotalWin.GreaterThan(decimal.Zero) {
+		if s.walletProvider == nil {
+			return nil, errors.New(errors.ErrInternalServerError, "wallet provider not configured")
+		}
+		if err := s.walletProvider.Deposit(ctx, req.UserID, req.CurrencyID, spinResult.TotalWin); err != nil {
+			return nil, errors.Wrap(err, errors.ErrWalletError, "failed to deposit winnings")
+		}
 	}
 
 	// Update player state
