@@ -156,9 +156,9 @@ func (h *JackpotHandler) StreamUpdatesWebSocket(c *gin.Context) {
 				return
 			}
 
-			// Handle ping/pong messages (both text and binary)
-			if h.handlePingPong(conn, messageType, message) {
-				// If ping was handled, continue to next message
+			// Handle client messages (ping/pong and other message types)
+			if h.handleClientMessage(conn, messageType, message) {
+				// If message was handled, continue to next message
 				continue
 			}
 		}
@@ -173,11 +173,10 @@ func (h *JackpotHandler) StreamUpdatesWebSocket(c *gin.Context) {
 	h.streamUpdates(config, sender)
 }
 
-// handlePingPong handles ping messages from client (both text and binary).
-// Returns true if a ping message was handled, false otherwise.
-// Client sends: {"type":"ping"} (text or binary)
-// Server responds: {"type":"pong"} (same message type as received)
-func (h *JackpotHandler) handlePingPong(conn *websocket.Conn, messageType int, message []byte) bool {
+// handleClientMessage handles incoming messages from client using switch case.
+// Returns true if message was handled, false otherwise.
+// This allows easy extension for other message types in the future.
+func (h *JackpotHandler) handleClientMessage(conn *websocket.Conn, messageType int, message []byte) bool {
 	// Only handle text and binary messages
 	if messageType != websocket.TextMessage && messageType != websocket.BinaryMessage {
 		return false
@@ -189,12 +188,35 @@ func (h *JackpotHandler) handlePingPong(conn *websocket.Conn, messageType int, m
 	}
 
 	msgType, ok := msg["type"].(string)
-	if !ok || msgType != "ping" {
+	if !ok {
 		return false
 	}
 
-	// Respond with pong
-	pongResponse := map[string]string{"type": "pong"}
+	// Switch case for different message types
+	switch msgType {
+	case "ping":
+		return h.handlePingPong(conn, messageType)
+	// Add more message types here in the future:
+	// case "subscribe":
+	//     return h.handleSubscribe(conn, messageType, msg)
+	// case "unsubscribe":
+	//     return h.handleUnsubscribe(conn, messageType, msg)
+	default:
+		// Unknown message type, not handled
+		return false
+	}
+}
+
+// handlePingPong handles ping messages from client (both text and binary).
+// Returns true if a ping message was handled, false otherwise.
+// Client sends: {"type":"ping"} (text or binary)
+// Server responds: {"type":"pong", "timestamp": <unix_timestamp>} (same message type as received)
+func (h *JackpotHandler) handlePingPong(conn *websocket.Conn, messageType int) bool {
+	// Respond with pong including timestamp
+	pongResponse := map[string]interface{}{
+		"type":      "pong",
+		"timestamp": time.Now().Unix(),
+	}
 	pongPayload, err := json.Marshal(pongResponse)
 	if err != nil {
 		h.logger.Debug().Err(err).Msg("Failed to marshal pong response")
