@@ -141,7 +141,7 @@ func (h *JackpotHandler) StreamUpdatesWebSocket(c *gin.Context) {
 	go func() {
 		defer close(done)
 		for {
-			conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+			conn.SetReadDeadline(time.Now().Add(60 * time.Second)) //nolint:errcheck
 			messageType, message, err := conn.ReadMessage()
 			if err != nil {
 				if websocket.IsUnexpectedCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
