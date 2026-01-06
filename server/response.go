@@ -9,6 +9,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const ErrUndefinedErrorCode = -99
+
 // ErrorDetail is an alias for types.ErrorDetail
 // @Description Error payload details
 type ErrorDetail = types.ErrorDetail
@@ -53,10 +55,13 @@ func NoContent(c *gin.Context) {
 // Error sends an error response
 func Error(c *gin.Context, statusCode int, err error) {
 	var errorMsg string
+	var errCode int
 	if appErr, ok := err.(*errors.AppError); ok {
 		errorMsg = appErr.Message
+		errCode = appErr.Code
 	} else {
 		errorMsg = err.Error()
+		errCode = ErrUndefinedErrorCode
 	}
 
 	errorResp := types.ErrorResponse{
@@ -66,6 +71,7 @@ func Error(c *gin.Context, statusCode int, err error) {
 			Timestamp:    time.Now().Format(time.RFC3339),
 			Path:         c.Request.URL.Path,
 			ErrorMessage: errorMsg,
+			ErrorCode:    errCode,
 		},
 	}
 	c.JSON(statusCode, errorResp)
@@ -80,6 +86,7 @@ func ErrorWithMessage(c *gin.Context, statusCode int, message string) {
 			Timestamp:    time.Now().Format(time.RFC3339),
 			Path:         c.Request.URL.Path,
 			ErrorMessage: message,
+			ErrorCode:    ErrUndefinedErrorCode,
 		},
 	}
 	c.JSON(statusCode, errorResp)
@@ -124,4 +131,3 @@ func HandleAppError(c *gin.Context, err error) {
 		InternalError(c, err)
 	}
 }
-

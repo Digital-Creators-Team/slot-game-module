@@ -5,6 +5,7 @@ type ErrorDetail struct {
 	Timestamp    string `json:"timestamp"`
 	Path         string `json:"path"`
 	ErrorMessage string `json:"error_message"`
+	ErrorCode    int    `json:"error_code"`
 }
 
 // ErrorResponse represents the standardized error response structure
@@ -16,8 +17,7 @@ type ErrorResponse struct {
 
 // SuccessResponse represents the standardized success response structure
 type SuccessResponse[T any] struct {
-	StatusCode int `json:"status_code"`
+	StatusCode int  `json:"status_code"`
 	IsSuccess  bool `json:"is_success"`
 	Data       T    `json:"data,omitempty"`
 }
-
