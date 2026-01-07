@@ -14,13 +14,13 @@ import (
 // IMPORTANT: ModuleContext is set by middleware and available via game.MustFromContext(ctx)
 // User info may be nil if no auth middleware was used - always check:
 //
-//   mc := game.MustFromContext(ctx)
-//   if user := mc.User(); user != nil {
-//       userID := user.ID()
-//       username := user.Username()
-//       currencyID := user.CurrencyID()
-//   }
-//   mc.GetLogger().Info().Msg("Playing spin")
+//	mc := game.MustFromContext(ctx)
+//	if user := mc.User(); user != nil {
+//	    userID := user.ID()
+//	    username := user.Username()
+//	    currencyID := user.CurrencyID()
+//	}
+//	mc.GetLogger().Info().Msg("Playing spin")
 //
 // Example implementation:
 //
@@ -35,7 +35,7 @@ import (
 //	func (m *MyGameModule) PlayNormalSpin(ctx context.Context, betMultiplier float32, cheatPayout interface{}) (*game.SpinResult, error) {
 //		// ModuleContext is set by middleware
 //		mc := game.MustFromContext(ctx)
-//		
+//
 //		// User may be nil if no auth middleware
 //		if user := mc.User(); user != nil {
 //			userID := user.ID()
@@ -106,7 +106,7 @@ type JackpotHandler interface {
 	// GetWin returns the jackpot win information for a spin
 	// This is called when IsGetJackpot is true
 	// Returns the win information (pool ID, tier, init value) or nil if no win
-	GetWin(ctx context.Context, spinResult *SpinResult, totalBet decimal.Decimal) (*JackpotWin, error)
+	// GetWin(ctx context.Context, spinResult *SpinResult, totalBet decimal.Decimal) (*JackpotWin, error)
 
 	// GetPoolID returns the pool ID for SSE updates
 	// This is used for jackpot SSE streaming
@@ -116,6 +116,22 @@ type JackpotHandler interface {
 	// GetInitialPoolValue returns the initial pool value for a given bet multiplier and pool ID
 	// This is used for jackpot SSE streaming
 	GetInitialPoolValue(ctx context.Context, poolID string, betMultiplier float32) (decimal.Decimal, error)
+}
+
+// SingleJackpotWinHandler handles games with single jackpot win
+type SingleJackpotWinHandler interface {
+	JackpotHandler
+	// GetWin returns the jackpot win information for a spin
+	// Returns the win information (pool ID, tier, init value) or nil if no win
+	GetWin(ctx context.Context, spinResult *SpinResult, totalBet decimal.Decimal) (*JackpotWin, error)
+}
+
+// MultipleJackpotWinHandler handles games with multiple jackpot wins
+type MultipleJackpotWinHandler interface {
+	JackpotHandler
+	// GetWins returns multiple jackpot wins for a spin
+	// Returns a list of win information or empty slice if no wins
+	GetWins(ctx context.Context, spinResult *SpinResult, totalBet decimal.Decimal) ([]*JackpotWin, error)
 }
 
 // ModuleFactory is a function that creates a game module from a config
@@ -156,5 +172,3 @@ var DefaultRegistry = NewRegistry()
 func Register(gameCode string, factory ModuleFactory) {
 	DefaultRegistry.Register(gameCode, factory)
 }
-
-

@@ -32,7 +32,7 @@ type JackpotDetails struct {
 	SessionID       string      `mapstructure:"sessionId" json:"sessionId"`
 	Username        string      `mapstructure:"username" json:"username"`
 	GameCode        string      `mapstructure:"gameCode" json:"gameCode"`
-	Tier            string      `mapstructure:"tier" json:"tier"`
+	Tier            []*string   `mapstructure:"tier" json:"tier"`
 	BetAmount       float64     `mapstructure:"betAmount" json:"betAmount"`
 	WinAmount       float64     `mapstructure:"winAmount" json:"winAmount"`
 	TotalWinJackpot float64     `mapstructure:"totalWinJackpot" json:"totalWinJackpot"`
