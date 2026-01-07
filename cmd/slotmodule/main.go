@@ -2282,9 +2282,8 @@ jobs:
     uses: Digital-Creators-Team/fgs-actions/.github/workflows/ci-docker-build.yml@main
     with:
       app_name: game-{{.GameCode}}
-      build_context: .
-      dockerfile: Dockerfile
       ports: "{{.Port}}:{{.Port}}"
+      networks: "net"
     secrets: inherit
 `
 
