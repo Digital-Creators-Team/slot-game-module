@@ -10,9 +10,9 @@ import (
 
 // Symbol represents a symbol on the game board
 type Symbol struct {
-	Symbol int `json:"symbol"`
-	Value  int `json:"value"`
-	Type   int `json:"type"`
+	Symbol int     `json:"symbol"`
+	Value  float64 `json:"value"`
+	Type   int     `json:"type"`
 }
 
 type WinType int
@@ -52,6 +52,7 @@ type SpinResult struct {
 	TotalWinFreeSpin  decimal.Decimal        `json:"totalWinFreeSpin,omitempty"`
 	IsLastFreeSpin    *bool                  `json:"isLastFreeSpin,omitempty"`
 	JackpotType       *string                `json:"jackpotType,omitempty"`
+	JackpotTypes      []*string              `json:"jackpotTypes,omitempty"`
 	WinTitle          WinType                `json:"winTitle"`
 	SpinType          int                    `json:"spinType"`            // 0 = normal, 1 = free spin
 	SubReel           []int                  `json:"subReel,omitempty"`   // For games with sub reel (e.g., parrot treasure)
@@ -77,6 +78,7 @@ type SpinResponse struct {
 	SpinType          int                    `json:"spinType"`
 	JackpotPrize      decimal.Decimal        `json:"jackpotPrize,omitempty"`
 	SubReel           []int                  `json:"subReel,omitempty"`
+	JackpotTypes      []*string              `json:"jackpotTypes,omitempty"`
 	ExtraData         map[string]interface{} `json:"extraData,omitempty"` // Custom data for game-specific use
 }
 
@@ -103,6 +105,7 @@ func (sr *SpinResult) ToSpinResponse() *SpinResponse {
 		TotalBet:          sr.TotalBet,
 		Multiplier:        sr.Multiplier,
 		SpinType:          sr.SpinType,
+		JackpotTypes:      sr.JackpotTypes,
 		JackpotPrize:      sr.TotalWinJackpot, // Alias for TotalWinJackpot
 		SubReel:           sr.SubReel,
 		ExtraData:         sr.ExtraData,

@@ -3,9 +3,11 @@ package server
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/samber/lo"
 
 	"github.com/Digital-Creators-Team/slot-game-module/errors"
 	"github.com/Digital-Creators-Team/slot-game-module/game"
@@ -184,7 +186,7 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 				UserID:          req.UserID,
 				Username:        req.Username,
 				GameCode:        gameCode,
-				Tier:            *spinResult.JackpotType,
+				Tier:            strings.Join(lo.FromSlicePtr(spinResult.JackpotTypes), "_"),
 				BetAmount:       totalBet.InexactFloat64(),
 				WinAmount:       spinResult.TotalWin.InexactFloat64(),
 				TotalWinJackpot: spinResult.TotalWinJackpot.InexactFloat64(),
@@ -463,69 +465,68 @@ func (s *GameService) processJackpotWin(
 	if s.rewardProvider == nil {
 		return nil
 	}
-
-	var jackpotWin *game.JackpotWin
-	var err error
+	jackpotWin := make([]*game.JackpotWin, 0, len(gameConfig.ReelSize))
 
 	// Check if game module implements custom jackpot handler
-	if handler, ok := s.gameModule.(game.JackpotHandler); ok {
-		// Use custom jackpot handler
-		jackpotWin, err = handler.GetWin(ctx, spinResult, totalBet)
+	switch handler := s.gameModule.(type) {
+	case game.SingleJackpotWinHandler:
+		// Use custom single jackpot handler
+		jp, err := handler.GetWin(ctx, spinResult, totalBet)
 		if err != nil {
 			return fmt.Errorf("failed to get jackpot win: %w", err)
 		}
-		if jackpotWin == nil {
-			// No jackpot win detected by custom handler
-			return nil
+		jackpotWin = append(jackpotWin, jp)
+
+	case game.MultipleJackpotWinHandler:
+		// Use custom multiple jackpot handler
+		jps, err := handler.GetWins(ctx, spinResult, totalBet)
+		if err != nil {
+			return fmt.Errorf("failed to get jackpot win: %w", err)
 		}
-	} else {
-		// No default logic - games must implement JackpotHandler to process jackpot wins
+		jackpotWin = append(jackpotWin, jps...)
+	}
+
+	if len(jackpotWin) == 0 {
 		s.logger.Warn().Str("game_code", gameCode).Msg("Jackpot win detected but game module does not implement JackpotHandler - skipping jackpot processing")
 		return nil
 	}
 
-	// Claim jackpot
-	claim, err := s.rewardProvider.Claim(ctx, &providers.ClaimRequest{
-		PoolID:    jackpotWin.PoolID,
-		UserID:    userID,
-		GameCode:  gameCode,
-		InitValue: jackpotWin.InitValue,
-	})
-	if err != nil {
-		return err
-	}
+	if len(jackpotWin) > 0 {
+		tier := make([]string, 0, len(jackpotWin))
+		total := decimal.Zero
+		for _, i := range jackpotWin {
+			// Claim jackpot
+			claim, err := s.rewardProvider.Claim(ctx, &providers.ClaimRequest{
+				PoolID:    i.PoolID,
+				UserID:    userID,
+				GameCode:  gameCode,
+				InitValue: i.InitValue,
+			})
 
-	// Update spin result with jackpot win
-	spinResult.TotalWinJackpot = claim.Amount
-	spinResult.JackpotType = &jackpotWin.Tier
-	// spinResult.TotalWin = spinResult.TotalWin.Add(claim.Amount)
+			if err != nil {
+				return err
+			}
 
-	// Payout for jackpot win
-	if claim.Amount.GreaterThan(decimal.Zero) {
-		if s.walletProvider == nil {
-			return errors.New(errors.ErrInternalServerError, "wallet provider not configured")
+			// Update spin result with jackpot win
+			total = total.Add(claim.Amount)
+			spinResult.TotalWin = spinResult.TotalWin.Add(claim.Amount)
+			tier = append(tier, i.Tier)
+
+			// Payout for jackpot win
+			if claim.Amount.GreaterThan(decimal.Zero) {
+				if s.walletProvider == nil {
+					return errors.New(errors.ErrInternalServerError, "wallet provider not configured")
+				}
+				if err := s.walletProvider.Deposit(ctx, userID, currency, claim.Amount); err != nil {
+					return errors.Wrap(err, errors.ErrWalletError, "failed to deposit winnings")
+				}
+			}
+
 		}
-		if err := s.walletProvider.Deposit(ctx, userID, currency, claim.Amount); err != nil {
-			return errors.Wrap(err, errors.ErrWalletError, "failed to deposit winnings")
-		}
+		spinResult.JackpotTypes = lo.ToSlicePtr(tier)
+		spinResult.TotalWinJackpot = total
 	}
-
-	// Log jackpot win
-	// if s.logProvider != nil {
-	// 	_, err := s.logProvider.LogJackpot(ctx, &JackpotLog{
-	// 		UserID:    userID,
-	// 		Username:  username,
-	// 		GameCode:  gameCode,
-	// 		Tier:      jackpotWin.Tier,
-	// 		BetAmount: totalBet.InexactFloat64(),
-	// 		WinAmount: claim.Amount.InexactFloat64(),
-	// 		Currency:  currency,
-	// 		Timestamp: time.Now().UTC(),
-	// 	})
-	// 	if err != nil {
-	// 		s.logger.Error().Err(err).Msg("Failed to log jackpot")
-	// 	}
-	// }
 
 	return nil
+
 }
