@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -185,7 +186,7 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 				UserID:          req.UserID,
 				Username:        req.Username,
 				GameCode:        gameCode,
-				Tier:            spinResult.JackpotTypes,
+				Tier:            strings.Join(lo.FromSlicePtr(spinResult.JackpotTypes), "_"),
 				BetAmount:       totalBet.InexactFloat64(),
 				WinAmount:       spinResult.TotalWin.InexactFloat64(),
 				TotalWinJackpot: spinResult.TotalWinJackpot.InexactFloat64(),
@@ -467,32 +468,25 @@ func (s *GameService) processJackpotWin(
 	jackpotWin := make([]*game.JackpotWin, 0, len(gameConfig.ReelSize))
 
 	// Check if game module implements custom jackpot handler
-	if _, ok := s.gameModule.(game.JackpotHandler); ok {
-		if singleHandler, ok := s.gameModule.(game.SingleJackpotWinHandler); ok {
-			// Use custom jackpot handler
-			jp, err := singleHandler.GetWin(ctx, spinResult, totalBet)
-			if err != nil {
-				return fmt.Errorf("failed to get jackpot win: %w", err)
-			}
-			jackpotWin = append(jackpotWin, jp)
-			if jackpotWin == nil {
-				// No jackpot win detected by custom handler
-				return nil
-			}
-		} else if multiHandler, ok := s.gameModule.(game.MultipleJackpotWinHandler); ok {
-			jps, err := multiHandler.GetWins(ctx, spinResult, totalBet)
-			if err != nil {
-				return fmt.Errorf("failed to get jackpot win: %w", err)
-			}
-			jackpotWin = append(jackpotWin, jps...)
-			if jackpotWin == nil {
-				// No jackpot win detected by custom handler
-				return nil
-			}
+	switch handler := s.gameModule.(type) {
+	case game.SingleJackpotWinHandler:
+		// Use custom single jackpot handler
+		jp, err := handler.GetWin(ctx, spinResult, totalBet)
+		if err != nil {
+			return fmt.Errorf("failed to get jackpot win: %w", err)
 		}
+		jackpotWin = append(jackpotWin, jp)
 
-	} else {
-		// No default logic - games must implement JackpotHandler to process jackpot wins
+	case game.MultipleJackpotWinHandler:
+		// Use custom multiple jackpot handler
+		jps, err := handler.GetWins(ctx, spinResult, totalBet)
+		if err != nil {
+			return fmt.Errorf("failed to get jackpot win: %w", err)
+		}
+		jackpotWin = append(jackpotWin, jps...)
+	}
+
+	if len(jackpotWin) == 0 {
 		s.logger.Warn().Str("game_code", gameCode).Msg("Jackpot win detected but game module does not implement JackpotHandler - skipping jackpot processing")
 		return nil
 	}

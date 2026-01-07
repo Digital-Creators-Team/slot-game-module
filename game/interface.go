@@ -103,11 +103,6 @@ type JackpotHandler interface {
 	// Returns a list of pool contributions (can be empty if no contribution needed)
 	GetContributions(ctx context.Context, spinResult *SpinResult, totalBet decimal.Decimal) ([]JackpotContribution, error)
 
-	// GetWin returns the jackpot win information for a spin
-	// This is called when IsGetJackpot is true
-	// Returns the win information (pool ID, tier, init value) or nil if no win
-	// GetWin(ctx context.Context, spinResult *SpinResult, totalBet decimal.Decimal) (*JackpotWin, error)
-
 	// GetPoolID returns the pool ID for SSE updates
 	// This is used for jackpot SSE streaming
 	// Can return multiple pool IDs if the game has multiple pools to display
