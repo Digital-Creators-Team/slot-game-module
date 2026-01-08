@@ -16,9 +16,9 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-const (
-	SessionIDKey = "spin_session_id"
-)
+var SessionIDKey = sessionIDKey{}
+
+type sessionIDKey struct{}
 
 // SpinService defines the minimal contract for executing a spin flow.
 type SpinService interface {
