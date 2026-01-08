@@ -29,16 +29,16 @@ type SpinDetails struct {
 
 // JackpotDetails represents jackpot log details for mapstructure decoding
 type JackpotDetails struct {
-	SessionID       string      `mapstructure:"sessionId" json:"sessionId"`
-	Username        string      `mapstructure:"username" json:"username"`
-	GameCode        string      `mapstructure:"gameCode" json:"gameCode"`
-	Tier            string      `mapstructure:"tier" json:"tier"`
-	BetAmount       float64     `mapstructure:"betAmount" json:"betAmount"`
-	WinAmount       float64     `mapstructure:"winAmount" json:"winAmount"`
-	TotalWinJackpot float64     `mapstructure:"totalWinJackpot" json:"totalWinJackpot"`
-	Currency        string      `mapstructure:"currency" json:"currency"`
-	SpinType        int         `mapstructure:"spinType" json:"spinType"`
-	SpinResult      interface{} `mapstructure:"spinResult" json:"spinResult"`
+	SessionID       string  `mapstructure:"sessionId" json:"sessionId"`
+	Username        string  `mapstructure:"username" json:"username"`
+	GameCode        string  `mapstructure:"gameCode" json:"gameCode"`
+	Tier            string  `mapstructure:"tier" json:"tier"`
+	BetAmount       float64 `mapstructure:"betAmount" json:"betAmount"`
+	WinAmount       float64 `mapstructure:"winAmount" json:"winAmount"`
+	TotalWinJackpot float64 `mapstructure:"totalWinJackpot" json:"totalWinJackpot"`
+	Currency        string  `mapstructure:"currency" json:"currency"`
+	SpinType        int     `mapstructure:"spinType" json:"spinType"`
+	//SpinResult      interface{} `mapstructure:"spinResult" json:"spinResult"`
 }
 
 // LogProvider implements server.LogProvider using Kafka and HTTP
@@ -89,7 +89,10 @@ type AuditEvent struct {
 
 // LogSpin logs a spin event and returns sessionID
 func (p *LogProvider) LogSpin(ctx context.Context, log *server.SpinLog) (string, error) {
-	sessionID := uuid.New().String()
+	sessionID, _ := ctx.Value(server.SessionIDKey).(string)
+	if sessionID == "" {
+		sessionID = uuid.New().String()
+	}
 
 	if p.kafkaProducer == nil {
 		p.logger.Warn().Msg("Kafka producer not configured, skipping spin log")
@@ -130,7 +133,10 @@ func (p *LogProvider) LogSpin(ctx context.Context, log *server.SpinLog) (string,
 
 // LogJackpot logs a jackpot win event and returns sessionID
 func (p *LogProvider) LogJackpot(ctx context.Context, log *server.JackpotLog) (string, error) {
-	sessionID := uuid.New().String()
+	sessionID, _ := ctx.Value(server.SessionIDKey).(string)
+	if sessionID == "" {
+		sessionID = uuid.New().String()
+	}
 
 	if p.kafkaProducer == nil {
 		p.logger.Warn().Msg("Kafka producer not configured, skipping jackpot log")
@@ -153,7 +159,7 @@ func (p *LogProvider) LogJackpot(ctx context.Context, log *server.JackpotLog) (s
 			Currency:        log.Currency,
 			SpinType:        log.SpinType,
 			TotalWinJackpot: log.TotalWinJackpot,
-			SpinResult:      log.SpinResult,
+			//SpinResult:      log.SpinResult,
 		},
 		Result:  "success",
 		TraceID: sessionID,
@@ -305,20 +311,20 @@ func (p *LogProvider) convertToBet(entry LogEntry, betType server.BetType) *serv
 		bet.TotalWinJackpot = details.TotalWinJackpot
 		bet.IsFreeSpin = details.SpinType == 1
 
-		if details.SpinResult != nil {
-			if resultMap, ok := details.SpinResult.(map[string]interface{}); ok {
-				if reels, ok := resultMap["reels"]; ok {
-					bet.Reels = reels
-				}
-				if winLines, ok := resultMap["winlines"]; ok {
-					bet.WinLines = winLines
-				}
-				if subReel, ok := resultMap["subReel"]; ok {
-					bet.SubReel = subReel
-				}
-
-			}
-		}
+		//if details.SpinResult != nil {
+		//	if resultMap, ok := details.SpinResult.(map[string]interface{}); ok {
+		//		if reels, ok := resultMap["reels"]; ok {
+		//			bet.Reels = reels
+		//		}
+		//		if winLines, ok := resultMap["winlines"]; ok {
+		//			bet.WinLines = winLines
+		//		}
+		//		if subReel, ok := resultMap["subReel"]; ok {
+		//			bet.SubReel = subReel
+		//		}
+		//
+		//	}
+		//}
 	}
 
 	return bet

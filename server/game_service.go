@@ -16,6 +16,10 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+var SessionIDKey = sessionIDKey{}
+
+type sessionIDKey struct{}
+
 // SpinService defines the minimal contract for executing a spin flow.
 type SpinService interface {
 	ExecuteSpin(ctx context.Context, req *SpinServiceRequest) (*SpinServiceResponse, error)
@@ -100,6 +104,7 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 	if err := s.validateSpinRequest(req); err != nil {
 		return nil, err
 	}
+	ctx = context.WithValue(ctx, SessionIDKey, uuid.New().String())
 
 	gameCode := s.gameModule.GetGameCode()
 
@@ -181,6 +186,24 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 
 	// 8. Log spin
 	if s.logProvider != nil {
+
+		timestamp := time.Now().UTC()
+
+		sessionID, err = s.logProvider.LogSpin(ctx, &SpinLog{
+			UserID:     req.UserID,
+			Username:   req.Username,
+			GameCode:   gameCode,
+			BetAmount:  spinResult.TotalBet.InexactFloat64(),
+			WinAmount:  spinResult.TotalWin.InexactFloat64(),
+			SpinType:   spinResult.SpinType,
+			SpinResult: spinResult,
+			Timestamp:  timestamp,
+		})
+		if err != nil {
+			s.logger.Error().Err(err).Msg("Failed to log spin")
+		}
+
+		//log jackpot
 		if spinResult.IsGetJackpot != nil && *spinResult.IsGetJackpot {
 			sessionID, err = s.logProvider.LogJackpot(ctx, &JackpotLog{
 				UserID:          req.UserID,
@@ -192,28 +215,12 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 				TotalWinJackpot: spinResult.TotalWinJackpot.InexactFloat64(),
 				SpinType:        spinResult.SpinType,
 				Currency:        req.CurrencyID,
-				SpinResult:      spinResult,
-				Timestamp:       time.Now().UTC(),
+				Timestamp:       timestamp,
 			})
 			if err != nil {
 				s.logger.Error().Err(err).Msg("Failed to log jackpot")
 			}
-		} else {
-			sessionID, err = s.logProvider.LogSpin(ctx, &SpinLog{
-				UserID:     req.UserID,
-				Username:   req.Username,
-				GameCode:   gameCode,
-				BetAmount:  spinResult.TotalBet.InexactFloat64(),
-				WinAmount:  spinResult.TotalWin.InexactFloat64(),
-				SpinType:   spinResult.SpinType,
-				SpinResult: spinResult,
-				Timestamp:  time.Now().UTC(),
-			})
-			if err != nil {
-				s.logger.Error().Err(err).Msg("Failed to log spin")
-			}
 		}
-
 	}
 
 	// 8. Save player state
