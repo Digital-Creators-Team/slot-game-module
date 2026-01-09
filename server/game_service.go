@@ -161,6 +161,7 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 		if err := s.processJackpotWin(ctx, spinResult, req.UserID, req.Username, gameCode, req.CurrencyID, gameConfig, totalBet); err != nil {
 			s.logger.Error().Err(err).Msg("Failed to process jackpot win")
 		}
+		playerState.TotalWinFreeSpin = lo.ToPtr(playerState.TotalWinFreeSpin.Add(spinResult.TotalWinJackpot))
 	}
 
 	// Update timestamp before saving
