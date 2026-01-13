@@ -6,19 +6,22 @@ on:
     types:
       - completed
     branches: [main, master]
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
   release:
-    runs-on: ubuntu-latest
-    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: [self-hosted, linux, x64]
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0  # Full clone for tag history
           token: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Setup GitHub CLI
+        uses: ksivamuthu/actions-setup-gh-cli@v3
 
       - name: Set up Git
         run: |
