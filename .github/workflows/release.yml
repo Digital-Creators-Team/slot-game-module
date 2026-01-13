@@ -19,17 +19,8 @@ jobs:
           fetch-depth: 0  # Full clone for tag history
           token: ${{ secrets.GITHUB_TOKEN }}
           
-      - name: Install GitHub CLI if not present
-        run: |
-          if ! command -v gh &> /dev/null; then
-            sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-key C99B11DEB97541F0
-            sudo apt-add-repository https://github.com/cli/cli/packages
-            sudo apt update
-            sudo apt install gh
-          fi
-    
-      - name: Verify GitHub CLI installation
-        run: gh --version
+      - name: Setup GitHub CLI
+        uses: ksivamuthu/actions-setup-gh-cli@v3
 
       - name: Set up Git
         run: |
