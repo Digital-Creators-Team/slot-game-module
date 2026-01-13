@@ -311,20 +311,20 @@ func (p *LogProvider) convertToBet(entry LogEntry, betType server.BetType) *serv
 		bet.TotalWinJackpot = details.TotalWinJackpot
 		bet.IsFreeSpin = details.SpinType == 1
 
-		//if details.SpinResult != nil {
-		//	if resultMap, ok := details.SpinResult.(map[string]interface{}); ok {
-		//		if reels, ok := resultMap["reels"]; ok {
-		//			bet.Reels = reels
-		//		}
-		//		if winLines, ok := resultMap["winlines"]; ok {
-		//			bet.WinLines = winLines
-		//		}
-		//		if subReel, ok := resultMap["subReel"]; ok {
-		//			bet.SubReel = subReel
-		//		}
-		//
-		//	}
-		//}
+		if details.SpinResult != nil {
+			if resultMap, ok := details.SpinResult.(map[string]interface{}); ok {
+				if reels, ok := resultMap["reels"]; ok {
+					bet.Reels = reels
+				}
+				if winLines, ok := resultMap["winlines"]; ok {
+					bet.WinLines = winLines
+				}
+				if subReel, ok := resultMap["subReel"]; ok {
+					bet.SubReel = subReel
+				}
+
+			}
+		}
 	}
 
 	return bet
