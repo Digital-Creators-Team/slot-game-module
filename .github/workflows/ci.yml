@@ -3,6 +3,10 @@ name: CI
 on:
   push:
     branches: [main, master]
+    paths:
+      - '**/*.go'
+      - go.mod
+      - go.sum
   pull_request:
     branches: [main, master]
 
@@ -11,30 +15,37 @@ permissions:
   packages: write
 
 jobs:
-  test:
+  ci:
     runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 20
+
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: 'recursive'
+          submodules: recursive
+          fetch-depth: 1
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.25.4'
+          cache: false
 
-      - name: Cache Go modules
+      # Go build + module cache
+      - name: Cache Go
         uses: actions/cache@v4
         with:
           path: |
             ~/.cache/go-build
             ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
 
-      - name: Download dependencies
-        run: go mod download
+      # golangci-lint cache
+      - name: Cache golangci-lint
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/golangci-lint
+          key: ${{ runner.os }}-golangci-${{ hashFiles('.golangci.yml') }}
 
       - name: Build
         run: go build ./...
@@ -43,49 +54,29 @@ jobs:
         run: go vet ./...
 
       - name: Test
-        run: go test -coverprofile=coverage.out ./...
+        run: |
+          go test \
+            -coverprofile=coverage.out \
+            -covermode=atomic \
+            ./...
         env:
           GOGC: "50"
           GOMEMLIMIT: "512MiB"
 
-      - name: Upload coverage
-        uses: codecov/codecov-action@v4
-        with:
-          file: ./coverage.out
-          fail_ci_if_error: false
-
-  lint:
-    runs-on: [self-hosted, linux, x64]
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: 'recursive'
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.25.4'
-
-      - name: Cache Go modules
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/go-build
-            ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
-
-      - name: Run golangci-lint
+      - name: Lint
         uses: golangci/golangci-lint-action@v7
         with:
           version: v2.7.0
-          args: --timeout=10m --concurrency=2
+          args: >
+            --timeout=5m
+            --concurrency=2
         env:
           GOGC: "20"
           GOMEMLIMIT: "512MiB"
           GOFLAGS: "-buildvcs=false"
 
-  # Note: Build job is not needed for template project
-  # Generated projects will use the reusable workflow in their own CI
-
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          file: coverage.out
+          fail_ci_if_error: false
