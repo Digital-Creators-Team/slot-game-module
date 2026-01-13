@@ -18,6 +18,11 @@ jobs:
         with:
           fetch-depth: 0  # Full clone for tag history
           token: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Set up GitHub CLI
+        uses: actions/setup-gh@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Git
         run: |
