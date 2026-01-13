@@ -221,6 +221,7 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 				SpinType:        spinResult.SpinType,
 				Currency:        req.CurrencyID,
 				Timestamp:       timestamp,
+				SpinResult:      spinResult,
 			})
 			if err != nil {
 				s.logger.Error().Err(err).Msg("Failed to log jackpot")
