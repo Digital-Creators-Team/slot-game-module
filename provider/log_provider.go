@@ -29,16 +29,16 @@ type SpinDetails struct {
 
 // JackpotDetails represents jackpot log details for mapstructure decoding
 type JackpotDetails struct {
-	SessionID       string  `mapstructure:"sessionId" json:"sessionId"`
-	Username        string  `mapstructure:"username" json:"username"`
-	GameCode        string  `mapstructure:"gameCode" json:"gameCode"`
-	Tier            string  `mapstructure:"tier" json:"tier"`
-	BetAmount       float64 `mapstructure:"betAmount" json:"betAmount"`
-	WinAmount       float64 `mapstructure:"winAmount" json:"winAmount"`
-	TotalWinJackpot float64 `mapstructure:"totalWinJackpot" json:"totalWinJackpot"`
-	Currency        string  `mapstructure:"currency" json:"currency"`
-	SpinType        int     `mapstructure:"spinType" json:"spinType"`
-	//SpinResult      interface{} `mapstructure:"spinResult" json:"spinResult"`
+	SessionID       string      `mapstructure:"sessionId" json:"sessionId"`
+	Username        string      `mapstructure:"username" json:"username"`
+	GameCode        string      `mapstructure:"gameCode" json:"gameCode"`
+	Tier            string      `mapstructure:"tier" json:"tier"`
+	BetAmount       float64     `mapstructure:"betAmount" json:"betAmount"`
+	WinAmount       float64     `mapstructure:"winAmount" json:"winAmount"`
+	TotalWinJackpot float64     `mapstructure:"totalWinJackpot" json:"totalWinJackpot"`
+	Currency        string      `mapstructure:"currency" json:"currency"`
+	SpinType        int         `mapstructure:"spinType" json:"spinType"`
+	SpinResult      interface{} `mapstructure:"spinResult" json:"spinResult"`
 }
 
 // LogProvider implements server.LogProvider using Kafka and HTTP
@@ -159,7 +159,7 @@ func (p *LogProvider) LogJackpot(ctx context.Context, log *server.JackpotLog) (s
 			Currency:        log.Currency,
 			SpinType:        log.SpinType,
 			TotalWinJackpot: log.TotalWinJackpot,
-			//SpinResult:      log.SpinResult,
+			SpinResult:      log.SpinResult,
 		},
 		Result:  "success",
 		TraceID: sessionID,
