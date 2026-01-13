@@ -1,91 +1,91 @@
-# name: CI
+name: CI
 
-# on:
-#   push:
-#     branches: [main, master]
-#   pull_request:
-#     branches: [main, master]
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
 
-# permissions:
-#   contents: read
-#   packages: write
+permissions:
+  contents: read
+  packages: write
 
-# jobs:
-#   test:
-#     runs-on: ubuntu-latest
-#     steps:
-#       - uses: actions/checkout@v4
-#         with:
-#           submodules: 'recursive'
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: 'recursive'
 
-#       - name: Set up Go
-#         uses: actions/setup-go@v5
-#         with:
-#           go-version: '1.25.4'
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.4'
 
-#       - name: Cache Go modules
-#         uses: actions/cache@v4
-#         with:
-#           path: |
-#             ~/.cache/go-build
-#             ~/go/pkg/mod
-#           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-#           restore-keys: |
-#             ${{ runner.os }}-go-
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
 
-#       - name: Download dependencies
-#         run: go mod download
+      - name: Download dependencies
+        run: go mod download
 
-#       - name: Build
-#         run: go build ./...
+      - name: Build
+        run: go build ./...
 
-#       - name: Vet
-#         run: go vet ./...
+      - name: Vet
+        run: go vet ./...
 
-#       - name: Test
-#         run: go test -coverprofile=coverage.out ./...
-#         env:
-#           GOGC: "50"
-#           GOMEMLIMIT: "512MiB"
+      - name: Test
+        run: go test -coverprofile=coverage.out ./...
+        env:
+          GOGC: "50"
+          GOMEMLIMIT: "512MiB"
 
-#       - name: Upload coverage
-#         uses: codecov/codecov-action@v4
-#         with:
-#           file: ./coverage.out
-#           fail_ci_if_error: false
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.out
+          fail_ci_if_error: false
 
-#   lint:
-#     runs-on: ubuntu-latest
-#     steps:
-#       - uses: actions/checkout@v4
-#         with:
-#           submodules: 'recursive'
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: 'recursive'
 
-#       - name: Set up Go
-#         uses: actions/setup-go@v5
-#         with:
-#           go-version: '1.25.4'
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.4'
 
-#       - name: Cache Go modules
-#         uses: actions/cache@v4
-#         with:
-#           path: |
-#             ~/.cache/go-build
-#             ~/go/pkg/mod
-#           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-#           restore-keys: |
-#             ${{ runner.os }}-go-
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
 
-#       - name: Run golangci-lint
-#         uses: golangci/golangci-lint-action@v7
-#         with:
-#           version: v2.7.0
-#           args: --timeout=10m --concurrency=2
-#         env:
-#           GOGC: "20"
-#           GOMEMLIMIT: "512MiB"
-#           GOFLAGS: "-buildvcs=false"
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v7
+        with:
+          version: v2.7.0
+          args: --timeout=10m --concurrency=2
+        env:
+          GOGC: "20"
+          GOMEMLIMIT: "512MiB"
+          GOFLAGS: "-buildvcs=false"
 
-#   # Note: Build job is not needed for template project
-#   # Generated projects will use the reusable workflow in their own CI
+  # Note: Build job is not needed for template project
+  # Generated projects will use the reusable workflow in their own CI
 
