@@ -524,17 +524,6 @@ func (s *GameService) processJackpotWin(
 			total = total.Add(claim.Amount)
 			spinResult.TotalWin = spinResult.TotalWin.Add(claim.Amount)
 			tier = append(tier, i.Tier)
-
-			// Payout for jackpot win
-			if claim.Amount.GreaterThan(decimal.Zero) {
-				if s.walletProvider == nil {
-					return errors.New(errors.ErrInternalServerError, "wallet provider not configured")
-				}
-				if err := s.walletProvider.Deposit(ctx, userID, currency, claim.Amount); err != nil {
-					return errors.Wrap(err, errors.ErrWalletError, "failed to deposit winnings")
-				}
-			}
-
 		}
 		spinResult.JackpotTypes = lo.ToSlicePtr(tier)
 		spinResult.TotalWinJackpot = total
