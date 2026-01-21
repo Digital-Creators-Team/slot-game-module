@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/Digital-Creators-Team/slot-game-module/config"
@@ -13,11 +15,25 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+var ErrInsufficientFunds = errors.New("insufficient funds")
+
 // WalletProvider implements server.WalletProvider using HTTP client
 type WalletProvider struct {
 	baseURL    string
 	httpClient *http.Client
 	logger     zerolog.Logger
+}
+
+type ErrorResponse struct {
+	StatusCode int         `json:"status_code"`
+	IsSuccess  bool        `json:"is_success"`
+	Error      ErrorDetail `json:"error,omitempty"`
+}
+
+type ErrorDetail struct {
+	Timestamp    string `json:"timestamp"`
+	Path         string `json:"path"`
+	ErrorMessage string `json:"error_message"`
 }
 
 // NewWalletProvider creates a new wallet provider
@@ -89,11 +105,19 @@ func (p *WalletProvider) Withdraw(ctx context.Context, userID, currencyID string
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode == http.StatusOK {
+		return nil
+	}
+	var errResp ErrorResponse
+	if err := json.NewDecoder(resp.Body).Decode(&errResp); err != nil {
 		return fmt.Errorf("withdraw failed with status %d", resp.StatusCode)
 	}
-
-	return nil
+	switch strings.ToLower(errResp.Error.ErrorMessage) {
+	case ErrInsufficientFunds.Error():
+		return ErrInsufficientFunds
+	default:
+		return fmt.Errorf("withdraw failed: %s", errResp.Error.ErrorMessage)
+	}
 }
 
 // Deposit adds amount to player balance

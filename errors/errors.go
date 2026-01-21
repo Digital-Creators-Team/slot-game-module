@@ -114,7 +114,12 @@ func GetCode(err error) int {
 	if appErr, ok := err.(*AppError); ok {
 		return appErr.Code
 	}
-	return ErrInternalServerError
+	switch err.Error() {
+	case "insufficient funds":
+		return ErrInsufficientBalance
+	default:
+		return ErrInternalServerError
+	}
 }
 
 // HTTPStatusFromCode maps error codes to HTTP status codes
@@ -148,5 +153,3 @@ func HTTPStatusFromCode(code int) int {
 		return 500
 	}
 }
-
-

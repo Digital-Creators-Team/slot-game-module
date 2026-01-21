@@ -287,7 +287,7 @@ func (s *GameService) executeNormalSpin(
 		return nil, errors.New(errors.ErrInternalServerError, "wallet provider not configured")
 	}
 	if err := s.walletProvider.Withdraw(ctx, req.UserID, req.CurrencyID, totalBet); err != nil {
-		return nil, errors.Wrap(err, errors.ErrInsufficientBalance, "failed to withdraw bet")
+		return nil, errors.Wrap(err, errors.GetCode(err), "failed to withdraw bet")
 	}
 
 	// 2. Execute spin
