@@ -124,6 +124,11 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 		return nil, err
 	}
 
+	playerBalance, err := s.walletProvider.GetBalance(ctx, req.UserID, req.CurrencyID)
+	if err != nil {
+		return nil, errors.New(errors.ErrInternalServerError, "get balance error")
+	}
+
 	// Set player state in ModuleContext so endusers can access and modify it
 	// Since playerState is a pointer, modifications by endusers are automatically reflected
 	game.SetPlayerStateForModule(ctx, playerState)
@@ -175,19 +180,7 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 	playerState.UpdatedAt = &t
 
 	// 7. Get ending balance
-	var balance decimal.Decimal
-	if s.walletProvider != nil {
-		balance, err = s.walletProvider.GetBalance(ctx, req.UserID, req.CurrencyID)
-		if err != nil {
-			s.logger.Error().Err(err).Msg("Failed to get ending balance")
-			balance = decimal.Zero
-		}
-	} else {
-		s.logger.Warn().Msg("Wallet provider not configured, ending balance will be zero")
-		balance = decimal.Zero
-	}
-
-	spinResult.EndingBalance = balance
+	spinResult.EndingBalance = playerBalance.Add(spinResult.TotalWin)
 
 	// 8. Log spin
 	if s.logProvider != nil {
@@ -237,7 +230,7 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 	return &SpinServiceResponse{
 		SpinResult:    spinResult,
 		SessionID:     sessionID,
-		EndingBalance: balance,
+		EndingBalance: spinResult.EndingBalance,
 	}, nil
 }
 
