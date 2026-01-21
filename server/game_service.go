@@ -154,6 +154,7 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 		}
 	} else {
 		// Execute normal spin
+		playerBalance = playerBalance.Sub(totalBet) //fake: pay for this spin.
 		spinResult, err = s.executeNormalSpin(ctx, req, playerState, gameConfig, totalBet)
 		if err != nil {
 			return nil, err
