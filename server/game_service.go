@@ -123,6 +123,8 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 	if err != nil {
 		return nil, err
 	}
+	playerState.BetMultiplier = req.BetMultiplier
+	_ = s.savePlayerState(ctx, req.UserID, gameCode, playerState) //save bet multiplier
 
 	playerBalance, err := s.walletProvider.GetBalance(ctx, req.UserID, req.CurrencyID)
 	if err != nil {
@@ -320,7 +322,7 @@ func (s *GameService) executeNormalSpin(
 	}
 
 	// Default state
-	playerState.BetMultiplier = req.BetMultiplier
+	//playerState.BetMultiplier = req.BetMultiplier
 	playerState.SpinResult = spinResult
 
 	if !playerState.IsFreeSpin {
