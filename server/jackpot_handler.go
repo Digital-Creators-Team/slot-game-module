@@ -287,15 +287,6 @@ func (h *JackpotHandler) streamUpdates(config *streamConfig, sender messageSende
 	updates, cancel := h.svc.Listen(config.ctx)
 	defer cancel()
 
-	// Send connected event
-	if err := sender.Send(&Response{
-		Type:      EventTypeConnected,
-		Timestamp: time.Now().Unix(),
-	}); err != nil {
-		h.logger.Warn().Err(err).Msg("Failed to send connected event, stopping stream")
-		return
-	}
-
 	// Send initial pool data
 	h.sendInitialPools(config, sender)
 
@@ -473,7 +464,7 @@ func (h *JackpotHandler) sendInitialPools(config *streamConfig, sender messageSe
 
 	if len(pools) > 0 {
 		if err := sender.Send(&Response{
-			Type:      EventTypeUpdated,
+			Type:      EventTypeConnected,
 			Timestamp: time.Now().Unix(),
 			Pools:     pools,
 		}); err != nil {
