@@ -196,6 +196,7 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 			GameCode:   gameCode,
 			BetAmount:  spinResult.TotalBet.InexactFloat64(),
 			WinAmount:  spinResult.TotalWin.InexactFloat64(),
+			Currency:   req.CurrencyID,
 			SpinType:   spinResult.SpinType,
 			SpinResult: spinResult,
 			Timestamp:  timestamp,

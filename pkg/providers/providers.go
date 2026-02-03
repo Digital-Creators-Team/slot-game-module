@@ -87,6 +87,7 @@ type SpinLog struct {
 	Username     string      `json:"username"`
 	GameCode     string      `json:"gameCode"`
 	BetAmount    float64     `json:"betAmount"`
+	Currency     string      `json:"currency"` // e.g. "USD", "VND"
 	WinAmount    float64     `json:"winAmount"`
 	SpinType     int         `json:"spinType"` // 0 = normal, 1 = free spin
 	IsGetJackpot *bool       `json:"isGetJackpot"`
@@ -124,6 +125,7 @@ type Bet struct {
 	Time            time.Time `json:"time"`
 	TotalBet        float64   `json:"totalBet"`
 	TotalWin        float64   `json:"totalWin"`
+	Currency        string    `json:"currency"`
 	TotalWinJackpot float64   `json:"totalWinJackpot,omitempty"`
 	Username        *string   `json:"userName,omitempty"`
 	IsFreeSpin      bool      `json:"isFreeSpin"`

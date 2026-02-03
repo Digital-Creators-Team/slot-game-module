@@ -23,6 +23,7 @@ type SpinDetails struct {
 	GameCode   string      `mapstructure:"gameCode" json:"gameCode"`
 	BetAmount  float64     `mapstructure:"betAmount" json:"betAmount"`
 	WinAmount  float64     `mapstructure:"winAmount" json:"winAmount"`
+	Currency   string      `mapstructure:"currency" json:"currency"`
 	SpinType   int         `mapstructure:"spinType" json:"spinType"`
 	SpinResult interface{} `mapstructure:"spinResult" json:"spinResult"`
 }
@@ -111,6 +112,7 @@ func (p *LogProvider) LogSpin(ctx context.Context, log *server.SpinLog) (string,
 			GameCode:   log.GameCode,
 			BetAmount:  log.BetAmount,
 			WinAmount:  log.WinAmount,
+			Currency:   log.Currency,
 			SpinType:   log.SpinType,
 			SpinResult: log.SpinResult,
 		},
@@ -284,6 +286,7 @@ func (p *LogProvider) convertToBet(entry LogEntry, betType server.BetType) *serv
 		bet.TotalBet = details.BetAmount
 		bet.TotalWin = details.WinAmount
 		bet.IsFreeSpin = details.SpinType == 1
+		bet.Currency = details.Currency
 
 		// Extract reels and winLines from spinResult if available
 		if details.SpinResult != nil {
@@ -310,6 +313,7 @@ func (p *LogProvider) convertToBet(entry LogEntry, betType server.BetType) *serv
 		bet.Username = &details.Username
 		bet.TotalWinJackpot = details.TotalWinJackpot
 		bet.IsFreeSpin = details.SpinType == 1
+		bet.Currency = details.Currency
 
 		//if details.SpinResult != nil {
 		//	if resultMap, ok := details.SpinResult.(map[string]interface{}); ok {
