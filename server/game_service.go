@@ -523,6 +523,7 @@ func (s *GameService) processJackpotWin(
 	}
 
 	if len(jackpotWin) > 0 {
+		var jpPrize []game.JackpotPrize
 		tier := make([]string, 0, len(jackpotWin))
 		total := decimal.Zero
 		for _, i := range jackpotWin {
@@ -542,9 +543,14 @@ func (s *GameService) processJackpotWin(
 			total = total.Add(claim.Amount)
 			spinResult.TotalWin = spinResult.TotalWin.Add(claim.Amount)
 			tier = append(tier, i.Tier)
+			jpPrize = append(jpPrize, game.JackpotPrize{
+				Tier:  i.Tier,
+				Value: claim.Amount,
+			})
 		}
 		spinResult.JackpotTypes = lo.ToSlicePtr(tier)
 		spinResult.TotalWinJackpot = total
+		spinResult.JackpotPrize = jpPrize
 	}
 
 	return nil
