@@ -128,6 +128,7 @@ type Bet struct {
 	Currency        string    `json:"currency"`
 	TotalWinJackpot float64   `json:"totalWinJackpot,omitempty"`
 	Username        *string   `json:"userName,omitempty"`
+	JackpotType     *string   `json:"jackpotType,omitempty"`
 	IsFreeSpin      bool      `json:"isFreeSpin"`
 	Reels           any       `json:"reels,omitempty"`
 	WinLines        any       `json:"winLines,omitempty"`

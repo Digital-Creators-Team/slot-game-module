@@ -207,21 +207,42 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 
 		//log jackpot
 		if spinResult.IsGetJackpot != nil && *spinResult.IsGetJackpot {
-			sessionID, err = s.logProvider.LogJackpot(ctx, &JackpotLog{
-				UserID:          req.UserID,
-				Username:        req.Username,
-				GameCode:        gameCode,
-				Tier:            strings.Join(lo.FromSlicePtr(spinResult.JackpotTypes), "_"),
-				BetAmount:       totalBet.InexactFloat64(),
-				WinAmount:       spinResult.TotalWin.InexactFloat64(),
-				TotalWinJackpot: spinResult.TotalWinJackpot.InexactFloat64(),
-				SpinType:        spinResult.SpinType,
-				Currency:        req.CurrencyID,
-				Timestamp:       timestamp,
-				SpinResult:      spinResult,
-			})
-			if err != nil {
-				s.logger.Error().Err(err).Msg("Failed to log jackpot")
+			if len(spinResult.JackpotTypes) > 1 {
+				for _, v := range spinResult.JackpotTypes {
+					sessionID, err = s.logProvider.LogJackpot(ctx, &JackpotLog{
+						UserID:          req.UserID,
+						Username:        req.Username,
+						GameCode:        gameCode,
+						Tier:            *v,
+						BetAmount:       totalBet.InexactFloat64(),
+						WinAmount:       spinResult.TotalWin.InexactFloat64(),
+						TotalWinJackpot: spinResult.TotalWinJackpot.InexactFloat64(),
+						SpinType:        spinResult.SpinType,
+						Currency:        req.CurrencyID,
+						Timestamp:       timestamp,
+						SpinResult:      spinResult,
+					})
+					if err != nil {
+						s.logger.Error().Err(err).Msg("Failed to log jackpot")
+					}
+				}
+			} else {
+				sessionID, err = s.logProvider.LogJackpot(ctx, &JackpotLog{
+					UserID:          req.UserID,
+					Username:        req.Username,
+					GameCode:        gameCode,
+					Tier:            strings.Join(lo.FromSlicePtr(spinResult.JackpotTypes), "_"),
+					BetAmount:       totalBet.InexactFloat64(),
+					WinAmount:       spinResult.TotalWin.InexactFloat64(),
+					TotalWinJackpot: spinResult.TotalWinJackpot.InexactFloat64(),
+					SpinType:        spinResult.SpinType,
+					Currency:        req.CurrencyID,
+					Timestamp:       timestamp,
+					SpinResult:      spinResult,
+				})
+				if err != nil {
+					s.logger.Error().Err(err).Msg("Failed to log jackpot")
+				}
 			}
 		}
 	}
