@@ -314,6 +314,7 @@ func (p *LogProvider) convertToBet(entry LogEntry, betType server.BetType) *serv
 		bet.TotalWinJackpot = details.TotalWinJackpot
 		bet.IsFreeSpin = details.SpinType == 1
 		bet.Currency = details.Currency
+		bet.JackpotType = &details.Tier
 
 		//if details.SpinResult != nil {
 		//	if resultMap, ok := details.SpinResult.(map[string]interface{}); ok {
