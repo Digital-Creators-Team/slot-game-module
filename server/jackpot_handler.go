@@ -220,8 +220,8 @@ func (h *JackpotHandler) prepareStreamConfig(c *gin.Context) (*streamConfig, err
 
 // streamUpdates handles the common streaming logic for both SSE and WebSocket.
 func (h *JackpotHandler) streamUpdates(config *streamConfig, sender messageSender) {
-	updates, cancel := h.svc.Listen(config.ctx)
-	defer cancel()
+	// updates, cancel := h.svc.Listen(config.ctx)
+	// defer cancel()
 
 	// Send connected event
 	if err := sender.Send(&Response{
@@ -236,148 +236,148 @@ func (h *JackpotHandler) streamUpdates(config *streamConfig, sender messageSende
 	h.sendInitialPools(config, sender)
 
 	// Setup heartbeat and update loop
-	heartbeat := time.NewTicker(h.heartbeatPeriod)
-	defer heartbeat.Stop()
+	// heartbeat := time.NewTicker(h.heartbeatPeriod)
+	// defer heartbeat.Stop()
 
-	// Batch updates that arrive close together (from same spin flush)
-	// Use a small window to collect updates from the same flush
-	batchWindow := 5 * time.Millisecond
-	batchTimer := time.NewTimer(batchWindow)
-	batchTimer.Stop()
-	pendingPools := make(map[string]PoolUpdate)
+	// // Batch updates that arrive close together (from same spin flush)
+	// // Use a small window to collect updates from the same flush
+	// batchWindow := 5 * time.Millisecond
+	// batchTimer := time.NewTimer(batchWindow)
+	// batchTimer.Stop()
+	// pendingPools := make(map[string]PoolUpdate)
 
-	flushBatch := func() bool {
-		if len(pendingPools) == 0 {
-			return true
-		}
-		if err := sender.Send(&Response{
-			Type:      EventTypeUpdated,
-			Timestamp: time.Now().Unix(),
-			Pools:     pendingPools,
-		}); err != nil {
-			h.logger.Warn().
-				Err(err).
-				Int("pool_count", len(pendingPools)).
-				Msg("Failed to send batch update, stopping stream")
-			return false
-		}
-		pendingPools = make(map[string]PoolUpdate)
-		return true
-	}
+	// flushBatch := func() bool {
+	// 	if len(pendingPools) == 0 {
+	// 		return true
+	// 	}
+	// 	if err := sender.Send(&Response{
+	// 		Type:      EventTypeUpdated,
+	// 		Timestamp: time.Now().Unix(),
+	// 		Pools:     pendingPools,
+	// 	}); err != nil {
+	// 		h.logger.Warn().
+	// 			Err(err).
+	// 			Int("pool_count", len(pendingPools)).
+	// 			Msg("Failed to send batch update, stopping stream")
+	// 		return false
+	// 	}
+	// 	pendingPools = make(map[string]PoolUpdate)
+	// 	return true
+	// }
 
-	// Check if sender has a done channel (for WebSocket)
-	var doneChan <-chan struct{}
-	if wsSender, ok := sender.(*wsSender); ok {
-		doneChan = wsSender.done
-	}
+	// // Check if sender has a done channel (for WebSocket)
+	// var doneChan <-chan struct{}
+	// if wsSender, ok := sender.(*wsSender); ok {
+	// 	doneChan = wsSender.done
+	// }
 
-	for {
-		select {
-		case <-config.ctx.Done():
-			flushBatch()
-			return
-		case <-doneChan:
-			// WebSocket connection closed
-			h.logger.Debug().Msg("WebSocket connection closed, stopping stream")
-			flushBatch()
-			return
-		case <-heartbeat.C:
-			if !flushBatch() {
-				return
-			}
-			if err := sender.Send(&Response{
-				Type:      EventTypeHeartbeat,
-				Timestamp: time.Now().Unix(),
-			}); err != nil {
-				h.logger.Warn().Err(err).Msg("Failed to send heartbeat, stopping stream")
-				return
-			}
-		case <-batchTimer.C:
-			if !flushBatch() {
-				return
-			}
-			batchTimer.Stop()
-		case update, ok := <-updates:
-			if !ok {
-				flushBatch()
-				return
-			}
-			if !config.isTargetPool(update.PoolID) {
-				continue
-			}
+	// for {
+	// 	select {
+	// 	case <-config.ctx.Done():
+	// 		flushBatch()
+	// 		return
+	// 	case <-doneChan:
+	// 		// WebSocket connection closed
+	// 		h.logger.Debug().Msg("WebSocket connection closed, stopping stream")
+	// 		flushBatch()
+	// 		return
+	// 	case <-heartbeat.C:
+	// 		if !flushBatch() {
+	// 			return
+	// 		}
+	// 		if err := sender.Send(&Response{
+	// 			Type:      EventTypeHeartbeat,
+	// 			Timestamp: time.Now().Unix(),
+	// 		}); err != nil {
+	// 			h.logger.Warn().Err(err).Msg("Failed to send heartbeat, stopping stream")
+	// 			return
+	// 		}
+	// 	case <-batchTimer.C:
+	// 		if !flushBatch() {
+	// 			return
+	// 		}
+	// 		batchTimer.Stop()
+	// 	case update, ok := <-updates:
+	// 		if !ok {
+	// 			flushBatch()
+	// 			return
+	// 		}
+	// 		if !config.isTargetPool(update.PoolID) {
+	// 			continue
+	// 		}
 
-			if !validatePoolIDMatch(update.PoolID, config.betMultiplier) {
-				h.logger.Warn().
-					Str("pool_id", update.PoolID).
-					Float32("expected_bet_multiplier", config.betMultiplier).
-					Msg("Pool ID does not match expected bet multiplier, skipping")
-				continue
-			}
+	// 		if !validatePoolIDMatch(update.PoolID, config.betMultiplier) {
+	// 			h.logger.Warn().
+	// 				Str("pool_id", update.PoolID).
+	// 				Float32("expected_bet_multiplier", config.betMultiplier).
+	// 				Msg("Pool ID does not match expected bet multiplier, skipping")
+	// 			continue
+	// 		}
 
-			poolType := extractPoolType(update.PoolID)
-			pendingPools[poolType] = PoolUpdate{
-				Amount:    update.Amount.InexactFloat64(),
-				Timestamp: update.Timestamp.Unix(),
-			}
+	// 		poolType := extractPoolType(update.PoolID)
+	// 		pendingPools[poolType] = PoolUpdate{
+	// 			Amount:    update.Amount.InexactFloat64(),
+	// 			Timestamp: update.Timestamp.Unix(),
+	// 		}
 
-			// Try to collect more updates from the same flush immediately
-			// by checking if there are more updates available without blocking
-			collected := false
-			for {
-				select {
-				case nextUpdate, nextOk := <-updates:
-					if !nextOk {
-						if !flushBatch() {
-							return
-						}
-						return
-					}
-					if config.isTargetPool(nextUpdate.PoolID) {
-						if !validatePoolIDMatch(nextUpdate.PoolID, config.betMultiplier) {
-							h.logger.Warn().
-								Str("pool_id", nextUpdate.PoolID).
-								Float32("expected_bet_multiplier", config.betMultiplier).
-								Msg("Pool ID does not match expected bet multiplier, skipping")
-							continue
-						}
-						nextPoolType := extractPoolType(nextUpdate.PoolID)
-						pendingPools[nextPoolType] = PoolUpdate{
-							Amount:    nextUpdate.Amount.InexactFloat64(),
-							Timestamp: nextUpdate.Timestamp.Unix(),
-						}
-						collected = true
-					}
-				default:
-					// No more updates immediately available
-					goto doneCollecting
-				}
-			}
-		doneCollecting:
-			// If we collected multiple updates, send immediately
-			// Otherwise, start timer to wait for more
-			if collected {
-				if !flushBatch() {
-					return
-				}
-			} else {
-				// Start/reset timer to batch updates from same spin
-				if !batchTimer.Stop() {
-					select {
-					case <-batchTimer.C:
-					default:
-					}
-				}
-				batchTimer.Reset(batchWindow)
-			}
-		}
-	}
+	// 		// Try to collect more updates from the same flush immediately
+	// 		// by checking if there are more updates available without blocking
+	// 		collected := false
+	// 		for {
+	// 			select {
+	// 			case nextUpdate, nextOk := <-updates:
+	// 				if !nextOk {
+	// 					if !flushBatch() {
+	// 						return
+	// 					}
+	// 					return
+	// 				}
+	// 				if config.isTargetPool(nextUpdate.PoolID) {
+	// 					if !validatePoolIDMatch(nextUpdate.PoolID, config.betMultiplier) {
+	// 						h.logger.Warn().
+	// 							Str("pool_id", nextUpdate.PoolID).
+	// 							Float32("expected_bet_multiplier", config.betMultiplier).
+	// 							Msg("Pool ID does not match expected bet multiplier, skipping")
+	// 						continue
+	// 					}
+	// 					nextPoolType := extractPoolType(nextUpdate.PoolID)
+	// 					pendingPools[nextPoolType] = PoolUpdate{
+	// 						Amount:    nextUpdate.Amount.InexactFloat64(),
+	// 						Timestamp: nextUpdate.Timestamp.Unix(),
+	// 					}
+	// 					collected = true
+	// 				}
+	// 			default:
+	// 				// No more updates immediately available
+	// 				goto doneCollecting
+	// 			}
+	// 		}
+	// 	doneCollecting:
+	// 		// If we collected multiple updates, send immediately
+	// 		// Otherwise, start timer to wait for more
+	// 		if collected {
+	// 			if !flushBatch() {
+	// 				return
+	// 			}
+	// 		} else {
+	// 			// Start/reset timer to batch updates from same spin
+	// 			if !batchTimer.Stop() {
+	// 				select {
+	// 				case <-batchTimer.C:
+	// 				default:
+	// 				}
+	// 			}
+	// 			batchTimer.Reset(batchWindow)
+	// 		}
+	// 	}
+	// }
 }
 
 // sendInitialPools sends current pool values to the client.
 func (h *JackpotHandler) sendInitialPools(config *streamConfig, sender messageSender) {
 	gameModule := h.app.GetGame()
-	var currentPools []jackpot.Update
-	var err error
+	// var currentPools []jackpot.Update
+	// var err error
 
 	if len(config.targetPoolIDs) > 0 {
 		var initValueGetter func(poolID string) (decimal.Decimal, error)
@@ -386,36 +386,36 @@ func (h *JackpotHandler) sendInitialPools(config *streamConfig, sender messageSe
 				return handler.GetInitialPoolValue(config.ctx, poolID, config.betMultiplier)
 			}
 		}
-		currentPools, err = h.svc.GetPoolsByIDs(config.ctx, config.targetPoolIDs, initValueGetter)
+		_, _ = h.svc.GetPoolsByIDs(config.ctx, config.targetPoolIDs, initValueGetter)
 	} else {
-		currentPools, err = h.svc.GetCurrentPools(config.ctx)
+		_, _ = h.svc.GetCurrentPools(config.ctx)
 	}
 
-	if err != nil {
-		h.logger.Error().Err(err).Msg("Failed to get current pools")
-		return
-	}
+	// if err != nil {
+	// 	h.logger.Error().Err(err).Msg("Failed to get current pools")
+	// 	return
+	// }
 
-	pools := make(map[string]PoolUpdate)
-	for _, pool := range currentPools {
-		if config.isTargetPool(pool.PoolID) {
-			poolType := extractPoolType(pool.PoolID)
-			pools[poolType] = PoolUpdate{
-				Amount:    pool.Amount.InexactFloat64(),
-				Timestamp: pool.Timestamp.Unix(),
-			}
-		}
-	}
+	// pools := make(map[string]PoolUpdate)
+	// for _, pool := range currentPools {
+	// 	if config.isTargetPool(pool.PoolID) {
+	// 		poolType := extractPoolType(pool.PoolID)
+	// 		pools[poolType] = PoolUpdate{
+	// 			Amount:    pool.Amount.InexactFloat64(),
+	// 			Timestamp: pool.Timestamp.Unix(),
+	// 		}
+	// 	}
+	// }
 
-	if len(pools) > 0 {
-		if err := sender.Send(&Response{
-			Type:      EventTypeUpdated,
-			Timestamp: time.Now().Unix(),
-			Pools:     pools,
-		}); err != nil {
-			h.logger.Warn().Err(err).Int("pool_count", len(pools)).Msg("Failed to send initial pools")
-		}
-	}
+	// if len(pools) > 0 {
+	// 	if err := sender.Send(&Response{
+	// 		Type:      EventTypeUpdated,
+	// 		Timestamp: time.Now().Unix(),
+	// 		Pools:     pools,
+	// 	}); err != nil {
+	// 		h.logger.Warn().Err(err).Int("pool_count", len(pools)).Msg("Failed to send initial pools")
+	// 	}
+	// }
 }
 
 // messageSender interface for sending messages (SSE or WebSocket).

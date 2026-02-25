@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
@@ -31,6 +32,13 @@ func NewWalletProvider(cfg *config.Config, logger zerolog.Logger) *WalletProvide
 		baseURL: cfg.ExternalServices.WalletService.BaseURL,
 		httpClient: &http.Client{
 			Timeout: timeout,
+			Transport: &http.Transport{
+				MaxIdleConns:        100,
+				MaxIdleConnsPerHost: 20,
+				MaxConnsPerHost:     100, // Max concurrent per host
+				IdleConnTimeout:     90 * time.Second,
+				DisableKeepAlives:   false, // Reuse connections
+			},
 		},
 		logger: logger.With().Str("component", "wallet_provider").Logger(),
 	}
@@ -49,7 +57,10 @@ func (p *WalletProvider) GetBalance(ctx context.Context, userID, currencyID stri
 	if err != nil {
 		return decimal.Zero, fmt.Errorf("failed to get balance: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		_, _ = io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return decimal.Zero, fmt.Errorf("wallet service returned status %d", resp.StatusCode)
@@ -87,7 +98,10 @@ func (p *WalletProvider) Withdraw(ctx context.Context, userID, currencyID string
 	if err != nil {
 		return fmt.Errorf("failed to withdraw: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		_, _ = io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("withdraw failed with status %d", resp.StatusCode)
@@ -116,7 +130,10 @@ func (p *WalletProvider) Deposit(ctx context.Context, userID, currencyID string,
 	if err != nil {
 		return fmt.Errorf("failed to deposit: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		_, _ = io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("deposit failed with status %d", resp.StatusCode)

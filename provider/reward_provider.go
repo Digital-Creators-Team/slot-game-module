@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
@@ -33,6 +34,13 @@ func NewRewardProvider(cfg *config.Config, logger zerolog.Logger) *RewardProvide
 		baseURL: cfg.ExternalServices.RewardService.BaseURL,
 		httpClient: &http.Client{
 			Timeout: timeout,
+			Transport: &http.Transport{
+				MaxIdleConns:        100,
+				MaxIdleConnsPerHost: 20,
+				MaxConnsPerHost:     100, // Max concurrent per host
+				IdleConnTimeout:     90 * time.Second,
+				DisableKeepAlives:   false, // Reuse connections
+			},
 		},
 		logger: logger.With().Str("component", "reward_provider").Logger(),
 	}
@@ -48,7 +56,7 @@ func (p *RewardProvider) Contribute(ctx context.Context, req *providers.Contribu
 		"game_code": req.GameCode,
 		"user_id":   req.UserID,
 	}
-	
+
 	// Add spin_id and total_pools if provided
 	if req.SpinID != "" {
 		bodyMap["spin_id"] = req.SpinID
@@ -56,7 +64,7 @@ func (p *RewardProvider) Contribute(ctx context.Context, req *providers.Contribu
 	if req.TotalPools > 0 {
 		bodyMap["total_pools"] = req.TotalPools
 	}
-	
+
 	body, _ := json.Marshal(bodyMap)
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
@@ -69,7 +77,10 @@ func (p *RewardProvider) Contribute(ctx context.Context, req *providers.Contribu
 	if err != nil {
 		return fmt.Errorf("failed to contribute to jackpot: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		_, _ = io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("contribute failed with status %d", resp.StatusCode)
@@ -99,7 +110,10 @@ func (p *RewardProvider) Claim(ctx context.Context, req *providers.ClaimRequest)
 	if err != nil {
 		return nil, fmt.Errorf("failed to claim jackpot: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		_, _ = io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("claim failed with status %d", resp.StatusCode)
@@ -128,7 +142,10 @@ func (p *RewardProvider) GetPool(ctx context.Context, poolID string, initValue d
 	if err != nil {
 		return nil, fmt.Errorf("failed to get pool: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		_, _ = io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("reward service returned status %d", resp.StatusCode)

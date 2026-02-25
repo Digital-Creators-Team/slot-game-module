@@ -290,8 +290,8 @@ func (a *App) RegisterCommonGameRoutes() {
 		gameRoutes := games.Group("/" + gameCode)
 		{
 			// Public routes (no authentication required)
-			gameRoutes.GET("/config", a.gameHandler.GetConfig, a.ModuleContextMiddleware())
-			gameRoutes.GET("/jackpot/updates", a.jackpotHandler.StreamUpdates, a.ModuleContextMiddleware())             // SSE endpoint
+			// gameRoutes.GET("/config", a.gameHandler.GetConfig, a.ModuleContextMiddleware())
+			// gameRoutes.GET("/jackpot/updates", a.jackpotHandler.StreamUpdates, a.ModuleContextMiddleware())             // SSE endpoint
 			gameRoutes.GET("/jackpot/updates/ws", a.jackpotHandler.StreamUpdatesWebSocket, a.ModuleContextMiddleware()) // WebSocket endpoint
 
 			// Protected routes (require JWT authentication)

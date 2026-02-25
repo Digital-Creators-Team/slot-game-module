@@ -43,11 +43,17 @@ func NewProducerWithConfig(config ProducerConfig) (*Producer, error) {
 	writer := &kafka.Writer{
 		Addr:         kafka.TCP(config.Brokers...),
 		Balancer:     &kafka.LeastBytes{},
-		RequiredAcks: kafka.RequireAll,
+		RequiredAcks: kafka.RequireNone,
 		MaxAttempts:  3,
 		WriteTimeout: 10 * time.Second,
 		ReadTimeout:  10 * time.Second,
-		Async:        false,
+		Async:        true,
+
+		// High performance
+		BatchTimeout: 10 * time.Millisecond,
+		BatchSize:    1000,
+		BatchBytes:   1048576, // 1k mess or 1MB
+		Compression:  kafka.Lz4,
 	}
 
 	workerNum := config.WorkerNum
@@ -181,5 +187,3 @@ func (p *Producer) recover() {
 			Msg("Panic recovered")
 	}
 }
-
-
