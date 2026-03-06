@@ -27,12 +27,15 @@ const (
 
 // Winline represents a winning line on the game board
 type Winline struct {
-	Symbol      int             `json:"symbol"`
-	SameItem    int             `json:"sameItem"`
-	LineID      int             `json:"lineId"`
-	WinPosition []int           `json:"winPosition"`
-	WinAmount   decimal.Decimal `json:"winAmount"`
-	Multiplier  int             `json:"multiplier,omitempty"`
+	Symbol       int             `json:"symbol"`
+	WinAmount    decimal.Decimal `json:"winAmount"`
+	SameItem     int             `json:"sameItem,omitempty"`
+	LineID       int             `json:"lineId,omitempty"`
+	WinPosition  []int           `json:"winPosition,omitempty"`
+	WinPositions [][]int         `json:"winPositions,omitempty"`
+	Multiplier   int             `json:"multiplier,omitempty"`
+	Column       int             `json:"column,omitempty"`
+	Ways         int             `json:"ways,omitempty"`
 }
 
 type JackpotPrize struct {
