@@ -293,12 +293,16 @@ func (p *LogProvider) convertToBet(entry LogEntry, betType server.BetType) *serv
 			if resultMap, ok := details.SpinResult.(map[string]interface{}); ok {
 				if reels, ok := resultMap["reels"]; ok {
 					bet.Reels = reels
-				}
-				if winLines, ok := resultMap["winlines"]; ok {
-					bet.WinLines = winLines
-				}
-				if subReel, ok := resultMap["subReel"]; ok {
-					bet.SubReel = subReel
+
+					if winLines, ok := resultMap["winlines"]; ok {
+						bet.WinLines = winLines
+					}
+					if subReel, ok := resultMap["subReel"]; ok {
+						bet.SubReel = subReel
+					}
+					if isJackpot, ok := resultMap["isGetJackpot"]; ok {
+						bet.IsJackpot = isJackpot
+					}
 				}
 			}
 		}
@@ -315,6 +319,7 @@ func (p *LogProvider) convertToBet(entry LogEntry, betType server.BetType) *serv
 		bet.IsFreeSpin = details.SpinType == 1
 		bet.Currency = details.Currency
 		bet.JackpotType = &details.Tier
+		bet.IsJackpot = true
 
 		//if details.SpinResult != nil {
 		//	if resultMap, ok := details.SpinResult.(map[string]interface{}); ok {
