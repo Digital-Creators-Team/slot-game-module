@@ -301,7 +301,7 @@ func (p *LogProvider) convertToBet(entry LogEntry, betType server.BetType) *serv
 						bet.SubReel = subReel
 					}
 					if isJackpot, ok := resultMap["isGetJackpot"]; ok {
-						bet.IsJackpot = isJackpot
+						bet.IsJackpot, _ = isJackpot.(bool)
 					}
 				}
 			}
