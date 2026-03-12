@@ -16,7 +16,7 @@ import (
 const (
 	// DefaultBroadcastInterval is the maximum interval for broadcasting buffered updates
 	// Actual flush happens when buffer is idle for FlushIdleTimeout
-	DefaultBroadcastInterval = 2 * time.Second
+	DefaultBroadcastInterval = 500 * time.Millisecond
 
 	// FlushIdleTimeout is the time to wait after last update before flushing
 	// This ensures all updates from the same spin (e.g., 3 pools) are batched together
