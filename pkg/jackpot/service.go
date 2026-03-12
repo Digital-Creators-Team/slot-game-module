@@ -16,7 +16,7 @@ import (
 const (
 	// DefaultBroadcastInterval is the maximum interval for broadcasting buffered updates
 	// Actual flush happens when buffer is idle for FlushIdleTimeout
-	DefaultBroadcastInterval = 500 * time.Millisecond
+	DefaultBroadcastInterval = 2 * time.Second
 
 	// FlushIdleTimeout is the time to wait after last update before flushing
 	// This ensures all updates from the same spin (e.g., 3 pools) are batched together
@@ -648,31 +648,22 @@ func (s *Service) resetSpinTimer(spinID string) {
 
 	// Stop existing timer if any
 	if timer, exists := s.spinTimers[spinID]; exists && timer != nil {
-		if !timer.Stop() {
-			// Timer already fired, drain the channel
-			select {
-			case <-timer.C:
-			default:
-			}
-		}
+		timer.Stop()
 	}
 
 	// Create new timer for this spin
-	timer := time.NewTimer(FlushIdleTimeout)
-	s.spinTimers[spinID] = timer
-
-	// Start goroutine to wait for timer and signal flush
-	go func(spin string) {
-		select { //nolint:staticcheck
-		case <-timer.C:
-			// Timer expired - signal flush for this spin
-			select {
-			case s.flushChan <- spin:
-			default:
-				// Channel full, skip (shouldn't happen with buffer size 100)
-			}
+	timer := time.AfterFunc(FlushIdleTimeout, func() {
+		select {
+		case <-s.stopChan:
+			return
+		default:
 		}
-	}(spinID)
+		select {
+		case s.flushChan <- spinID:
+		default:
+		}
+	})
+	s.spinTimers[spinID] = timer
 }
 
 // flushSpin flushes all pools for a specific spin_id
