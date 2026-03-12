@@ -6,6 +6,9 @@ import (
 	"sync"
 	"time"
 
+	"os"
+	"strings"
+
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"github.com/segmentio/kafka-go"
@@ -21,12 +24,12 @@ type Event struct {
 
 // PoolUpdateEvent represents a jackpot pool update event
 type PoolUpdateEvent struct {
-	PoolID    string          `json:"pool_id"`
-	Amount    decimal.Decimal `json:"delta"`      //contribute amount
-	NewAmount decimal.Decimal `json:"new_amount"` //pool amount
-	UpdatedAt time.Time       `json:"timestamp"`
-	SpinID    string          `json:"spin_id,omitempty"`     // Optional: spin/round ID to group updates from the same spin
-	TotalPools int            `json:"total_pools,omitempty"` // Optional: total number of pools for this spin (for flush when complete)
+	PoolID     string          `json:"pool_id"`
+	Amount     decimal.Decimal `json:"delta"`      //contribute amount
+	NewAmount  decimal.Decimal `json:"new_amount"` //pool amount
+	UpdatedAt  time.Time       `json:"timestamp"`
+	SpinID     string          `json:"spin_id,omitempty"`     // Optional: spin/round ID to group updates from the same spin
+	TotalPools int             `json:"total_pools,omitempty"` // Optional: total number of pools for this spin (for flush when complete)
 }
 
 // PoolCache is an in-memory cache for pool amounts
@@ -102,13 +105,23 @@ type ConsumerConfig struct {
 func NewConsumer(config ConsumerConfig, poolCache *PoolCache) *Consumer {
 	ctx, cancel := context.WithCancel(context.Background())
 
+	// Build unique consumer group per instance to avoid partition starvation with multiple replicas
+	groupID := config.ConsumerGroup + "-" + uuid.New().String()[:5]
+	if host, err := os.Hostname(); err == nil && host != "" {
+		groupID += "-" + host
+	}
+	if pod := strings.TrimSpace(os.Getenv("POD_NAME")); pod != "" {
+		groupID += "-" + strings.ReplaceAll(strings.ToLower(pod), " ", "")
+	}
+
 	reader := kafka.NewReader(kafka.ReaderConfig{
 		Brokers:        config.Brokers,
 		Topic:          config.Topic,
-		GroupID:        config.ConsumerGroup + "-" + uuid.New().String()[:5],
-		MinBytes:       10e3, // 10KB
+		GroupID:        groupID,
+		MinBytes:       1, // low-latency fetch for small events
 		MaxBytes:       10e6, // 10MB
-		CommitInterval: time.Second,
+		MaxWait:        250 * time.Millisecond, // reduce wait to improve WS latency
+		CommitInterval: time.Second,            // batch commits per second
 		StartOffset:    kafka.LastOffset,
 	})
 

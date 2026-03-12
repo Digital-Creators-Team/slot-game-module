@@ -73,6 +73,7 @@ func Load(filename string) (*Config, error) {
 	v.SetConfigType("yaml")
 
 	// Enable environment variable substitution
+	v.AllowEmptyEnv(true)
 	v.AutomaticEnv()
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 
