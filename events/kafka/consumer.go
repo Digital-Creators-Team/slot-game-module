@@ -105,7 +105,7 @@ func NewConsumer(config ConsumerConfig, poolCache *PoolCache) *Consumer {
 	reader := kafka.NewReader(kafka.ReaderConfig{
 		Brokers:        config.Brokers,
 		Topic:          config.Topic,
-		GroupID:        config.ConsumerGroup,
+		GroupID:        config.ConsumerGroup + "-" + uuid.New().String()[:5],
 		MinBytes:       10e3, // 10KB
 		MaxBytes:       10e6, // 10MB
 		CommitInterval: time.Second,
