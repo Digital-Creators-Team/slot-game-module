@@ -37,8 +37,6 @@ type RewardProvider = providers.RewardProvider
 
 // ServiceConfig configures the jackpot service.
 type ServiceConfig struct {
-	// BroadcastInterval controls how often buffered updates are flushed to listeners.
-	BroadcastInterval time.Duration
 
 	// Logger is optional; if zero value, a no-op logger is used.
 	Logger zerolog.Logger

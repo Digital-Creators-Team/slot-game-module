@@ -12,12 +12,18 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-const (
-	DefaultBroadcastInterval = 2 * time.Second
+var (
+	MinBroadcastInterval = 1500 * time.Millisecond
+	MaxBroadcastInterval = 2500 * time.Millisecond
 
 	// RefreshInterval is the interval for refreshing pool values from the reward provider
 	RefreshInterval = 60 * time.Second
 )
+
+func SetMinMaxIntervalBroadcast(min, max time.Duration) {
+	MinBroadcastInterval = min
+	MaxBroadcastInterval = max
+}
 
 // Service encapsulates pool registration, contributions, buffering, and broadcasting.
 // It is transport-agnostic: caller wires HTTP routes (e.g. /games/{code}/jackpot/updates)
@@ -45,25 +51,28 @@ type Service struct {
 
 // NewService creates a new jackpot service.
 func NewService(cfg ServiceConfig) *Service {
-	interval := cfg.BroadcastInterval
-	if interval <= 0 {
-		interval = DefaultBroadcastInterval
-	}
-	minInterval := interval / 2
+	interval := MaxBroadcastInterval
+	minInterval := MinBroadcastInterval
+
 	if minInterval <= 0 {
-		minInterval = interval
+		minInterval = 1
 	}
+
+	if interval <= 0 {
+		interval = 2
+	}
+
 	s := &Service{
-		pools:             make(map[string]PoolConfig),
-		latest:            make(map[string]Update),
-		broad:             NewBroadcaster(128),
-		logger:            cfg.Logger,
-		interval:          interval,
-		minInterval:       minInterval,
-		stopChan:          make(chan struct{}),
-		reward:            cfg.RewardProvider,
-		gameCode:          cfg.GameCode,
-		flushChan:         make(chan struct{}, 1),
+		pools:       make(map[string]PoolConfig),
+		latest:      make(map[string]Update),
+		broad:       NewBroadcaster(128),
+		logger:      cfg.Logger,
+		interval:    interval,
+		minInterval: minInterval,
+		stopChan:    make(chan struct{}),
+		reward:      cfg.RewardProvider,
+		gameCode:    cfg.GameCode,
+		flushChan:   make(chan struct{}, 1),
 	}
 	s.start()
 	return s
