@@ -118,9 +118,9 @@ func NewConsumer(config ConsumerConfig, poolCache *PoolCache) *Consumer {
 		Brokers:        config.Brokers,
 		Topic:          config.Topic,
 		GroupID:        groupID,
-		MinBytes:       1, // low-latency fetch for small events
-		MaxBytes:       10e6, // 10MB
-		MaxWait:        250 * time.Millisecond, // reduce wait to improve WS latency
+		MinBytes:       10e3,                   // 10KB
+		MaxBytes:       10e6,                   // 10MB
+		MaxWait:        500 * time.Millisecond, // reduce wait to improve WS latency
 		CommitInterval: time.Second,            // batch commits per second
 		StartOffset:    kafka.LastOffset,
 	})

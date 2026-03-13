@@ -30,6 +30,8 @@ type Update struct {
 	TotalPools int   // Optional: total number of pools for this spin (0 = unknown, flush on timeout only)
 }
 
+const FlushSignalPoolID = "__jackpot_flush__"
+
 // RewardProvider aliases the shared providers.RewardProvider (includes Contribute/Claim/GetPool).
 type RewardProvider = providers.RewardProvider
 
