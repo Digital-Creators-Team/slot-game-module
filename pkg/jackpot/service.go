@@ -2,7 +2,6 @@ package jackpot
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -13,18 +12,18 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-const (
-	// DefaultBroadcastInterval is the maximum interval for broadcasting buffered updates
-	// Actual flush happens when buffer is idle for FlushIdleTimeout
-	DefaultBroadcastInterval = 2 * time.Second
-
-	// FlushIdleTimeout is the time to wait after last update before flushing
-	// This ensures all updates from the same spin (e.g., 3 pools) are batched together
-	FlushIdleTimeout = 300 * time.Millisecond
+var (
+	MinBroadcastInterval = 1500 * time.Millisecond
+	MaxBroadcastInterval = 2500 * time.Millisecond
 
 	// RefreshInterval is the interval for refreshing pool values from the reward provider
 	RefreshInterval = 60 * time.Second
 )
+
+func SetMinMaxIntervalBroadcast(min, max time.Duration) {
+	MinBroadcastInterval = min
+	MaxBroadcastInterval = max
+}
 
 // Service encapsulates pool registration, contributions, buffering, and broadcasting.
 // It is transport-agnostic: caller wires HTTP routes (e.g. /games/{code}/jackpot/updates)
@@ -32,10 +31,12 @@ const (
 type Service struct {
 	mu            sync.RWMutex
 	pools         map[string]PoolConfig
-	buffer        map[string]map[string]Update // spin_id -> pool_id -> Update (grouped by spin)
+	latest        map[string]Update
+	dirty         bool
 	broad         *Broadcaster
 	logger        zerolog.Logger
 	interval      time.Duration
+	minInterval   time.Duration
 	ticker        *time.Ticker
 	refreshTicker *time.Ticker
 	stopChan      chan struct{}
@@ -43,34 +44,35 @@ type Service struct {
 	gameCode      string
 	refreshing    bool // Flag to prevent concurrent refreshes
 	refreshMu     sync.Mutex
-
-	// Flush timing per spin
-	spinTimers        map[string]*time.Timer // spin_id -> timer
-	spinTimersMu      sync.Mutex
-	spinLastUpdate    map[string]time.Time // spin_id -> last update time
-	spinExpectedPools map[string]int       // spin_id -> expected total pools (0 = unknown)
-	flushChan         chan string          // Channel to signal flush for a specific spin_id
+	flushTimer    *time.Timer
+	flushTimerSet bool
+	flushChan     chan struct{}
 }
 
 // NewService creates a new jackpot service.
 func NewService(cfg ServiceConfig) *Service {
-	interval := cfg.BroadcastInterval
-	if interval <= 0 {
-		interval = DefaultBroadcastInterval
+	interval := MaxBroadcastInterval
+	minInterval := MinBroadcastInterval
+
+	if minInterval <= 0 {
+		minInterval = 1
 	}
+
+	if interval <= 0 {
+		interval = 2
+	}
+
 	s := &Service{
-		pools:             make(map[string]PoolConfig),
-		buffer:            make(map[string]map[string]Update), // spin_id -> pool_id -> Update
-		broad:             NewBroadcaster(128),
-		logger:            cfg.Logger,
-		interval:          interval,
-		stopChan:          make(chan struct{}),
-		reward:            cfg.RewardProvider,
-		gameCode:          cfg.GameCode,
-		spinTimers:        make(map[string]*time.Timer),
-		spinLastUpdate:    make(map[string]time.Time),
-		spinExpectedPools: make(map[string]int),
-		flushChan:         make(chan string, 100), // Buffer for multiple spin flushes
+		pools:       make(map[string]PoolConfig),
+		latest:      make(map[string]Update),
+		broad:       NewBroadcaster(128),
+		logger:      cfg.Logger,
+		interval:    interval,
+		minInterval: minInterval,
+		stopChan:    make(chan struct{}),
+		reward:      cfg.RewardProvider,
+		gameCode:    cfg.GameCode,
+		flushChan:   make(chan struct{}, 1),
 	}
 	s.start()
 	return s
@@ -110,12 +112,8 @@ func (s *Service) InitializePoolsFromProvider(ctx context.Context) error {
 				Err(err).
 				Str("pool_id", pool.ID).
 				Msg("Failed to initialize pool from provider, using init value")
-			// Use init value as fallback - store in a special "init" spin
 			s.mu.Lock()
-			if s.buffer["init"] == nil {
-				s.buffer["init"] = make(map[string]Update)
-			}
-			s.buffer["init"][pool.ID] = Update{
+			s.latest[pool.ID] = Update{
 				PoolID:    pool.ID,
 				Amount:    pool.Init,
 				Timestamp: time.Now(),
@@ -124,12 +122,8 @@ func (s *Service) InitializePoolsFromProvider(ctx context.Context) error {
 			continue
 		}
 
-		// Update buffer with current value from provider - store in a special "init" spin
 		s.mu.Lock()
-		if s.buffer["init"] == nil {
-			s.buffer["init"] = make(map[string]Update)
-		}
-		s.buffer["init"][pool.ID] = Update{
+		s.latest[pool.ID] = Update{
 			PoolID:    pool.ID,
 			Amount:    poolData.Amount,
 			Timestamp: poolData.UpdatedAt,
@@ -337,15 +331,9 @@ func (s *Service) GetCurrentPools(ctx context.Context) ([]Update, error) {
 // initValueGetter signature: func(poolID string) (decimal.Decimal, error)
 func (s *Service) GetPoolsByIDs(ctx context.Context, poolIDs []string, initValueGetter func(poolID string) (decimal.Decimal, error)) ([]Update, error) {
 	s.mu.RLock()
-	// Flatten buffer: spin_id -> pool_id -> Update -> pool_id -> Update (latest per pool)
-	flatBuffer := make(map[string]Update)
-	for _, spinUpdates := range s.buffer {
-		for poolID, update := range spinUpdates {
-			// Keep the latest update for each pool
-			if existing, exists := flatBuffer[poolID]; !exists || update.Timestamp.After(existing.Timestamp) {
-				flatBuffer[poolID] = update
-			}
-		}
+	latest := make(map[string]Update, len(s.latest))
+	for poolID, update := range s.latest {
+		latest[poolID] = update
 	}
 	registeredPools := lo.Assign(s.pools)
 	store := s.reward
@@ -394,7 +382,7 @@ func (s *Service) GetPoolsByIDs(ctx context.Context, poolIDs []string, initValue
 		}
 
 		// Check buffer for potentially newer updates
-		bufferedUpdate, hasBuffer := flatBuffer[poolID]
+		bufferedUpdate, hasBuffer := latest[poolID]
 
 		// Choose the most recent value: compare buffer vs provider
 		// Always prefer provider unless buffer is clearly newer (more than a few seconds)
@@ -453,13 +441,58 @@ func (s *Service) GetPoolsByIDs(ctx context.Context, poolIDs []string, initValue
 	return updates, nil
 }
 
-// HandleKafkaUpdate buffers an external update (e.g. from Kafka).
-// Caller provides poolID + new amount. This is transport-agnostic.
-// Pools are created dynamically (pool_id includes bet_multiplier), so we don't require pre-registration.
-// We only check if pool_id starts with game code to filter pools belonging to this game.
-// Note: Updates from Kafka are buffered and will be broadcast via flush().
-// The refresh mechanism will periodically verify and correct buffer values from provider.
-// Updates are grouped by spin_id to ensure all pools from the same spin are flushed together.
+func (s *Service) GetLatestPoolsByIDs(ctx context.Context, poolIDs []string, initValueGetter func(poolID string) (decimal.Decimal, error)) ([]Update, error) {
+	type poolSnapshot struct {
+		poolID  string
+		update  Update
+		hasUpd  bool
+		initVal decimal.Decimal
+		hasInit bool
+	}
+	snaps := make([]poolSnapshot, 0, len(poolIDs))
+	s.mu.RLock()
+	for _, poolID := range poolIDs {
+		snap := poolSnapshot{poolID: poolID}
+		if upd, ok := s.latest[poolID]; ok {
+			snap.update = upd
+			snap.hasUpd = true
+		}
+		if pool, ok := s.pools[poolID]; ok {
+			snap.initVal = pool.Init
+			snap.hasInit = true
+		}
+		snaps = append(snaps, snap)
+	}
+	s.mu.RUnlock()
+
+	now := time.Now()
+	updates := make([]Update, 0, len(snaps))
+	for _, snap := range snaps {
+		if snap.hasUpd {
+			updates = append(updates, snap.update)
+			continue
+		}
+
+		initValue := decimal.Zero
+		if snap.hasInit {
+			initValue = snap.initVal
+		} else if initValueGetter != nil {
+			v, err := initValueGetter(snap.poolID)
+			if err == nil {
+				initValue = v
+			}
+		}
+
+		updates = append(updates, Update{
+			PoolID:    snap.poolID,
+			Amount:    initValue,
+			Timestamp: now,
+		})
+	}
+	return updates, nil
+}
+
+// HandleKafkaUpdate ingests an external update (e.g. from Kafka).
 func (s *Service) HandleKafkaUpdate(update Update) {
 	s.mu.Lock()
 	// Check if pool belongs to this game (starts with game code)
@@ -472,28 +505,11 @@ func (s *Service) HandleKafkaUpdate(update Update) {
 		update.Timestamp = time.Now()
 	}
 
-	// Determine spin_id: use provided spin_id or generate one based on timestamp (for backward compatibility)
-	spinID := update.SpinID
-	if spinID == "" {
-		// If no spin_id provided, use a time-based grouping (every 500ms window)
-		// This ensures updates arriving close together are grouped
-		spinID = fmt.Sprintf("time_%d", update.Timestamp.UnixMilli()/500)
-	}
-
-	// Initialize spin buffer if needed
-	if s.buffer[spinID] == nil {
-		s.buffer[spinID] = make(map[string]Update)
-	}
-
-	// Only update buffer if the new update is newer than existing one
-	// This prevents overwriting with stale Kafka messages
-	if existingUpdate, exists := s.buffer[spinID][update.PoolID]; exists {
+	if existingUpdate, exists := s.latest[update.PoolID]; exists {
 		if update.Timestamp.Before(existingUpdate.Timestamp) {
-			// New update is older, ignore it
 			s.mu.Unlock()
 			s.logger.Debug().
 				Str("pool_id", update.PoolID).
-				Str("spin_id", spinID).
 				Time("existing_timestamp", existingUpdate.Timestamp).
 				Time("new_timestamp", update.Timestamp).
 				Msg("Ignoring stale Kafka update")
@@ -501,42 +517,21 @@ func (s *Service) HandleKafkaUpdate(update Update) {
 		}
 	}
 
-	s.buffer[spinID][update.PoolID] = update
-	s.spinLastUpdate[spinID] = time.Now()
-
-	// Track expected pools if provided
-	if update.TotalPools > 0 {
-		s.spinExpectedPools[spinID] = update.TotalPools
+	s.latest[update.PoolID] = update
+	s.dirty = true
+	if !s.flushTimerSet {
+		s.flushTimerSet = true
+		s.flushTimer = time.AfterFunc(s.minInterval, func() {
+			select {
+			case s.flushChan <- struct{}{}:
+			default:
+			}
+		})
 	}
-
-	currentPoolCount := len(s.buffer[spinID])
-	expectedPools := s.spinExpectedPools[spinID]
-	wasNewSpin := currentPoolCount == 1 // First update for this spin
 	s.mu.Unlock()
-
-	// Check if we have enough pools to flush immediately
-	if expectedPools > 0 && currentPoolCount >= expectedPools {
-		// We have all expected pools - flush immediately!
-		s.logger.Debug().
-			Str("spin_id", spinID).
-			Int("current_pools", currentPoolCount).
-			Int("expected_pools", expectedPools).
-			Msg("Received all expected pools, flushing immediately")
-		s.flushSpin(spinID)
-		return
-	}
-
-	// Reset flush timer for this spin - wait for more updates from the same spin
-	if wasNewSpin {
-		s.resetSpinTimer(spinID)
-	} else {
-		// Already have updates for this spin, reset timer to wait a bit more
-		s.resetSpinTimer(spinID)
-	}
 
 	s.logger.Debug().
 		Str("pool_id", update.PoolID).
-		Str("spin_id", spinID).
 		Float64("amount", update.Amount.InexactFloat64()).
 		Time("timestamp", update.Timestamp).
 		Msg("Buffered Kafka update")
@@ -581,16 +576,14 @@ func (s *Service) Stop() {
 	if s.refreshTicker != nil {
 		s.refreshTicker.Stop()
 	}
-	s.spinTimersMu.Lock()
-	for spinID, timer := range s.spinTimers {
-		if timer != nil {
-			timer.Stop()
-		}
-		delete(s.spinTimers, spinID)
-		delete(s.spinLastUpdate, spinID)
-		delete(s.spinExpectedPools, spinID)
+	s.mu.Lock()
+	if s.flushTimer != nil {
+		s.flushTimer.Stop()
 	}
-	s.spinTimersMu.Unlock()
+	s.flushTimer = nil
+	s.flushTimerSet = false
+	s.dirty = false
+	s.mu.Unlock()
 	close(s.stopChan)
 }
 
@@ -608,26 +601,36 @@ func (s *Service) loop() {
 	for {
 		select {
 		case <-s.stopChan:
-			// Stop all spin timers
-			s.spinTimersMu.Lock()
-			for spinID, timer := range s.spinTimers {
-				if timer != nil {
-					timer.Stop()
-				}
-				delete(s.spinTimers, spinID)
-				delete(s.spinLastUpdate, spinID)
-				delete(s.spinExpectedPools, spinID)
-			}
-			s.spinTimersMu.Unlock()
 			return
 		case <-s.ticker.C:
-			// Max interval reached - flush all spins
-			s.flushAll()
-		case spinID := <-s.flushChan:
-			// Spin idle timeout - flush this specific spin
-			s.flushSpin(spinID)
+			s.flushIfDirty()
+		case <-s.flushChan:
+			s.flushIfDirty()
 		}
 	}
+}
+
+func (s *Service) flushIfDirty() {
+	s.mu.Lock()
+	if !s.dirty {
+		s.mu.Unlock()
+		return
+	}
+	s.dirty = false
+	if s.flushTimer != nil {
+		s.flushTimer.Stop()
+		s.flushTimer = nil
+	}
+	s.flushTimerSet = false
+	s.mu.Unlock()
+
+	s.broad.Send(Update{
+		PoolID:     FlushSignalPoolID,
+		Amount:     decimal.Zero,
+		Timestamp:  time.Now(),
+		SpinID:     "",
+		TotalPools: 0,
+	})
 }
 
 func (s *Service) refreshLoop() {
@@ -638,104 +641,6 @@ func (s *Service) refreshLoop() {
 		case <-s.refreshTicker.C:
 			s.refreshPoolsFromProvider(context.Background())
 		}
-	}
-}
-
-// resetSpinTimer resets the flush timer for a specific spin_id
-func (s *Service) resetSpinTimer(spinID string) {
-	s.spinTimersMu.Lock()
-	defer s.spinTimersMu.Unlock()
-
-	// Stop existing timer if any
-	if timer, exists := s.spinTimers[spinID]; exists && timer != nil {
-		if !timer.Stop() {
-			// Timer already fired, drain the channel
-			select {
-			case <-timer.C:
-			default:
-			}
-		}
-	}
-
-	// Create new timer for this spin
-	timer := time.NewTimer(FlushIdleTimeout)
-	s.spinTimers[spinID] = timer
-
-	// Start goroutine to wait for timer and signal flush
-	go func(spin string) {
-		select { //nolint:staticcheck
-		case <-timer.C:
-			// Timer expired - signal flush for this spin
-			select {
-			case s.flushChan <- spin:
-			default:
-				// Channel full, skip (shouldn't happen with buffer size 100)
-			}
-		}
-	}(spinID)
-}
-
-// flushSpin flushes all pools for a specific spin_id
-func (s *Service) flushSpin(spinID string) {
-	s.mu.Lock()
-	spinUpdates, exists := s.buffer[spinID]
-	if !exists || len(spinUpdates) == 0 {
-		s.mu.Unlock()
-		// Stop timer for this spin
-		s.spinTimersMu.Lock()
-		if timer, ok := s.spinTimers[spinID]; ok && timer != nil {
-			timer.Stop()
-		}
-		delete(s.spinTimers, spinID)
-		delete(s.spinLastUpdate, spinID)
-		delete(s.spinExpectedPools, spinID)
-		s.spinTimersMu.Unlock()
-		return
-	}
-
-	// Get all updates for this spin
-	updates := lo.Values(spinUpdates)
-	// Remove this spin from buffer
-	delete(s.buffer, spinID)
-	s.mu.Unlock()
-
-	// Stop timer for this spin
-	s.spinTimersMu.Lock()
-	if timer, ok := s.spinTimers[spinID]; ok && timer != nil {
-		timer.Stop()
-	}
-	delete(s.spinTimers, spinID)
-	delete(s.spinLastUpdate, spinID)
-	delete(s.spinExpectedPools, spinID)
-	s.spinTimersMu.Unlock()
-
-	// Broadcast all updates for this spin
-	for _, u := range updates {
-		s.broad.Send(u)
-	}
-	if s.logger.GetLevel() <= zerolog.DebugLevel {
-		s.logger.Debug().
-			Str("spin_id", spinID).
-			Int("count", len(updates)).
-			Msg("flushed jackpot updates for spin")
-	}
-}
-
-// flushAll flushes all spins (called on max interval)
-func (s *Service) flushAll() {
-	s.mu.Lock()
-	if len(s.buffer) == 0 {
-		s.mu.Unlock()
-		return
-	}
-
-	// Collect all spins to flush
-	spinsToFlush := lo.Keys(s.buffer)
-	s.mu.Unlock()
-
-	// Flush each spin
-	for _, spinID := range spinsToFlush {
-		s.flushSpin(spinID)
 	}
 }
 
@@ -795,31 +700,23 @@ func (s *Service) refreshPoolsFromProvider(ctx context.Context) {
 			Timestamp: poolData.UpdatedAt,
 		}
 
-		// Update buffer with fresh data - check in all spins for this pool
 		s.mu.Lock()
-		// Find latest update for this pool across all spins
-		var latestUpdate *Update
-		for _, spinUpdates := range s.buffer {
-			if poolUpdate, exists := spinUpdates[poolID]; exists {
-				if latestUpdate == nil || poolUpdate.Timestamp.After(latestUpdate.Timestamp) {
-					latestUpdate = &poolUpdate
-				}
+		existingUpdate, hasExisting := s.latest[poolID]
+		if !hasExisting || poolData.UpdatedAt.After(existingUpdate.Timestamp) {
+			s.latest[poolID] = update
+			s.dirty = true
+			if !s.flushTimerSet {
+				s.flushTimerSet = true
+				s.flushTimer = time.AfterFunc(s.minInterval, func() {
+					select {
+					case s.flushChan <- struct{}{}:
+					default:
+					}
+				})
 			}
-		}
-
-		// Only update if provider timestamp is newer than buffer
-		if latestUpdate == nil || poolData.UpdatedAt.After(latestUpdate.Timestamp) {
-			// Store in refresh spin (or create if doesn't exist)
-			if s.buffer["refresh"] == nil {
-				s.buffer["refresh"] = make(map[string]Update)
-			}
-			s.buffer["refresh"][poolID] = update
 			refreshedCount++
 		}
 		s.mu.Unlock()
-
-		// Broadcast the refreshed update immediately
-		s.broad.Send(update)
 	}
 
 	if refreshedCount > 0 {

@@ -30,13 +30,13 @@ type Update struct {
 	TotalPools int   // Optional: total number of pools for this spin (0 = unknown, flush on timeout only)
 }
 
+const FlushSignalPoolID = "__jackpot_flush__"
+
 // RewardProvider aliases the shared providers.RewardProvider (includes Contribute/Claim/GetPool).
 type RewardProvider = providers.RewardProvider
 
 // ServiceConfig configures the jackpot service.
 type ServiceConfig struct {
-	// BroadcastInterval controls how often buffered updates are flushed to listeners.
-	BroadcastInterval time.Duration
 
 	// Logger is optional; if zero value, a no-op logger is used.
 	Logger zerolog.Logger

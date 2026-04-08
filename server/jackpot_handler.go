@@ -294,32 +294,6 @@ func (h *JackpotHandler) streamUpdates(config *streamConfig, sender messageSende
 	heartbeat := time.NewTicker(h.heartbeatPeriod)
 	defer heartbeat.Stop()
 
-	// Batch updates that arrive close together (from same spin flush)
-	// Use a small window to collect updates from the same flush
-	batchWindow := 5 * time.Millisecond
-	batchTimer := time.NewTimer(batchWindow)
-	batchTimer.Stop()
-	pendingPools := make(map[string]PoolUpdate)
-
-	flushBatch := func() bool {
-		if len(pendingPools) == 0 {
-			return true
-		}
-		if err := sender.Send(&Response{
-			Type:      EventTypeUpdated,
-			Timestamp: time.Now().Unix(),
-			Pools:     pendingPools,
-		}); err != nil {
-			h.logger.Warn().
-				Err(err).
-				Int("pool_count", len(pendingPools)).
-				Msg("Failed to send batch update, stopping stream")
-			return false
-		}
-		pendingPools = make(map[string]PoolUpdate)
-		return true
-	}
-
 	// Check if sender has a done channel (for WebSocket)
 	var doneChan <-chan struct{}
 	if wsSender, ok := sender.(*wsSender); ok {
@@ -329,17 +303,12 @@ func (h *JackpotHandler) streamUpdates(config *streamConfig, sender messageSende
 	for {
 		select {
 		case <-config.ctx.Done():
-			flushBatch()
 			return
 		case <-doneChan:
 			// WebSocket connection closed
 			h.logger.Debug().Msg("WebSocket connection closed, stopping stream")
-			flushBatch()
 			return
 		case <-heartbeat.C:
-			if !flushBatch() {
-				return
-			}
 			if err := sender.Send(&Response{
 				Type:      EventTypeHeartbeat,
 				Timestamp: time.Now().Unix(),
@@ -347,83 +316,14 @@ func (h *JackpotHandler) streamUpdates(config *streamConfig, sender messageSende
 				h.logger.Warn().Err(err).Msg("Failed to send heartbeat, stopping stream")
 				return
 			}
-		case <-batchTimer.C:
-			if !flushBatch() {
-				return
-			}
-			batchTimer.Stop()
 		case update, ok := <-updates:
 			if !ok {
-				flushBatch()
 				return
 			}
-			if !config.isTargetPool(update.PoolID) {
+			if update.PoolID != jackpot.FlushSignalPoolID {
 				continue
 			}
-
-			if !validatePoolIDMatch(update.PoolID, config.betMultiplier) {
-				h.logger.Warn().
-					Str("pool_id", update.PoolID).
-					Float32("expected_bet_multiplier", config.betMultiplier).
-					Msg("Pool ID does not match expected bet multiplier, skipping")
-				continue
-			}
-
-			poolType := extractPoolType(update.PoolID)
-			pendingPools[poolType] = PoolUpdate{
-				Amount:    update.Amount.InexactFloat64(),
-				Timestamp: update.Timestamp.Unix(),
-			}
-
-			// Try to collect more updates from the same flush immediately
-			// by checking if there are more updates available without blocking
-			collected := false
-			for {
-				select {
-				case nextUpdate, nextOk := <-updates:
-					if !nextOk {
-						if !flushBatch() {
-							return
-						}
-						return
-					}
-					if config.isTargetPool(nextUpdate.PoolID) {
-						if !validatePoolIDMatch(nextUpdate.PoolID, config.betMultiplier) {
-							h.logger.Warn().
-								Str("pool_id", nextUpdate.PoolID).
-								Float32("expected_bet_multiplier", config.betMultiplier).
-								Msg("Pool ID does not match expected bet multiplier, skipping")
-							continue
-						}
-						nextPoolType := extractPoolType(nextUpdate.PoolID)
-						pendingPools[nextPoolType] = PoolUpdate{
-							Amount:    nextUpdate.Amount.InexactFloat64(),
-							Timestamp: nextUpdate.Timestamp.Unix(),
-						}
-						collected = true
-					}
-				default:
-					// No more updates immediately available
-					goto doneCollecting
-				}
-			}
-		doneCollecting:
-			// If we collected multiple updates, send immediately
-			// Otherwise, start timer to wait for more
-			if collected {
-				if !flushBatch() {
-					return
-				}
-			} else {
-				// Start/reset timer to batch updates from same spin
-				if !batchTimer.Stop() {
-					select {
-					case <-batchTimer.C:
-					default:
-					}
-				}
-				batchTimer.Reset(batchWindow)
-			}
+			h.sendSnapshot(config, sender)
 		}
 	}
 }
@@ -470,6 +370,66 @@ func (h *JackpotHandler) sendInitialPools(config *streamConfig, sender messageSe
 		}); err != nil {
 			h.logger.Warn().Err(err).Int("pool_count", len(pools)).Msg("Failed to send initial pools")
 		}
+	}
+}
+
+func (h *JackpotHandler) sendSnapshot(config *streamConfig, sender messageSender) {
+	if len(config.targetPoolIDs) == 0 {
+		return
+	}
+
+	gameModule := h.app.GetGame()
+	var initValueGetter func(poolID string) (decimal.Decimal, error)
+	if handler, ok := gameModule.(game.JackpotHandler); ok {
+		initValueGetter = func(poolID string) (decimal.Decimal, error) {
+			return handler.GetInitialPoolValue(config.ctx, poolID, config.betMultiplier)
+		}
+	}
+
+	currentPools, err := h.svc.GetLatestPoolsByIDs(config.ctx, config.targetPoolIDs, initValueGetter)
+	if err != nil {
+		h.logger.Error().Err(err).Msg("Failed to get latest pools")
+		return
+	}
+
+	pools := make(map[string]PoolUpdate, len(config.targetPoolIDs))
+	for _, poolID := range config.targetPoolIDs {
+		if !validatePoolIDMatch(poolID, config.betMultiplier) {
+			h.logger.Warn().
+				Str("pool_id", poolID).
+				Float32("expected_bet_multiplier", config.betMultiplier).
+				Msg("Pool ID does not match expected bet multiplier, skipping")
+			continue
+		}
+
+		var found *jackpot.Update
+		for i := range currentPools {
+			if currentPools[i].PoolID == poolID {
+				found = &currentPools[i]
+				break
+			}
+		}
+		if found == nil {
+			continue
+		}
+
+		poolType := extractPoolType(found.PoolID)
+		pools[poolType] = PoolUpdate{
+			Amount:    found.Amount.InexactFloat64(),
+			Timestamp: found.Timestamp.Unix(),
+		}
+	}
+
+	if len(pools) != len(config.targetPoolIDs) {
+		return
+	}
+
+	if err := sender.Send(&Response{
+		Type:      EventTypeUpdated,
+		Timestamp: time.Now().Unix(),
+		Pools:     pools,
+	}); err != nil {
+		h.logger.Warn().Err(err).Msg("Failed to send snapshot update, stopping stream")
 	}
 }
 
