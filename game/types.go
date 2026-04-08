@@ -127,6 +127,8 @@ type PlayerState struct {
 	RemainingFreeSpin   int                    `json:"remainingFreeSpin,omitempty"`
 	TotalWinFreeSpin    *decimal.Decimal       `json:"totalWinFreeSpin,omitempty"`
 	BetMultiplier       float32                `json:"betMultiplier,omitempty"`
+	Tier                float32                `json:"tier,omitempty"`
+	Mul                 float32                `json:"mul,omitempty"`
 	FreeSpins           []*SpinResult          `json:"freeSpins,omitempty"`
 	PlayedFreeSpin      *int                   `json:"playedFreeSpin,omitempty"`
 	IsLastFreeSpin      bool                   `json:"isLastFreeSpin,omitempty"`
@@ -214,6 +216,8 @@ type Config struct {
 	FreeSpinReward    map[string]int    `mapstructure:"free_spin_reward" json:"freeSpinReward"`
 	MultiplierValue   []int             `mapstructure:"multiplier_value" json:"multiplierValue"`
 	MultiplierWeight  []int             `mapstructure:"multiplier_weight" json:"multiplierWeight"`
+	Tier              []float32         `mapstructure:"tier" json:"tier"`
+	Multiplier        []float32         `mapstructure:"multiplier" json:"multiplier"`
 	RTP               float64           `mapstructure:"rtp" json:"rtp"`
 	Volatility        string            `mapstructure:"volatility" json:"volatility"`
 }
@@ -233,6 +237,8 @@ func (c *Config) Normalize() map[string]interface{} {
 		"payLine":           c.PayLine,
 		"jackpotMultiplier": c.JackpotMultiplier,
 		"reelSize":          c.ReelSize,
+		"tier":              c.Tier,
+		"multiplier":        c.Multiplier,
 	}
 }
 
