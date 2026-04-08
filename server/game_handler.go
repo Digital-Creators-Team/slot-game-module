@@ -238,6 +238,8 @@ func (h *GameHandler) Spin(c *gin.Context) {
 		Username:      username,
 		CurrencyID:    currencyID,
 		BetMultiplier: betMul,
+		Tier:          req.Tier,
+		Multiplier:    req.Multiplier,
 		CheatPayout:   req.CheatPayout,
 		ExtraData:     req.ExtraData,
 	})

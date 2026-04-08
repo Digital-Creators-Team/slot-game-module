@@ -74,6 +74,8 @@ type SpinServiceRequest struct {
 	Username      string
 	CurrencyID    string
 	BetMultiplier float32
+	Tier          float32
+	Multiplier    float32
 	CheatPayout   *game.CheatPayout
 	ExtraData     map[string]interface{}
 }
@@ -122,7 +124,10 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 	if err != nil {
 		return nil, err
 	}
+
 	playerState.BetMultiplier = req.BetMultiplier
+	playerState.Tier = req.Tier
+	playerState.Mul = req.Multiplier
 	_ = s.savePlayerState(ctx, req.UserID, gameCode, playerState) //save bet multiplier
 
 	playerBalance, err := s.walletProvider.GetBalance(ctx, req.UserID, req.CurrencyID)

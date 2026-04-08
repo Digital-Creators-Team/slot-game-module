@@ -127,6 +127,8 @@ type PlayerState struct {
 	RemainingFreeSpin   int                    `json:"remainingFreeSpin,omitempty"`
 	TotalWinFreeSpin    *decimal.Decimal       `json:"totalWinFreeSpin,omitempty"`
 	BetMultiplier       float32                `json:"betMultiplier,omitempty"`
+	Tier                float32                `json:"tier,omitempty"`
+	Mul                 float32                `json:"mul,omitempty"`
 	FreeSpins           []*SpinResult          `json:"freeSpins,omitempty"`
 	PlayedFreeSpin      *int                   `json:"playedFreeSpin,omitempty"`
 	IsLastFreeSpin      bool                   `json:"isLastFreeSpin,omitempty"`
