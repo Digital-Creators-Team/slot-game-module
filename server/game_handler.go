@@ -6,6 +6,8 @@ import (
 	"github.com/Digital-Creators-Team/slot-game-module/game"
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog"
+	"github.com/samber/lo"
+	"github.com/shopspring/decimal"
 )
 
 // GameHandler handles common HTTP requests for the game
@@ -137,8 +139,11 @@ func (h *GameHandler) Authorize(c *gin.Context) {
 // SpinRequest represents the spin request body
 // @Description Spin request payload
 type SpinRequest struct {
-	// Bet multiplier (required, must be > 0)
-	BetMultiplier float32 `json:"betMultiplier" binding:"required" example:"1.0"`
+
+	// Bet multiplier = Tier * Multiplier
+	Tier       float32 `json:"tier" binding:"required" example:"1.0"`
+	Multiplier float32 `json:"multiplier" binding:"required" example:"1.0"`
+
 	// Optional cheat payout for testing
 	CheatPayout *game.CheatPayout `json:"cheatPayout,omitempty"`
 	// Optional extra data for game-specific customization
@@ -185,6 +190,18 @@ func (h *GameHandler) Spin(c *gin.Context) {
 		return
 	}
 
+	cfg, err := h.app.gameModule.GetConfig(ctx)
+	if err != nil {
+		InternalError(c, errors.New(errors.ErrConfigError, "Fail to get game config"))
+		return
+	}
+
+	tier, mul := cfg.GetConfig().Tier, cfg.GetConfig().Multiplier
+	if len(tier) == 0 || len(mul) == 0 {
+		InternalError(c, errors.New(errors.ErrConfigError, "Bet setting not found"))
+		return
+	}
+
 	// Parse request body
 	var req SpinRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -194,11 +211,12 @@ func (h *GameHandler) Spin(c *gin.Context) {
 	}
 
 	// Validate bet multiplier
-	if req.BetMultiplier <= 0 {
-		BadRequest(c, errors.New(errors.ErrInvalidRequest, "Invalid betMultiplier: must be greater than 0"))
+	if !lo.Contains(tier, req.Tier) || !lo.Contains(mul, req.Multiplier) {
+		BadRequest(c, errors.New(errors.ErrInvalidRequest, "Bet setting not found"))
 		return
 	}
 
+	betMul := float32(decimal.NewFromFloat32(req.Tier).Mul(decimal.NewFromFloat32(req.Multiplier)).InexactFloat64())
 	currencyID := h.extractCurrencyID(c)
 
 	// Create game service with providers
@@ -219,14 +237,14 @@ func (h *GameHandler) Spin(c *gin.Context) {
 		UserID:        userID,
 		Username:      username,
 		CurrencyID:    currencyID,
-		BetMultiplier: req.BetMultiplier,
+		BetMultiplier: betMul,
 		CheatPayout:   req.CheatPayout,
 		ExtraData:     req.ExtraData,
 	})
 	if err != nil {
 		h.logger.Error().Err(err).
 			Str("user_id", userID).
-			Float32("bet_multiplier", req.BetMultiplier).
+			Float32("bet_multiplier", betMul).
 			Msg("Failed to execute spin")
 		HandleAppError(c, err)
 		return

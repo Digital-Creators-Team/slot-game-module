@@ -214,6 +214,8 @@ type Config struct {
 	FreeSpinReward    map[string]int    `mapstructure:"free_spin_reward" json:"freeSpinReward"`
 	MultiplierValue   []int             `mapstructure:"multiplier_value" json:"multiplierValue"`
 	MultiplierWeight  []int             `mapstructure:"multiplier_weight" json:"multiplierWeight"`
+	Tier              []float32         `mapstructure:"tier" json:"tier"`
+	Multiplier        []float32         `mapstructure:"multiplier" json:"multiplier"`
 	RTP               float64           `mapstructure:"rtp" json:"rtp"`
 	Volatility        string            `mapstructure:"volatility" json:"volatility"`
 }
@@ -233,6 +235,8 @@ func (c *Config) Normalize() map[string]interface{} {
 		"payLine":           c.PayLine,
 		"jackpotMultiplier": c.JackpotMultiplier,
 		"reelSize":          c.ReelSize,
+		"tier":              c.Tier,
+		"multiplier":        c.Multiplier,
 	}
 }
 
