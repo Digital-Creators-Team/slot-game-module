@@ -343,7 +343,7 @@ func (s *GameService) executeNormalSpin(
 		if spinResult.ResultFreeSpin != nil && *spinResult.ResultFreeSpin > 0 {
 			playerState.IsFreeSpin = true
 			playerState.RemainingFreeSpin = *spinResult.ResultFreeSpin
-			playerState.TotalWinFreeSpin = &spinResult.TotalWin
+			playerState.TotalWinFreeSpin = lo.ToPtr(spinResult.TotalWin)
 			playerState.SpinResultTriggerFG = spinResult
 			playedCount := 0
 			playerState.PlayedFreeSpin = &playedCount
