@@ -134,6 +134,7 @@ type Bet struct {
 	WinLines        any       `json:"winLines,omitempty"`
 	SubReel         any       `json:"subReel,omitempty"`
 	IsJackpot       any       `json:"isJackpot"`
+	ExtraData       any       `json:"extraData,omitempty"`
 }
 
 // BetHistoryResponse represents the response for bet history
