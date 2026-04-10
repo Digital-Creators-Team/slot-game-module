@@ -211,15 +211,15 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 
 		//log jackpot
 		if spinResult.IsGetJackpot != nil && *spinResult.IsGetJackpot {
-			for _, tier := range lo.FromSlicePtr(spinResult.JackpotTypes) {
+			for _, j := range spinResult.JackpotPrize {
 				sessionID, err = s.logProvider.LogJackpot(ctx, &JackpotLog{
 					UserID:          req.UserID,
 					Username:        req.Username,
 					GameCode:        gameCode,
-					Tier:            tier,
+					Tier:            j.Tier,
 					BetAmount:       totalBet.InexactFloat64(),
 					WinAmount:       spinResult.TotalWin.InexactFloat64(),
-					TotalWinJackpot: spinResult.TotalWinJackpot.InexactFloat64(),
+					TotalWinJackpot: j.Value.InexactFloat64(),
 					SpinType:        spinResult.SpinType,
 					Currency:        req.CurrencyID,
 					Timestamp:       timestamp,
