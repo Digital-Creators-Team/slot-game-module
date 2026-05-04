@@ -38,6 +38,17 @@ type Winline struct {
 	Ways         int             `json:"ways,omitempty"`
 }
 
+// Some cascade and tumble games feature more than one set of reels
+type GameRound struct {
+	Reels          [][]Symbol             `json:"reels,omitempty"`
+	Winlines       []Winline              `json:"winlines,omitempty"`
+	TotalWin       decimal.Decimal        `json:"totalWin,omitempty"`
+	IsGetFreeSpin  *bool                  `json:"isGetFreeSpin,omitempty"`
+	ResultFreeSpin *int                   `json:"resultFreeSpin,omitempty"`
+	IsGetJackpot   *bool                  `json:"isGetJackpot,omitempty"`
+	ExtraData      map[string]interface{} `json:"extraData,omitempty"`
+}
+
 type JackpotPrize struct {
 	Tier  string          `json:"jackpotType,omitempty"`
 	Value decimal.Decimal `json:"value,omitempty"`
@@ -53,6 +64,7 @@ type SpinResult struct {
 	IsGetFreeSpin     *bool                  `json:"isGetFreeSpin,omitempty"`
 	ResultFreeSpin    *int                   `json:"resultFreeSpin,omitempty"`
 	FreeSpinBets      []*SpinResult          `json:"freeSpinBets,omitempty"`
+	Rounds            []*GameRound           `json:"rounds,omitempty"`
 	IsGetJackpot      *bool                  `json:"isGetJackpot,omitempty"`
 	TotalWinJackpot   decimal.Decimal        `json:"totalWinJackpot,omitempty"`
 	EndingBalance     decimal.Decimal        `json:"endingBalance,omitempty"`
@@ -76,6 +88,7 @@ type SpinResponse struct {
 	TotalWinJackpot   decimal.Decimal        `json:"totalWinJackpot,omitempty"`
 	IsGetFreeSpin     *bool                  `json:"isGetFreeSpin,omitempty"`
 	IsGetJackpot      *bool                  `json:"isGetJackpot,omitempty"`
+	Rounds            []*GameRound           `json:"rounds,omitempty"`
 	Reels             [][]Symbol             `json:"reels,omitempty"`
 	Winlines          *[]Winline             `json:"winlines,omitempty"`
 	TotalWinFreeSpin  decimal.Decimal        `json:"totalWinFreeSpin,omitempty"`
@@ -101,6 +114,7 @@ func (sr *SpinResult) ToSpinResponse() *SpinResponse {
 	return &SpinResponse{
 		TotalWin:          sr.TotalWin,
 		WinTitle:          sr.WinTitle,
+		Rounds:            sr.Rounds,
 		ResultFreeSpin:    sr.ResultFreeSpin,
 		TotalWinJackpot:   sr.TotalWinJackpot,
 		IsGetFreeSpin:     sr.IsGetFreeSpin,
