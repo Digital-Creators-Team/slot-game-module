@@ -91,6 +91,7 @@ type JackpotWin struct {
 	PoolID    string          // Pool ID to claim from
 	Tier      string          // Tier name (e.g., "mini", "minor", "grand") - for logging
 	InitValue decimal.Decimal // Initial value for claim calculation
+	Round     *int
 }
 
 // JackpotHandler defines optional interface for custom jackpot logic
