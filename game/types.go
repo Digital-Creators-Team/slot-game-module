@@ -46,6 +46,8 @@ type GameRound struct {
 	IsGetFreeSpin  *bool                  `json:"isGetFreeSpin,omitempty"`
 	ResultFreeSpin *int                   `json:"resultFreeSpin,omitempty"`
 	IsGetJackpot   *bool                  `json:"isGetJackpot,omitempty"`
+	JackpotTypes   []*string              `json:"jackpotTypes,omitempty"`
+	JackpotPrize   []JackpotPrize         `json:"jackpotPrize,omitempty"`
 	ExtraData      map[string]interface{} `json:"extraData,omitempty"`
 }
 

@@ -527,11 +527,17 @@ func (s *GameService) processJackpotWin(
 			// Update spin result with jackpot win
 			total = total.Add(claim.Amount)
 			spinResult.TotalWin = spinResult.TotalWin.Add(claim.Amount)
+
 			tier = append(tier, i.Tier)
-			jpPrize = append(jpPrize, game.JackpotPrize{
+			p := game.JackpotPrize{
 				Tier:  i.Tier,
 				Value: claim.Amount,
-			})
+			}
+			jpPrize = append(jpPrize, p)
+
+			if spinResult.Rounds != nil && i.Round != nil {
+				spinResult.Rounds[*i.Round].JackpotPrize = append(spinResult.Rounds[*i.Round].JackpotPrize, p)
+			}
 		}
 		spinResult.JackpotTypes = lo.ToSlicePtr(tier)
 		spinResult.TotalWinJackpot = total
