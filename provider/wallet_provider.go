@@ -84,12 +84,11 @@ func (p *WalletProvider) GetBalance(ctx context.Context, userID, currencyID stri
 }
 
 // Withdraw deducts amount from player balance
-func (p *WalletProvider) Withdraw(ctx context.Context, userID, username, currencyID string, amount decimal.Decimal) error {
+func (p *WalletProvider) Withdraw(ctx context.Context, userID, currencyID string, amount decimal.Decimal) error {
 	url := fmt.Sprintf("%s/wallet/withdraw", p.baseURL)
 
 	body, _ := json.Marshal(map[string]interface{}{
 		"user_id":     userID,
-		"username":    username,
 		"currency_id": currencyID,
 		"amount":      amount.InexactFloat64(), // Convert to float64 for external service
 	})
@@ -122,12 +121,11 @@ func (p *WalletProvider) Withdraw(ctx context.Context, userID, username, currenc
 }
 
 // Deposit adds amount to player balance
-func (p *WalletProvider) Deposit(ctx context.Context, userID, username, currencyID string, amount decimal.Decimal) error {
+func (p *WalletProvider) Deposit(ctx context.Context, userID, currencyID string, amount decimal.Decimal) error {
 	url := fmt.Sprintf("%s/wallet/deposit", p.baseURL)
 
 	body, _ := json.Marshal(map[string]interface{}{
 		"user_id":     userID,
-		"username":    username,
 		"currency_id": currencyID,
 		"amount":      amount.InexactFloat64(), // Convert to float64 for external service
 	})

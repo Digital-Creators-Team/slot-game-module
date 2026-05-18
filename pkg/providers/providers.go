@@ -16,8 +16,8 @@ type StateProvider interface {
 // WalletProvider interface for wallet operations
 type WalletProvider interface {
 	GetBalance(ctx context.Context, userID, currencyID string) (decimal.Decimal, error)
-	Withdraw(ctx context.Context, userID, username, currencyID string, amount decimal.Decimal) error
-	Deposit(ctx context.Context, userID, username, currencyID string, amount decimal.Decimal) error
+	Withdraw(ctx context.Context, userID, currencyID string, amount decimal.Decimal) error
+	Deposit(ctx context.Context, userID, currencyID string, amount decimal.Decimal) error
 }
 
 // ContributeRequest represents a request to contribute to a jackpot pool
