@@ -16,6 +16,7 @@ type (
 	BetHistoryQuery    = providers.BetHistoryQuery
 	Bet                = providers.Bet
 	BetHistoryResponse = providers.BetHistoryResponse
+	GameRound          = providers.GameRound
 )
 
 const (
