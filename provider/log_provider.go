@@ -258,7 +258,17 @@ func (p *LogProvider) GetBetHistory(ctx context.Context, query *server.BetHistor
 	bets := make([]server.Bet, 0, len(result.Data.Logs))
 	for _, entry := range result.Data.Logs {
 		bet := p.convertToBet(entry, query.Type)
-		if bet != nil {
+
+		if bet != nil && bet.Rounds != nil && len(bet.Rounds) > 0 {
+			for idx, round := range bet.Rounds {
+				b := p.convertToBetEachRound(*bet, round)
+
+				// Index round
+				b.Round = idx
+
+				bets = append(bets, *b)
+			}
+		} else if bet != nil {
 			bets = append(bets, *bet)
 		}
 	}
@@ -293,24 +303,35 @@ func (p *LogProvider) convertToBet(entry LogEntry, betType server.BetType) *serv
 			if resultMap, ok := details.SpinResult.(map[string]interface{}); ok {
 				if reels, ok := resultMap["reels"]; ok {
 					bet.Reels = reels
-
-					if winLines, ok := resultMap["winlines"]; ok {
-						bet.WinLines = winLines
-					}
-					if subReel, ok := resultMap["subReel"]; ok {
-						bet.SubReel = subReel
-					}
-
-					bet.IsJackpot = false
-					if isJackpot, ok := resultMap["isGetJackpot"]; ok {
-						bet.IsJackpot, _ = isJackpot.(bool)
-					}
-
-					if extra, ok := resultMap["extraData"]; ok {
-						bet.ExtraData = extra
-					}
-
 				}
+
+				if winLines, ok := resultMap["winlines"]; ok {
+					bet.WinLines = winLines
+				}
+
+				if subReel, ok := resultMap["subReel"]; ok {
+					bet.SubReel = subReel
+				}
+
+				bet.IsJackpot = false
+				if isJackpot, ok := resultMap["isGetJackpot"]; ok {
+					bet.IsJackpot, _ = isJackpot.(bool)
+				}
+
+				if extra, ok := resultMap["extraData"]; ok {
+					bet.ExtraData = extra
+				}
+
+				if rounds, ok := resultMap["rounds"]; ok {
+					bytes, err := json.Marshal(rounds)
+					if err == nil {
+						var r []server.GameRound
+						if err := json.Unmarshal(bytes, &r); err == nil {
+							bet.Rounds = r
+						}
+					}
+				}
+
 			}
 		}
 	case server.BetTypeJackpot:
@@ -345,4 +366,26 @@ func (p *LogProvider) convertToBet(entry LogEntry, betType server.BetType) *serv
 	}
 
 	return bet
+}
+
+func (p *LogProvider) convertToBetEachRound(entry server.Bet, round server.GameRound) *server.Bet {
+	bet := entry
+
+	// Already split rounds into separate bet
+	bet.Rounds = nil
+
+	bet.TotalWin = round.TotalWin
+	bet.IsJackpot = round.IsGetJackpot
+	bet.WinLines = round.Winlines
+
+	// More data for each round here
+	if round.Reels != nil {
+		bet.Reels = round.Reels
+	}
+
+	if round.ExtraData != nil {
+		bet.ExtraData = round.ExtraData
+	}
+
+	return &bet
 }

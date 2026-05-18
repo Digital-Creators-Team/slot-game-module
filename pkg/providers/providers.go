@@ -121,20 +121,34 @@ type BetHistoryQuery struct {
 
 // Bet represents a single bet history item
 type Bet struct {
-	SessionID       string    `json:"sessionID"`
-	Time            time.Time `json:"time"`
-	TotalBet        float64   `json:"totalBet"`
-	TotalWin        float64   `json:"totalWin"`
-	Currency        string    `json:"currency"`
-	TotalWinJackpot float64   `json:"totalWinJackpot,omitempty"`
-	Username        *string   `json:"userName,omitempty"`
-	JackpotType     *string   `json:"jackpotType,omitempty"`
-	IsFreeSpin      bool      `json:"isFreeSpin"`
-	Reels           any       `json:"reels,omitempty"`
-	WinLines        any       `json:"winLines,omitempty"`
-	SubReel         any       `json:"subReel,omitempty"`
-	IsJackpot       any       `json:"isJackpot"`
-	ExtraData       any       `json:"extraData,omitempty"`
+	SessionID       string      `json:"sessionID"`
+	Time            time.Time   `json:"time"`
+	TotalBet        float64     `json:"totalBet"`
+	TotalWin        float64     `json:"totalWin"`
+	Currency        string      `json:"currency"`
+	TotalWinJackpot float64     `json:"totalWinJackpot,omitempty"`
+	Username        *string     `json:"userName,omitempty"`
+	JackpotType     *string     `json:"jackpotType,omitempty"`
+	IsFreeSpin      bool        `json:"isFreeSpin"`
+	Reels           any         `json:"reels,omitempty"`
+	WinLines        any         `json:"winLines,omitempty"`
+	SubReel         any         `json:"subReel,omitempty"`
+	Rounds          []GameRound `json:"rounds,omitempty"`
+	Round           any         `json:"round,omitempty"`
+	IsJackpot       any         `json:"isJackpot"`
+	ExtraData       any         `json:"extraData,omitempty"`
+}
+
+type GameRound struct {
+	Reels          any                    `json:"reels,omitempty"`
+	Winlines       any                    `json:"winlines,omitempty"`
+	TotalWin       float64                `json:"totalWin,omitempty"`
+	IsGetFreeSpin  *bool                  `json:"isGetFreeSpin,omitempty"`
+	ResultFreeSpin *int                   `json:"resultFreeSpin,omitempty"`
+	IsGetJackpot   *bool                  `json:"isGetJackpot,omitempty"`
+	JackpotTypes   []*string              `json:"jackpotTypes,omitempty"`
+	JackpotPrize   any                    `json:"jackpotPrize,omitempty"`
+	ExtraData      map[string]interface{} `json:"extraData,omitempty"`
 }
 
 // BetHistoryResponse represents the response for bet history
