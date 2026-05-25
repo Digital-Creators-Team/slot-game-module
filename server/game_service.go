@@ -405,6 +405,9 @@ func (s *GameService) executeFreeSpin(
 	totalWinFS := playerState.TotalWinFreeSpin
 	spinResult.TotalWinFreeSpin = *totalWinFS
 
+	// Last spinResult for FG
+	playerState.SpinResult = spinResult
+
 	// Check if this is the last free spin
 	if playerState.RemainingFreeSpin == 0 {
 		isLast := true
