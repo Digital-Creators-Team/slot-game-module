@@ -154,7 +154,7 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 
 	if playerState.IsFreeSpin && playerState.RemainingFreeSpin > 0 {
 		// Execute free spin
-		spinResult, err = s.executeFreeSpin(ctx, req, playerState, req.BetMultiplier)
+		spinResult, err = s.executeFreeSpin(ctx, req, playerState, playerState.BetMultiplier)
 		if err != nil {
 			return nil, err
 		}
