@@ -124,7 +124,7 @@ func (h *GameHandler) Authorize(c *gin.Context) {
 	// Build response
 	response := game.AuthorizeResponse{
 		LastState:  s,
-		GameConfig: cfg.Normalize(),
+		GameConfig: buildConfig(cfg),
 		Player: game.Player{
 			UserID:   userID,
 			Username: username,
@@ -295,23 +295,27 @@ func (h *GameHandler) GetConfig(c *gin.Context) {
 		InternalError(c, errors.New(errors.ErrGameModuleNotFound, "Game not configured"))
 		return
 	}
-
 	cfg, err := gameModule.GetConfig(ctx)
 	if err != nil {
 		h.logger.Error().Err(err).Msg("Failed to get game config")
 		InternalError(c, errors.New(errors.ErrInternalServerError, "Failed to retrieve game configuration"))
 		return
 	}
-	normalizer, ok := cfg.(interface{ Normalize() map[string]interface{} })
-	if !ok {
-		h.logger.Error().Msg("Invalid game config type")
-		InternalError(c, errors.New(errors.ErrInternalServerError, "Invalid game config"))
-		return
-	}
 
-	response := normalizer.Normalize()
+	response := buildConfig(cfg)
 
 	OK(c, response)
+}
+
+func buildConfig(conf game.ConfigNormalizer) map[string]interface{} {
+	n := conf.Normalize()
+	if _, exists := n["mul"]; !exists {
+		n["mul"] = conf.GetConfig().Multiplier
+	}
+	if _, exists := n["tier"]; !exists {
+		n["tier"] = conf.GetConfig().Tier
+	}
+	return n
 }
 
 // GetState godoc
