@@ -71,6 +71,7 @@ type SpinResult struct {
 	TotalWinJackpot   decimal.Decimal        `json:"totalWinJackpot,omitempty"`
 	EndingBalance     decimal.Decimal        `json:"endingBalance,omitempty"`
 	RemainingFreeSpin *int                   `json:"remainingFreeSpin,omitempty"`
+	PlayedFreeSpin    *int                   `json:"playedFreeSpin,omitempty"`
 	TotalWinFreeSpin  decimal.Decimal        `json:"totalWinFreeSpin,omitempty"`
 	IsLastFreeSpin    *bool                  `json:"isLastFreeSpin,omitempty"`
 	JackpotType       *string                `json:"jackpotType,omitempty"`
@@ -95,6 +96,7 @@ type SpinResponse struct {
 	Winlines          *[]Winline             `json:"winlines,omitempty"`
 	TotalWinFreeSpin  decimal.Decimal        `json:"totalWinFreeSpin,omitempty"`
 	RemainingFreeSpin *int                   `json:"remainingFreeSpin,omitempty"`
+	PlayedFreeSpin    *int                   `json:"playedFreeSpin,omitempty"`
 	IsLastFreeSpin    *bool                  `json:"isLastFreeSpin,omitempty"`
 	EndingBalance     decimal.Decimal        `json:"endingBalance,omitempty"`
 	TotalBet          decimal.Decimal        `json:"totalBet,omitempty"`
@@ -125,6 +127,7 @@ func (sr *SpinResult) ToSpinResponse() *SpinResponse {
 		Winlines:          winlines,
 		TotalWinFreeSpin:  sr.TotalWinFreeSpin,
 		RemainingFreeSpin: sr.RemainingFreeSpin,
+		PlayedFreeSpin:    sr.PlayedFreeSpin,
 		IsLastFreeSpin:    sr.IsLastFreeSpin,
 		EndingBalance:     sr.EndingBalance,
 		TotalBet:          sr.TotalBet,
