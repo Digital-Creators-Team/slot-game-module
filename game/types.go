@@ -27,7 +27,7 @@ const (
 
 // Winline represents a winning line on the game board
 type Winline struct {
-	Symbol       int             `json:"symbol"`
+	Symbol       int             `json:"symbol,omitempty"`
 	Type         int             `json:"type"`
 	WinAmount    decimal.Decimal `json:"winAmount"`
 	SameItem     int             `json:"sameItem,omitempty"`
