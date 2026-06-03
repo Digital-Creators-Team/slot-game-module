@@ -27,8 +27,7 @@ const (
 
 // Winline represents a winning line on the game board
 type Winline struct {
-	Symbol       int             `json:"symbol,omitempty"`
-	Type         int             `json:"type"`
+	Symbol       int             `json:"symbol"`
 	WinAmount    decimal.Decimal `json:"winAmount"`
 	SameItem     int             `json:"sameItem,omitempty"`
 	LineID       int             `json:"lineId,omitempty"`
@@ -37,6 +36,7 @@ type Winline struct {
 	Multiplier   int             `json:"multiplier,omitempty"`
 	Column       int             `json:"column,omitempty"`
 	Ways         int             `json:"ways,omitempty"`
+	Type         int             `json:"type,omitempty"`
 }
 
 // Some cascade and tumble games feature more than one set of reels
