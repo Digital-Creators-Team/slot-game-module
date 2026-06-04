@@ -231,9 +231,12 @@ func (h *GameHandler) Spin(c *gin.Context) {
 
 	// Get username from JWT
 	username, _ := auth.GetUsername(c)
+	if len(username) == 0 {
+		BadRequest(c, errors.New(errors.ErrInvalidRequest, "Username not found in JWT"))
+		return
+	}
 
-	// Execute spin with full flow
-	result, err := gameService.ExecuteSpin(ctx, &SpinServiceRequest{
+	result, err := gameService.ExecuteSpinV2(ctx, &SpinServiceRequest{
 		UserID:        userID,
 		Username:      username,
 		CurrencyID:    currencyID,
@@ -243,13 +246,28 @@ func (h *GameHandler) Spin(c *gin.Context) {
 		CheatPayout:   req.CheatPayout,
 		ExtraData:     req.ExtraData,
 	})
+
 	if err != nil {
-		h.logger.Error().Err(err).
-			Str("user_id", userID).
-			Float32("bet_multiplier", betMul).
-			Msg("Failed to execute spin")
-		HandleAppError(c, err)
-		return
+		// Execute spin with full flow
+		result2, err := gameService.ExecuteSpin(ctx, &SpinServiceRequest{
+			UserID:        userID,
+			Username:      username,
+			CurrencyID:    currencyID,
+			BetMultiplier: betMul,
+			Tier:          req.Tier,
+			Multiplier:    req.Multiplier,
+			CheatPayout:   req.CheatPayout,
+			ExtraData:     req.ExtraData,
+		})
+		if err != nil {
+			h.logger.Error().Err(err).
+				Str("user_id", userID).
+				Float32("bet_multiplier", betMul).
+				Msg("Failed to execute spin")
+			HandleAppError(c, err)
+			return
+		}
+		result = result2
 	}
 
 	// Convert to response format
