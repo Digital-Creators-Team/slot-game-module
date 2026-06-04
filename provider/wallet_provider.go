@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Digital-Creators-Team/slot-game-module/config"
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
 )
@@ -81,6 +82,49 @@ func (p *WalletProvider) GetBalance(ctx context.Context, userID, currencyID stri
 	}
 
 	return decimal.NewFromFloat(result.Data.Balance), nil
+}
+
+// CheckBalance retrieves player balance from wallet service
+func (p *WalletProvider) CheckBalance(ctx context.Context, productId, username, currencyID string) (decimal.Decimal, error) {
+	url := fmt.Sprintf("%s/wallet/checkBalance")
+
+	id := uuid.NewString()
+	reqBody := map[string]any{
+		"id":              id,
+		"timestampMillis": time.Now().UnixNano() / 1000000,
+		"productId":       productId,
+		"currency":        currencyID,
+		"username":        username,
+	}
+
+	bodyBytes, err := json.Marshal(reqBody)
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("failed to marshal request body: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, bytes.NewBuffer(bodyBytes))
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := p.httpClient.Do(req)
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("failed to get balance: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return decimal.Zero, fmt.Errorf("wallet service returned status %d", resp.StatusCode)
+	}
+
+	var result struct {
+		Balance float64 `json:"balance"` // External service returns float64
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return decimal.Zero, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	return decimal.NewFromFloat(result.Balance), nil
 }
 
 // Withdraw deducts amount from player balance

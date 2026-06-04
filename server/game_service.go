@@ -22,6 +22,7 @@ type sessionIDKey struct{}
 // SpinService defines the minimal contract for executing a spin flow.
 type SpinService interface {
 	ExecuteSpin(ctx context.Context, req *SpinServiceRequest) (*SpinServiceResponse, error)
+	ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest) (*SpinServiceResponse, error)
 }
 
 // GameService orchestrates the full spin flow
@@ -134,6 +135,168 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 	if err != nil {
 		return nil, errors.New(errors.ErrInternalServerError, "get balance error")
 	}
+
+	// Set player state in ModuleContext so endusers can access and modify it
+	// Since playerState is a pointer, modifications by endusers are automatically reflected
+	game.SetPlayerStateForModule(ctx, playerState)
+
+	// Set extra data from spin request in ModuleContext so endusers can access it
+	game.SetSpinRequestExtraDataForModule(ctx, req.ExtraData)
+
+	// Set cheat payout from spin request in ModuleContext so endusers can access it
+	game.SetSpinRequestCheatPayoutForModule(ctx, req.CheatPayout)
+
+	// 4. Calculate total bet
+	totalBet := decimal.NewFromFloat32(req.BetMultiplier).Mul(decimal.NewFromInt(int64(gameConfig.PayLine)))
+
+	// 5. Determine spin type and execute
+	var spinResult *game.SpinResult
+	var sessionID string
+
+	if playerState.IsFreeSpin && playerState.RemainingFreeSpin > 0 {
+		// Execute free spin
+		spinResult, err = s.executeFreeSpin(ctx, req, playerState, playerState.BetMultiplier)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		// Execute normal spin
+		playerBalance = playerBalance.Sub(totalBet) //fake: pay for this spin.
+		spinResult, err = s.executeNormalSpin(ctx, req, playerState, gameConfig, totalBet)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// 6. Process jackpot win (if any)
+	if spinResult.IsGetJackpot != nil && *spinResult.IsGetJackpot {
+		// Claim jackpot
+		if err := s.processJackpotWin(ctx, spinResult, req.UserID, req.Username, gameCode, req.CurrencyID, gameConfig, totalBet); err != nil {
+			s.logger.Error().Err(err).Msg("Failed to process jackpot win")
+		}
+		if playerState.TotalWinFreeSpin != nil {
+			playerState.TotalWinFreeSpin = lo.ToPtr(playerState.TotalWinFreeSpin.Add(spinResult.TotalWinJackpot))
+			spinResult.TotalWinFreeSpin = *playerState.TotalWinFreeSpin
+
+		}
+	}
+
+	// Update timestamp before saving
+	// Note: Since playerState is a pointer, any modifications by endusers in PlayNormalSpin/PlayFreeSpin
+	// are automatically reflected here - no need to get state from ModuleContext again
+	t := time.Now()
+	playerState.UpdatedAt = &t
+
+	// 7. Get ending balance
+	spinResult.EndingBalance = playerBalance.Add(spinResult.TotalWin)
+
+	// 8. Log spin
+	if s.logProvider != nil {
+
+		timestamp := time.Now().UTC()
+
+		sessionID, err = s.logProvider.LogSpin(ctx, &SpinLog{
+			UserID:     req.UserID,
+			Username:   req.Username,
+			GameCode:   gameCode,
+			BetAmount:  spinResult.TotalBet.InexactFloat64(),
+			WinAmount:  spinResult.TotalWin.InexactFloat64(),
+			Currency:   req.CurrencyID,
+			SpinType:   spinResult.SpinType,
+			SpinResult: spinResult,
+			Timestamp:  timestamp,
+		})
+		if err != nil {
+			s.logger.Error().Err(err).Msg("Failed to log spin")
+		}
+
+		//log jackpot
+		if spinResult.IsGetJackpot != nil && *spinResult.IsGetJackpot {
+			for _, j := range spinResult.JackpotPrize {
+				sessionID, err = s.logProvider.LogJackpot(ctx, &JackpotLog{
+					UserID:          req.UserID,
+					Username:        req.Username,
+					GameCode:        gameCode,
+					Tier:            j.Tier,
+					BetAmount:       totalBet.InexactFloat64(),
+					WinAmount:       spinResult.TotalWin.InexactFloat64(),
+					TotalWinJackpot: j.Value.InexactFloat64(),
+					SpinType:        spinResult.SpinType,
+					Currency:        req.CurrencyID,
+					Timestamp:       timestamp,
+					SpinResult:      spinResult,
+				})
+				if err != nil {
+					s.logger.Error().Err(err).Msg("Failed to log jackpot")
+				}
+			}
+		}
+	}
+
+	// 8. Save player state
+	if err := s.savePlayerState(ctx, req.UserID, gameCode, playerState); err != nil {
+		return nil, err
+	}
+
+	return &SpinServiceResponse{
+		SpinResult:    spinResult,
+		SessionID:     sessionID,
+		EndingBalance: spinResult.EndingBalance,
+	}, nil
+}
+
+// ExecuteSpin orchestrates the entire spin v2 flow
+//
+// Flow:
+// 1. Validate request
+// 2. Get game config
+// 3. Load player state
+// 4. Calculate total bet
+// 5. Execute spin (normal or free)
+// 6. Contribute to jackpot (progressive amount before spin)
+// 7. Claim jackpot if won
+// 8. Update wallet
+// 9. Log spin
+// 10. Save player state
+func (s *GameService) ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest) (*SpinServiceResponse, error) {
+	// 1. Validate input
+	if err := s.validateSpinRequest(req); err != nil {
+		return nil, err
+	}
+	ctx = context.WithValue(ctx, SessionIDKey, uuid.New().String())
+
+	gameCode := s.gameModule.GetGameCode()
+
+	// 2. Get game config
+	cfg, err := s.gameModule.GetConfig(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, errors.ErrInternalServerError, "failed to get game config")
+	}
+	gameConfig, err := game.GetConfigFromNormalizer(cfg)
+	if err != nil {
+		return nil, errors.Wrap(err, errors.ErrInternalServerError, "invalid game config type")
+	}
+
+	productId := cfg.GetConfig().ProductId
+	fmt.Println("===> ProductId:", productId)
+
+	playerBalance, err := s.walletProvider.CheckBalance(ctx, productId, req.Username, req.CurrencyID)
+	if err != nil {
+		fmt.Println("===> get balance error:", productId)
+		return nil, errors.New(errors.ErrInternalServerError, "get balance error")
+	}
+	fmt.Println("===> playerBalance:", playerBalance)
+
+	// 3. Load player state
+	playerState, err := s.getPlayerState(ctx, req.UserID, gameCode)
+	if err != nil {
+		return nil, err
+	}
+
+	playerState.BetMultiplier = req.BetMultiplier
+	playerState.Tier = req.Tier
+	playerState.Mul = req.Multiplier
+	_ = s.savePlayerState(ctx, req.UserID, gameCode, playerState) //save bet multiplier
 
 	// Set player state in ModuleContext so endusers can access and modify it
 	// Since playerState is a pointer, modifications by endusers are automatically reflected
