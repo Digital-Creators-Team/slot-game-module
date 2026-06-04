@@ -86,7 +86,7 @@ func (p *WalletProvider) GetBalance(ctx context.Context, userID, currencyID stri
 
 // CheckBalance retrieves player balance from wallet service
 func (p *WalletProvider) CheckBalance(ctx context.Context, productId, username, currencyID string) (decimal.Decimal, error) {
-	url := fmt.Sprintf("%s/wallet/checkBalance")
+	url := fmt.Sprintf("%s/wallet/checkBalance", p.baseURL)
 
 	id := uuid.NewString()
 	reqBody := map[string]any{
