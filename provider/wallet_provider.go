@@ -102,7 +102,7 @@ func (p *WalletProvider) CheckBalance(ctx context.Context, productId, username, 
 		return decimal.Zero, fmt.Errorf("failed to marshal request body: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, bytes.NewBuffer(bodyBytes))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(bodyBytes))
 	if err != nil {
 		return decimal.Zero, fmt.Errorf("failed to create request: %w", err)
 	}
