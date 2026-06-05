@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"time"
 
 	coreredis "github.com/Digital-Creators-Team/slot-game-module/db/redis"
 	"github.com/Digital-Creators-Team/slot-game-module/game"
@@ -60,8 +59,7 @@ func (p *StateProvider) SavePlayerState(ctx context.Context, userID, gameCode st
 		return fmt.Errorf("failed to marshal state: %w", err)
 	}
 
-	// State expires after 24 hours
-	if err := p.redis.Set(ctx, key, string(data), 24*time.Hour); err != nil {
+	if err := p.redis.Set(ctx, key, string(data), 0); err != nil {
 		return fmt.Errorf("failed to save state: %w", err)
 	}
 

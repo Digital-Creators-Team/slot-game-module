@@ -576,6 +576,7 @@ func (s *GameService) executeFreeSpin(
 		isLast := true
 		spinResult.IsLastFreeSpin = &isLast
 		playerState.IsLastFreeSpin = true
+		spinResult.PlayedFreeSpin = playerState.PlayedFreeSpin
 
 		s.logger.Info().
 			Float64("total_win", playerState.TotalWinFreeSpin.InexactFloat64()).

@@ -201,7 +201,8 @@ func getUpdatableFiles() []UpdatableFile {
 	return []UpdatableFile{
 		{Name: "Dockerfile", Path: "Dockerfile", Template: dockerfileTemplate, Description: "Docker build configuration", Category: "build"},
 		{Name: "docker-compose.yml", Path: "docker-compose.yml", Template: dockerComposeTemplate, Description: "Docker Compose configuration", Category: "build"},
-		{Name: ".github/workflows/ci.yml", Path: ".github/workflows/ci.yml", Template: githubCITemplate, Description: "GitHub Actions CI/CD pipeline", Category: "ci"},
+		{Name: ".github/workflows/build-dev.yml", Path: ".github/workflows/build-dev.yml", Template: githubBuildDevTemplate, Description: "GitHub Actions pipeline for DEV build & deploy", Category: "ci"},
+		{Name: ".github/workflows/build-staging.yml", Path: ".github/workflows/build-staging.yml", Template: githubBuildStagingTemplate, Description: "GitHub Actions pipeline for STAGING build & deploy", Category: "ci"},
 		{Name: ".github/workflows/update-module.yml", Path: ".github/workflows/update-module.yml", Template: githubUpdateModuleTemplate, Description: "GitHub Actions workflow to update slot-game-module dependency", Category: "ci"},
 		{Name: "Makefile", Path: "Makefile", Template: makefileTemplate, Description: "Build tasks and commands", Category: "build"},
 		{Name: "README.md", Path: "README.md", Template: readmeTemplate, Description: "Project documentation", Category: "docs"},
@@ -277,7 +278,7 @@ Examples:
   slotmodule update ./game-beach-party
 
   # Update specific files only
-  slotmodule update ./game-beach-party --files Dockerfile,Makefile,.github/workflows/ci.yml
+  slotmodule update ./game-beach-party --files Dockerfile,Makefile,.github/workflows/build-dev.yml
 
   # Preview changes without applying (dry-run)
   slotmodule update ./game-beach-party --dry-run
@@ -729,7 +730,8 @@ func runCreate(cmd *cobra.Command, args []string) {
 		{fmt.Sprintf("config/%s.yaml", data.GameCodeSnake), gameSpecificConfigTemplate},
 		{"Dockerfile", dockerfileTemplate},
 		{"docker-compose.yml", dockerComposeTemplate},
-		{".github/workflows/ci.yml", githubCITemplate},
+		{".github/workflows/build-dev.yml", githubBuildDevTemplate},
+		{".github/workflows/build-staging.yml", githubBuildStagingTemplate},
 		{".github/workflows/update-module.yml", githubUpdateModuleTemplate},
 		{"Makefile", makefileTemplate},
 		{"README.md", readmeTemplate},
@@ -1107,7 +1109,7 @@ func printUpdatableFiles() {
 
 	fmt.Println("Usage examples:")
 	fmt.Println("  slotmodule update ./game-xyz --files Dockerfile,Makefile")
-	fmt.Println("  slotmodule update ./game-xyz --files .github/workflows/ci.yml --dry-run")
+	fmt.Println("  slotmodule update ./game-xyz --files .github/workflows/build-dev.yml --dry-run")
 	fmt.Println("  slotmodule update-all ./games --files Dockerfile")
 }
 
@@ -2266,24 +2268,123 @@ networks:
     driver: bridge
 `
 
-var githubCITemplate = `name: Pipeline Build & Deploy
+var githubBuildDevTemplate = `name: DEV-Build & Push (Helm)
 
 on:
   workflow_dispatch: {}
-  push:
-    branches: [main]
 
 permissions:
-  packages: write
   contents: read
+  packages: write
 
 jobs:
-  ci:
-    uses: Digital-Creators-Team/fgs-actions/.github/workflows/ci-docker-build.yml@main
+  build:
+    uses: Digital-Creators-Team/fgs-actions/.github/workflows/build-push-action.yml@dev
+    with:
+      image_name: digital-creators-team/game-{{.GameCode}}
+    secrets: inherit
+
+  deploy:
+    needs: build
+    uses: Digital-Creators-Team/fgs-actions/.github/workflows/sync-action.yml@dev
     with:
       app_name: game-{{.GameCode}}
-      ports: "{{.Port}}:{{.Port}}"
-      networks: "net"
+      image_name: digital-creators-team/game-{{.GameCode}}
+      ingress_enabled: "true"
+      ingress_host: "data.futuregamestudio.net"
+      ingress_path: "/games/{{.GameCode}}(/|$)(.*)"
+      ingress_path_type: "ImplementationSpecific"
+      ingress_rewrite_target: "/api/games/{{.GameCode}}/$2"
+      ingress_use_regex: "true"
+      service_port: "{{.Port}}"
+      replica_count: "1"
+      env_config: |
+        - name: ENVIRONMENT
+          value: "dev"
+        - name: REDIS_USERNAME
+          value: ""
+        - name: REDIS_ADDR
+          value: "redis-master.infra.svc.cluster.local:6379"
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: fgs-game-secrets
+              key: redis-password
+        - name: KAFKA_BROKERS
+          value: "kafka-svc.infra.svc.cluster.local:9092"
+        - name: EXTERNAL_SERVICES_WALLET_SERVICE_BASE_URL
+          value: "http://wallet-service.fgs-games.svc.cluster.local:80"
+        - name: EXTERNAL_SERVICES_REWARD_SERVICE_BASE_URL
+          value: "http://reward-service.fgs-games.svc.cluster.local:80"
+        - name: EXTERNAL_SERVICES_LOG_SERVICE_BASE_URL
+          value: "http://log-service.fgs-games.svc.cluster.local:80"
+      resources_config: |
+        limits:
+          cpu: 500m
+          memory: 128Mi
+        requests:
+          cpu: 100m
+          memory: 128Mi
+    secrets: inherit
+`
+
+var githubBuildStagingTemplate = `name: Build & Push (Helm)
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    uses: Digital-Creators-Team/fgs-actions/.github/workflows/build-push-action.yml@main
+    with:
+      image_name: digital-creators-team/game-{{.GameCode}}
+    secrets: inherit
+
+  deploy:
+    needs: build
+    uses: Digital-Creators-Team/fgs-actions/.github/workflows/sync-action.yml@main
+    with:
+      app_name: game-{{.GameCode}}
+      image_name: digital-creators-team/game-{{.GameCode}}
+      ingress_enabled: "true"
+      ingress_host: "data.osveuveglobel.club"
+      ingress_path: "/games/{{.GameCode}}(/|$)(.*)"
+      ingress_path_type: "ImplementationSpecific"
+      ingress_rewrite_target: "/api/games/{{.GameCode}}/$2"
+      ingress_use_regex: "true"
+      service_port: "{{.Port}}"
+      replica_count: "2"
+      env_config: |
+        - name: ENVIRONMENT
+          value: "STAGING"
+        - name: REDIS_USERNAME
+          value: ""
+        - name: REDIS_ADDR
+          value: "redis-master.infra.svc.cluster.local:6379"
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: fgs-game-secrets
+              key: redis-password
+        - name: KAFKA_BROKERS
+          value: "kafka-svc.infra.svc.cluster.local:9092"
+        - name: EXTERNAL_SERVICES_WALLET_SERVICE_BASE_URL
+          value: "http://wallet-service.fgs-games.svc.cluster.local:80"
+        - name: EXTERNAL_SERVICES_REWARD_SERVICE_BASE_URL
+          value: "http://reward-service.fgs-games.svc.cluster.local:80"
+        - name: EXTERNAL_SERVICES_LOG_SERVICE_BASE_URL
+          value: "http://log-service.fgs-games.svc.cluster.local:80"
+      resources_config: |
+        limits:
+          cpu: 500m
+          memory: 128Mi
+        requests:
+          cpu: 100m
+          memory: 128Mi
     secrets: inherit
 `
 
@@ -2479,7 +2580,9 @@ Edit ` + "`config/config.yaml`" + ` for app configuration and ` + "`config/{{.Ga
 ├── main.go                   # Entry point
 ├── Dockerfile
 ├── docker-compose.yml
-├── .github/workflows/ci.yml
+├── .github/workflows/build-dev.yml
+├── .github/workflows/build-staging.yml
+├── .github/workflows/update-module.yml
 └── Makefile
 ` + "```" + `
 
