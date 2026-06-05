@@ -278,11 +278,11 @@ func (s *GameService) ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest
 	}
 
 	productId := cfg.GetConfig().ProductId
-	fmt.Println("===> ProductId:", productId)
+	fmt.Println("===> ProductId: v3", productId)
 
 	playerBalance, err := s.walletProvider.CheckBalance(ctx, productId, req.Username, req.CurrencyID)
 	if err != nil {
-		fmt.Println("===> get balance error:", productId)
+		fmt.Println("===> get balance error:", productId, err)
 		return nil, errors.New(errors.ErrInternalServerError, "get balance error")
 	}
 	fmt.Println("===> playerBalance:", playerBalance)

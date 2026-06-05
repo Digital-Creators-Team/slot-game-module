@@ -86,7 +86,7 @@ func (p *WalletProvider) GetBalance(ctx context.Context, userID, currencyID stri
 
 // CheckBalance retrieves player balance from wallet service
 func (p *WalletProvider) CheckBalance(ctx context.Context, productId, username, currencyID string) (decimal.Decimal, error) {
-	url := fmt.Sprintf("%s/wallet/checkBalance")
+	url := fmt.Sprintf("%s/wallet/checkBalance", p.baseURL)
 
 	id := uuid.NewString()
 	reqBody := map[string]any{
@@ -102,7 +102,7 @@ func (p *WalletProvider) CheckBalance(ctx context.Context, productId, username, 
 		return decimal.Zero, fmt.Errorf("failed to marshal request body: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, bytes.NewBuffer(bodyBytes))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(bodyBytes))
 	if err != nil {
 		return decimal.Zero, fmt.Errorf("failed to create request: %w", err)
 	}
