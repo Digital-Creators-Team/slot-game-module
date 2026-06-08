@@ -464,6 +464,8 @@ func (s *GameService) executeNormalSpin(
 		if err := s.walletProvider.Withdraw(ctx, req.UserID, req.CurrencyID, totalBet); err != nil {
 			return nil, errors.Wrap(err, errors.GetCode(err), "failed to withdraw bet")
 		}
+	} else {
+		fmt.Println("===> PlaceBets ok:", req.Username, req.CurrencyID, totalBet)
 	}
 
 	// 2. Execute spin
