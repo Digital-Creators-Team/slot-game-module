@@ -81,6 +81,7 @@ type LogProvider interface {
 	LogSpin(ctx context.Context, log *SpinLog) (sessionID string, err error)
 	LogJackpot(ctx context.Context, log *JackpotLog) (sessionID string, err error)
 	GetBetHistory(ctx context.Context, query *BetHistoryQuery) (*BetHistoryResponse, error)
+	GetBetHistoryV2(ctx context.Context, query *BetHistoryQuery) (*BetHistoryResponse, error)
 }
 
 // SpinLog represents a spin log entry to be saved
