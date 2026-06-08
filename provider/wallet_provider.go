@@ -164,6 +164,59 @@ func (p *WalletProvider) Withdraw(ctx context.Context, userID, currencyID string
 	}
 }
 
+// Withdraw deducts amount from player balance
+func (p *WalletProvider) PlaceBets(ctx context.Context, productId, userName, currencyID string, amount decimal.Decimal) error {
+	url := fmt.Sprintf("%s/wallet/placeBets", p.baseURL)
+	fmt.Println("===> PlaceBets check:", url)
+
+	body, _ := json.Marshal(map[string]interface{}{
+		"id":              uuid.New().String(),
+		"timestampMillis": time.Now().UnixMilli(),
+		"productId":       productId,
+		"username":        userName,
+		"currency":        currencyID,
+		//"amount":          amount.InexactFloat64(), // Convert to float64 for external service
+		"txns": []map[string]interface{}{
+			{
+				"id":           "T-001",
+				"gameCode":     "10300",
+				"status":       "OPEN",
+				"roundId":      "R-0001",
+				"betAmount":    amount.InexactFloat64(), // docs is int, now using float
+				"playInfo":     "Golden Coyote",
+				"isFeature":    false,
+				"isFeatureBuy": false,
+			},
+		},
+	})
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := p.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to withdraw: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode == http.StatusOK {
+		return nil
+	}
+	var errResp ErrorResponse
+	if err := json.NewDecoder(resp.Body).Decode(&errResp); err != nil {
+		return fmt.Errorf("withdraw failed with status %d", resp.StatusCode)
+	}
+	switch strings.ToLower(errResp.Error.ErrorMessage) {
+	case ErrInsufficientFunds.Error():
+		return ErrInsufficientFunds
+	default:
+		return fmt.Errorf("withdraw failed: %s", errResp.Error.ErrorMessage)
+	}
+}
+
 // Deposit adds amount to player balance
 func (p *WalletProvider) Deposit(ctx context.Context, userID, currencyID string, amount decimal.Decimal) error {
 	url := fmt.Sprintf("%s/wallet/deposit", p.baseURL)

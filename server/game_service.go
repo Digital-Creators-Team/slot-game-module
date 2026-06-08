@@ -278,14 +278,12 @@ func (s *GameService) ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest
 	}
 
 	productId := cfg.GetConfig().ProductId
-	fmt.Println("===> ProductId: v3", productId)
 
 	playerBalance, err := s.walletProvider.CheckBalance(ctx, productId, req.Username, req.CurrencyID)
 	if err != nil {
 		fmt.Println("===> get balance error:", productId, err)
 		return nil, errors.New(errors.ErrInternalServerError, "get balance error")
 	}
-	fmt.Println("===> playerBalance:", playerBalance)
 
 	// 3. Load player state
 	playerState, err := s.getPlayerState(ctx, req.UserID, gameCode)
@@ -459,8 +457,13 @@ func (s *GameService) executeNormalSpin(
 	if s.walletProvider == nil {
 		return nil, errors.New(errors.ErrInternalServerError, "wallet provider not configured")
 	}
-	if err := s.walletProvider.Withdraw(ctx, req.UserID, req.CurrencyID, totalBet); err != nil {
-		return nil, errors.Wrap(err, errors.GetCode(err), "failed to withdraw bet")
+
+	err := s.walletProvider.PlaceBets(ctx, gameConfig.ProductId, req.Username, req.CurrencyID, totalBet)
+	if err != nil {
+		fmt.Println("===> PlaceBets error:", req.Username, req.CurrencyID, totalBet, err)
+		if err := s.walletProvider.Withdraw(ctx, req.UserID, req.CurrencyID, totalBet); err != nil {
+			return nil, errors.Wrap(err, errors.GetCode(err), "failed to withdraw bet")
+		}
 	}
 
 	// 2. Execute spin
