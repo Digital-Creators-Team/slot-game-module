@@ -20,6 +20,7 @@ type WalletProvider interface {
 	Withdraw(ctx context.Context, userID, currencyID string, amount decimal.Decimal) error
 	PlaceBets(ctx context.Context, productId, username, currencyID string, amount decimal.Decimal) error
 	Deposit(ctx context.Context, userID, currencyID string, amount decimal.Decimal) error
+	SettleBets(ctx context.Context, productId, username, currencyID string, amount decimal.Decimal, payoutAmount decimal.Decimal) error
 }
 
 // ContributeRequest represents a request to contribute to a jackpot pool
