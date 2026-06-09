@@ -473,6 +473,7 @@ func (s *GameService) executeNormalSpin(
 	if err != nil {
 		// Try to refund the bet (walletProvider is already checked above)
 		if s.walletProvider != nil {
+			//TODO, refund case
 			if refundErr := s.walletProvider.Deposit(ctx, req.UserID, req.CurrencyID, totalBet); refundErr != nil {
 				s.logger.Error().Err(refundErr).Msg("Failed to refund bet after spin error")
 			}
@@ -491,8 +492,13 @@ func (s *GameService) executeNormalSpin(
 		if s.walletProvider == nil {
 			return nil, errors.New(errors.ErrInternalServerError, "wallet provider not configured")
 		}
-		if err := s.walletProvider.Deposit(ctx, req.UserID, req.CurrencyID, spinResult.TotalWin); err != nil {
-			return nil, errors.Wrap(err, errors.ErrWalletError, "failed to deposit winnings")
+		err := s.walletProvider.SettleBets(ctx, gameConfig.ProductId, req.Username, req.CurrencyID, totalBet, spinResult.TotalWin)
+		if err != nil {
+			fmt.Println("SettleBets error:", err)
+			err = s.walletProvider.Deposit(ctx, req.UserID, req.CurrencyID, spinResult.TotalWin)
+			if err != nil {
+				return nil, errors.Wrap(err, errors.ErrWalletError, "failed to deposit winnings")
+			}
 		}
 	}
 
