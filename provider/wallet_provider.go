@@ -274,7 +274,7 @@ func (p *WalletProvider) SettleBets(ctx context.Context, productId, username, cu
 			},
 		},
 	})
-	
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
