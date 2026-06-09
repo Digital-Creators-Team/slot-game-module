@@ -64,6 +64,16 @@ func (b *BaseModule) GetGameCode() string {
 	return b.GameCode
 }
 
+// GetProductId returns the product id for this game
+// Can be overridden if you need custom product id logic
+func (b *BaseModule) GetProductId() string {
+	cfg := b.Config.GetConfig()
+	if cfg == nil || cfg.ProductId == "" {
+		return "fgs"
+	}
+	return cfg.ProductId
+}
+
 // PlayNormalSpin is a placeholder that must be overridden
 // This ensures that game modules implement their own spin logic
 func (b *BaseModule) PlayNormalSpin(ctx context.Context, betMultiplier float32, cheatPayout interface{}) (*SpinResult, error) {
