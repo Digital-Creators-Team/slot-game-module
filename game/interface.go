@@ -63,6 +63,9 @@ type Module interface {
 
 	// GetGameCode returns the unique identifier for this game
 	GetGameCode() string
+
+	// GetProductId returns the product id for this game
+	GetProductId() string
 }
 
 // LifecycleHooks provides optional lifecycle hooks for game modules

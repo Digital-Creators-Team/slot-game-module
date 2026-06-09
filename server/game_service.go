@@ -277,7 +277,7 @@ func (s *GameService) ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest
 		return nil, errors.Wrap(err, errors.ErrInternalServerError, "invalid game config type")
 	}
 
-	productId := cfg.GetConfig().ProductId
+	productId := s.gameModule.GetProductId()
 
 	playerBalance, err := s.walletProvider.CheckBalance(ctx, productId, req.Username, req.CurrencyID)
 	if err != nil {
@@ -458,7 +458,8 @@ func (s *GameService) executeNormalSpin(
 		return nil, errors.New(errors.ErrInternalServerError, "wallet provider not configured")
 	}
 
-	err := s.walletProvider.PlaceBets(ctx, gameConfig.ProductId, req.Username, req.CurrencyID, totalBet)
+	productId := s.gameModule.GetProductId()
+	err := s.walletProvider.PlaceBets(ctx, productId, req.Username, req.CurrencyID, totalBet)
 	if err != nil {
 		fmt.Println("===> PlaceBets error:", req.Username, req.CurrencyID, totalBet, err)
 		if err := s.walletProvider.Withdraw(ctx, req.UserID, req.CurrencyID, totalBet); err != nil {
@@ -492,7 +493,7 @@ func (s *GameService) executeNormalSpin(
 		if s.walletProvider == nil {
 			return nil, errors.New(errors.ErrInternalServerError, "wallet provider not configured")
 		}
-		err := s.walletProvider.SettleBets(ctx, gameConfig.ProductId, req.Username, req.CurrencyID, totalBet, spinResult.TotalWin)
+		err := s.walletProvider.SettleBets(ctx, productId, req.Username, req.CurrencyID, totalBet, spinResult.TotalWin)
 		if err != nil {
 			fmt.Println("SettleBets error:", err)
 			err = s.walletProvider.Deposit(ctx, req.UserID, req.CurrencyID, spinResult.TotalWin)
