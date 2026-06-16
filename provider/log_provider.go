@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Digital-Creators-Team/slot-game-module/config"
+	coreredis "github.com/Digital-Creators-Team/slot-game-module/db/redis"
 	"github.com/Digital-Creators-Team/slot-game-module/events/kafka"
 	"github.com/Digital-Creators-Team/slot-game-module/server"
 	"github.com/Digital-Creators-Team/slot-game-module/types"
@@ -49,10 +50,11 @@ type LogProvider struct {
 	kafkaProducer *kafka.Producer
 	auditTopic    string
 	logger        zerolog.Logger
+	redis         *coreredis.Client
 }
 
 // NewLogProvider creates a new log provider
-func NewLogProvider(cfg *config.Config, kafkaProducer *kafka.Producer, logger zerolog.Logger) *LogProvider {
+func NewLogProvider(cfg *config.Config, kafkaProducer *kafka.Producer, logger zerolog.Logger, redisClient *coreredis.Client) *LogProvider {
 	timeout := cfg.ExternalServices.LogService.Timeout
 	if timeout == 0 {
 		timeout = 10 * time.Second
@@ -73,6 +75,7 @@ func NewLogProvider(cfg *config.Config, kafkaProducer *kafka.Producer, logger ze
 		kafkaProducer: kafkaProducer,
 		auditTopic:    auditTopic,
 		logger:        logger.With().Str("component", "log_provider").Logger(),
+		redis:         redisClient,
 	}
 }
 
@@ -91,43 +94,82 @@ type AuditEvent struct {
 // LogSpin logs a spin event and returns sessionID
 func (p *LogProvider) LogSpin(ctx context.Context, log *server.SpinLog) (string, error) {
 	sessionID, _ := ctx.Value(server.SessionIDKey).(string)
-	if sessionID == "" {
-		sessionID = uuid.New().String()
-	}
 
-	if p.kafkaProducer == nil {
-		p.logger.Warn().Msg("Kafka producer not configured, skipping spin log")
-		return sessionID, nil
-	}
-
-	event := AuditEvent{
-		Timestamp:     log.Timestamp,
-		UserID:        log.UserID,
-		SessionID:     sessionID,
-		SourceService: log.GameCode,
-		Action:        "normal", // Default action for spin
-		Details: SpinDetails{
-			SessionID:  sessionID,
-			Username:   log.Username,
-			GameCode:   log.GameCode,
-			BetAmount:  log.BetAmount,
-			WinAmount:  log.WinAmount,
-			Currency:   log.Currency,
-			SpinType:   log.SpinType,
-			SpinResult: log.SpinResult,
-		},
-		Result:  "success",
-		TraceID: sessionID,
-	}
-
-	// Set action based on spin type
-	// if log.SpinType == 1 {
-	// 	event.Action = "free_spin"
+	// if sessionID == "" {
+	// 	sessionID = uuid.New().String()
 	// }
 
-	if err := p.kafkaProducer.SendMessage(p.auditTopic, sessionID, event); err != nil {
-		p.logger.Error().Err(err).Msg("Failed to send spin log to Kafka")
-		return "", fmt.Errorf("failed to log spin: %w", err)
+	// if p.kafkaProducer == nil {
+	// 	p.logger.Warn().Msg("Kafka producer not configured, skipping spin log")
+	// 	return sessionID, nil
+	// }
+
+	// event := AuditEvent{
+	// 	Timestamp:     log.Timestamp,
+	// 	UserID:        log.UserID,
+	// 	SessionID:     sessionID,
+	// 	SourceService: log.GameCode,
+	// 	Action:        "normal", // Default action for spin
+	// 	Details: SpinDetails{
+	// 		SessionID:  sessionID,
+	// 		Username:   log.Username,
+	// 		GameCode:   log.GameCode,
+	// 		BetAmount:  log.BetAmount,
+	// 		WinAmount:  log.WinAmount,
+	// 		Currency:   log.Currency,
+	// 		SpinType:   log.SpinType,
+	// 		// SpinResult: log.SpinResult,
+	// 	},
+	// 	Result:  "success",
+	// 	TraceID: sessionID,
+	// }
+
+	// // Set action based on spin type
+	// // if log.SpinType == 1 {
+	// // 	event.Action = "free_spin"
+	// // }
+
+	// if err := p.kafkaProducer.SendMessage(p.auditTopic, sessionID, event); err != nil {
+	// 	p.logger.Error().Err(err).Msg("Failed to send spin log to Kafka")
+	// 	return "", fmt.Errorf("failed to log spin: %w", err)
+	// }
+
+	if e, _ := p.redis.Exists(ctx, "totalSpend"); e {
+		_, err := p.redis.IncrByFloat(ctx, "totalSpend", log.BetAmount)
+		if err != nil {
+		}
+	} else {
+		p.redis.Set(ctx, "totalSpend", log.BetAmount, 0)
+	}
+
+	if e, _ := p.redis.Exists(ctx, "totalWin"); e {
+		_, err := p.redis.IncrByFloat(ctx, "totalWin", log.WinAmount)
+		if err != nil {
+		}
+	} else {
+		p.redis.Set(ctx, "totalWin", log.WinAmount, 0)
+	}
+
+	if log.SpinType == 0 {
+		if e, _ := p.redis.Exists(ctx, "normal"); e {
+			_, err := p.redis.IncrByFloat(ctx, "normal", log.WinAmount)
+			if err != nil {
+			}
+		} else {
+			p.redis.Set(ctx, "normal", log.WinAmount, 0)
+		}
+
+	}
+
+	if log.SpinType == 1 {
+		if e, _ := p.redis.Exists(ctx, "fg"); e {
+			_, err := p.redis.IncrByFloat(ctx, "fg", log.WinAmount)
+			if err != nil {
+			}
+		} else {
+			p.redis.Set(ctx, "fg", log.WinAmount, 0)
+		}
+
 	}
 
 	return sessionID, nil
@@ -140,37 +182,37 @@ func (p *LogProvider) LogJackpot(ctx context.Context, log *server.JackpotLog) (s
 		sessionID = uuid.New().String()
 	}
 
-	if p.kafkaProducer == nil {
-		p.logger.Warn().Msg("Kafka producer not configured, skipping jackpot log")
-		return sessionID, nil
-	}
+	// if p.kafkaProducer == nil {
+	// 	p.logger.Warn().Msg("Kafka producer not configured, skipping jackpot log")
+	// 	return sessionID, nil
+	// }
 
-	event := AuditEvent{
-		Timestamp:     log.Timestamp,
-		UserID:        log.UserID,
-		SessionID:     sessionID,
-		SourceService: log.GameCode,
-		Action:        "jackpot",
-		Details: JackpotDetails{
-			SessionID:       sessionID,
-			Username:        log.Username,
-			GameCode:        log.GameCode,
-			Tier:            log.Tier,
-			BetAmount:       log.BetAmount,
-			WinAmount:       log.WinAmount,
-			Currency:        log.Currency,
-			SpinType:        log.SpinType,
-			TotalWinJackpot: log.TotalWinJackpot,
-			//SpinResult:      log.SpinResult,
-		},
-		Result:  "success",
-		TraceID: sessionID,
-	}
+	// event := AuditEvent{
+	// 	Timestamp:     log.Timestamp,
+	// 	UserID:        log.UserID,
+	// 	SessionID:     sessionID,
+	// 	SourceService: log.GameCode,
+	// 	Action:        "jackpot",
+	// 	Details: JackpotDetails{
+	// 		SessionID:       sessionID,
+	// 		Username:        log.Username,
+	// 		GameCode:        log.GameCode,
+	// 		Tier:            log.Tier,
+	// 		BetAmount:       log.BetAmount,
+	// 		WinAmount:       log.WinAmount,
+	// 		Currency:        log.Currency,
+	// 		SpinType:        log.SpinType,
+	// 		TotalWinJackpot: log.TotalWinJackpot,
+	// 		//SpinResult:      log.SpinResult,
+	// 	},
+	// 	Result:  "success",
+	// 	TraceID: sessionID,
+	// }
 
-	if err := p.kafkaProducer.SendMessage(p.auditTopic, sessionID, event); err != nil {
-		p.logger.Error().Err(err).Msg("Failed to send jackpot log to Kafka")
-		return "", fmt.Errorf("failed to log jackpot: %w", err)
-	}
+	// if err := p.kafkaProducer.SendMessage(p.auditTopic, sessionID, event); err != nil {
+	// 	p.logger.Error().Err(err).Msg("Failed to send jackpot log to Kafka")
+	// 	return "", fmt.Errorf("failed to log jackpot: %w", err)
+	// }
 
 	return sessionID, nil
 }
