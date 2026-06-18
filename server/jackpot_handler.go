@@ -288,7 +288,7 @@ func (h *JackpotHandler) streamUpdates(config *streamConfig, sender messageSende
 	defer cancel()
 
 	// Send initial pool data
-	h.sendInitialPools(config, sender)
+	lastSent := h.sendInitialPools(config, sender)
 
 	// Setup heartbeat and update loop
 	heartbeat := time.NewTicker(h.heartbeatPeriod)
@@ -323,13 +323,16 @@ func (h *JackpotHandler) streamUpdates(config *streamConfig, sender messageSende
 			if update.PoolID != jackpot.FlushSignalPoolID {
 				continue
 			}
-			h.sendSnapshot(config, sender)
+			if !hasRelevantPoolChanges(update.ChangedPoolIDs, config.targetPoolIDs) {
+				continue
+			}
+			h.sendSnapshot(config, sender, lastSent)
 		}
 	}
 }
 
 // sendInitialPools sends current pool values to the client.
-func (h *JackpotHandler) sendInitialPools(config *streamConfig, sender messageSender) {
+func (h *JackpotHandler) sendInitialPools(config *streamConfig, sender messageSender) map[string]jackpot.Update {
 	gameModule := h.app.GetGame()
 	var currentPools []jackpot.Update
 	var err error
@@ -348,10 +351,11 @@ func (h *JackpotHandler) sendInitialPools(config *streamConfig, sender messageSe
 
 	if err != nil {
 		h.logger.Error().Err(err).Msg("Failed to get current pools")
-		return
+		return nil
 	}
 
 	pools := make(map[string]PoolUpdate)
+	lastSent := make(map[string]jackpot.Update)
 	for _, pool := range currentPools {
 		if config.isTargetPool(pool.PoolID) {
 			poolType := extractPoolType(pool.PoolID)
@@ -359,6 +363,7 @@ func (h *JackpotHandler) sendInitialPools(config *streamConfig, sender messageSe
 				Amount:    pool.Amount.InexactFloat64(),
 				Timestamp: pool.Timestamp.Unix(),
 			}
+			lastSent[pool.PoolID] = pool
 		}
 	}
 
@@ -371,11 +376,16 @@ func (h *JackpotHandler) sendInitialPools(config *streamConfig, sender messageSe
 			h.logger.Warn().Err(err).Int("pool_count", len(pools)).Msg("Failed to send initial pools")
 		}
 	}
+
+	return lastSent
 }
 
-func (h *JackpotHandler) sendSnapshot(config *streamConfig, sender messageSender) {
+func (h *JackpotHandler) sendSnapshot(config *streamConfig, sender messageSender, lastSent map[string]jackpot.Update) {
 	if len(config.targetPoolIDs) == 0 {
 		return
+	}
+	if lastSent == nil {
+		lastSent = make(map[string]jackpot.Update)
 	}
 
 	gameModule := h.app.GetGame()
@@ -393,6 +403,7 @@ func (h *JackpotHandler) sendSnapshot(config *streamConfig, sender messageSender
 	}
 
 	pools := make(map[string]PoolUpdate, len(config.targetPoolIDs))
+	hasEffectiveChange := false
 	for _, poolID := range config.targetPoolIDs {
 		if !validatePoolIDMatch(poolID, config.betMultiplier) {
 			h.logger.Warn().
@@ -418,9 +429,16 @@ func (h *JackpotHandler) sendSnapshot(config *streamConfig, sender messageSender
 			Amount:    found.Amount.InexactFloat64(),
 			Timestamp: found.Timestamp.Unix(),
 		}
+		last, ok := lastSent[found.PoolID]
+		if !ok || !last.Amount.Equal(found.Amount) || !last.Timestamp.Equal(found.Timestamp) {
+			hasEffectiveChange = true
+		}
 	}
 
 	if len(pools) != len(config.targetPoolIDs) {
+		return
+	}
+	if !hasEffectiveChange {
 		return
 	}
 
@@ -430,7 +448,33 @@ func (h *JackpotHandler) sendSnapshot(config *streamConfig, sender messageSender
 		Pools:     pools,
 	}); err != nil {
 		h.logger.Warn().Err(err).Msg("Failed to send snapshot update, stopping stream")
+		return
 	}
+
+	for _, pool := range currentPools {
+		if config.isTargetPool(pool.PoolID) {
+			lastSent[pool.PoolID] = pool
+		}
+	}
+}
+
+func hasRelevantPoolChanges(changedPoolIDs, targetPoolIDs []string) bool {
+	if len(targetPoolIDs) == 0 || len(changedPoolIDs) == 0 {
+		return true
+	}
+
+	targetPools := make(map[string]struct{}, len(targetPoolIDs))
+	for _, poolID := range targetPoolIDs {
+		targetPools[poolID] = struct{}{}
+	}
+
+	for _, poolID := range changedPoolIDs {
+		if _, ok := targetPools[poolID]; !ok {
+			return false
+		}
+	}
+
+	return true
 }
 
 // messageSender interface for sending messages (SSE or WebSocket).

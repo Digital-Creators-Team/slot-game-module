@@ -33,6 +33,7 @@ type Service struct {
 	pools         map[string]PoolConfig
 	latest        map[string]Update
 	dirty         bool
+	dirtyPools    map[string]struct{}
 	broad         *Broadcaster
 	logger        zerolog.Logger
 	interval      time.Duration
@@ -65,6 +66,7 @@ func NewService(cfg ServiceConfig) *Service {
 	s := &Service{
 		pools:       make(map[string]PoolConfig),
 		latest:      make(map[string]Update),
+		dirtyPools:  make(map[string]struct{}),
 		broad:       NewBroadcaster(128),
 		logger:      cfg.Logger,
 		interval:    interval,
@@ -518,16 +520,7 @@ func (s *Service) HandleKafkaUpdate(update Update) {
 	}
 
 	s.latest[update.PoolID] = update
-	s.dirty = true
-	if !s.flushTimerSet {
-		s.flushTimerSet = true
-		s.flushTimer = time.AfterFunc(s.minInterval, func() {
-			select {
-			case s.flushChan <- struct{}{}:
-			default:
-			}
-		})
-	}
+	s.markDirtyLocked(update.PoolID)
 	s.mu.Unlock()
 
 	s.logger.Debug().
@@ -616,7 +609,13 @@ func (s *Service) flushIfDirty() {
 		s.mu.Unlock()
 		return
 	}
+
+	changedPoolIDs := make([]string, 0, len(s.dirtyPools))
+	for poolID := range s.dirtyPools {
+		changedPoolIDs = append(changedPoolIDs, poolID)
+	}
 	s.dirty = false
+	s.dirtyPools = make(map[string]struct{})
 	if s.flushTimer != nil {
 		s.flushTimer.Stop()
 		s.flushTimer = nil
@@ -625,12 +624,29 @@ func (s *Service) flushIfDirty() {
 	s.mu.Unlock()
 
 	s.broad.Send(Update{
-		PoolID:     FlushSignalPoolID,
-		Amount:     decimal.Zero,
-		Timestamp:  time.Now(),
-		SpinID:     "",
-		TotalPools: 0,
+		PoolID:         FlushSignalPoolID,
+		Amount:         decimal.Zero,
+		Timestamp:      time.Now(),
+		SpinID:         "",
+		TotalPools:     0,
+		ChangedPoolIDs: changedPoolIDs,
 	})
+}
+
+func (s *Service) markDirtyLocked(poolID string) {
+	s.dirty = true
+	if poolID != "" {
+		s.dirtyPools[poolID] = struct{}{}
+	}
+	if !s.flushTimerSet {
+		s.flushTimerSet = true
+		s.flushTimer = time.AfterFunc(s.minInterval, func() {
+			select {
+			case s.flushChan <- struct{}{}:
+			default:
+			}
+		})
+	}
 }
 
 func (s *Service) refreshLoop() {
@@ -704,16 +720,7 @@ func (s *Service) refreshPoolsFromProvider(ctx context.Context) {
 		existingUpdate, hasExisting := s.latest[poolID]
 		if !hasExisting || poolData.UpdatedAt.After(existingUpdate.Timestamp) {
 			s.latest[poolID] = update
-			s.dirty = true
-			if !s.flushTimerSet {
-				s.flushTimerSet = true
-				s.flushTimer = time.AfterFunc(s.minInterval, func() {
-					select {
-					case s.flushChan <- struct{}{}:
-					default:
-					}
-				})
-			}
+			s.markDirtyLocked(poolID)
 			refreshedCount++
 		}
 		s.mu.Unlock()

@@ -26,8 +26,9 @@ type Update struct {
 	PoolID    string
 	Amount    decimal.Decimal
 	Timestamp time.Time
-	SpinID    string // Optional: spin/round ID to group updates from the same spin
-	TotalPools int   // Optional: total number of pools for this spin (0 = unknown, flush on timeout only)
+	SpinID    string   // Optional: spin/round ID to group updates from the same spin
+	TotalPools int     // Optional: total number of pools for this spin (0 = unknown, flush on timeout only)
+	ChangedPoolIDs []string // Optional: pool IDs included in a flush signal
 }
 
 const FlushSignalPoolID = "__jackpot_flush__"
