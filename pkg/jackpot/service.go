@@ -451,6 +451,7 @@ func (s *Service) GetLatestPoolsByIDs(ctx context.Context, poolIDs []string, ini
 	}
 	snaps := make([]poolSnapshot, 0, len(poolIDs))
 	s.mu.RLock()
+	store := s.reward
 	for _, poolID := range poolIDs {
 		snap := poolSnapshot{poolID: poolID}
 		if upd, ok := s.latest[poolID]; ok {
@@ -480,6 +481,18 @@ func (s *Service) GetLatestPoolsByIDs(ctx context.Context, poolIDs []string, ini
 			v, err := initValueGetter(snap.poolID)
 			if err == nil {
 				initValue = v
+			}
+		}
+
+		if store != nil {
+			poolData, err := store.GetPool(ctx, snap.poolID, initValue)
+			if err == nil {
+				updates = append(updates, Update{
+					PoolID:    snap.poolID,
+					Amount:    poolData.Amount,
+					Timestamp: poolData.UpdatedAt,
+				})
+				continue
 			}
 		}
 
