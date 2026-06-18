@@ -385,7 +385,7 @@ func (s *GameService) ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest
 					TotalWinJackpot: j.Value.InexactFloat64(),
 					SpinType:        spinResult.SpinType,
 					Currency:        req.CurrencyID,
-					Timestamp:       timestamp,
+					Timestamp:       time.Now().UTC(),
 					SpinResult:      spinResult,
 				})
 				if err != nil {
