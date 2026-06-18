@@ -212,7 +212,9 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 
 		//log jackpot
 		if spinResult.IsGetJackpot != nil && *spinResult.IsGetJackpot {
-			for _, j := range spinResult.JackpotPrize {
+			for i := len(spinResult.JackpotPrize) - 1; i >= 0; i-- {
+				j := spinResult.JackpotPrize[i]
+
 				sessionID, err = s.logProvider.LogJackpot(ctx, &JackpotLog{
 					UserID:          req.UserID,
 					Username:        req.Username,
