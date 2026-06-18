@@ -323,9 +323,6 @@ func (h *JackpotHandler) streamUpdates(config *streamConfig, sender messageSende
 			if update.PoolID != jackpot.FlushSignalPoolID {
 				continue
 			}
-			if !hasRelevantPoolChanges(update.ChangedPoolIDs, config.targetPoolIDs) {
-				continue
-			}
 			h.sendSnapshot(config, sender, lastSent)
 		}
 	}
@@ -429,6 +426,7 @@ func (h *JackpotHandler) sendSnapshot(config *streamConfig, sender messageSender
 			Amount:    found.Amount.InexactFloat64(),
 			Timestamp: found.Timestamp.Unix(),
 		}
+
 		last, ok := lastSent[found.PoolID]
 		if !ok || !last.Amount.Equal(found.Amount) || !last.Timestamp.Equal(found.Timestamp) {
 			hasEffectiveChange = true
@@ -456,25 +454,6 @@ func (h *JackpotHandler) sendSnapshot(config *streamConfig, sender messageSender
 			lastSent[pool.PoolID] = pool
 		}
 	}
-}
-
-func hasRelevantPoolChanges(changedPoolIDs, targetPoolIDs []string) bool {
-	if len(targetPoolIDs) == 0 || len(changedPoolIDs) == 0 {
-		return true
-	}
-
-	targetPools := make(map[string]struct{}, len(targetPoolIDs))
-	for _, poolID := range targetPoolIDs {
-		targetPools[poolID] = struct{}{}
-	}
-
-	for _, poolID := range changedPoolIDs {
-		if _, ok := targetPools[poolID]; !ok {
-			return false
-		}
-	}
-
-	return true
 }
 
 // messageSender interface for sending messages (SSE or WebSocket).
