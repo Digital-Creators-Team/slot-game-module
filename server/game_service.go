@@ -212,8 +212,7 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 
 		//log jackpot
 		if spinResult.IsGetJackpot != nil && *spinResult.IsGetJackpot {
-			for i := len(spinResult.JackpotPrize) - 1; i >= 0; i-- {
-				j := spinResult.JackpotPrize[i]
+			for _, j := range spinResult.JackpotPrize {
 
 				sessionID, err = s.logProvider.LogJackpot(ctx, &JackpotLog{
 					UserID:          req.UserID,
@@ -225,9 +224,10 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 					TotalWinJackpot: j.Value.InexactFloat64(),
 					SpinType:        spinResult.SpinType,
 					Currency:        req.CurrencyID,
-					Timestamp:       timestamp,
+					Timestamp:       time.Now().UTC(),
 					SpinResult:      spinResult,
 				})
+
 				if err != nil {
 					s.logger.Error().Err(err).Msg("Failed to log jackpot")
 				}
