@@ -212,7 +212,7 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 
 		//log jackpot
 		if spinResult.IsGetJackpot != nil && *spinResult.IsGetJackpot {
-			for _, j := range spinResult.JackpotPrize {
+			for i, j := range spinResult.JackpotPrize {
 
 				sessionID, err = s.logProvider.LogJackpot(ctx, &JackpotLog{
 					UserID:          req.UserID,
@@ -224,7 +224,7 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 					TotalWinJackpot: j.Value.InexactFloat64(),
 					SpinType:        spinResult.SpinType,
 					Currency:        req.CurrencyID,
-					Timestamp:       time.Now().UTC(),
+					Timestamp:       time.Now().UTC().Add(time.Duration(i*1000) * time.Microsecond), // add 1ms for each jp log
 					SpinResult:      spinResult,
 				})
 
@@ -374,7 +374,7 @@ func (s *GameService) ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest
 
 		//log jackpot
 		if spinResult.IsGetJackpot != nil && *spinResult.IsGetJackpot {
-			for _, j := range spinResult.JackpotPrize {
+			for i, j := range spinResult.JackpotPrize {
 				sessionID, err = s.logProvider.LogJackpot(ctx, &JackpotLog{
 					UserID:          req.UserID,
 					Username:        req.Username,
@@ -385,7 +385,7 @@ func (s *GameService) ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest
 					TotalWinJackpot: j.Value.InexactFloat64(),
 					SpinType:        spinResult.SpinType,
 					Currency:        req.CurrencyID,
-					Timestamp:       time.Now().UTC(),
+					Timestamp:       time.Now().UTC().Add(time.Duration(i*1000) * time.Microsecond), // add 1ms for each jp log
 					SpinResult:      spinResult,
 				})
 				if err != nil {
