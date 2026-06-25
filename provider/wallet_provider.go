@@ -126,6 +126,8 @@ func (p *WalletProvider) CheckBalance(ctx context.Context, productId, username, 
 		return decimal.Zero, fmt.Errorf("failed to decode response: %w", err)
 	}
 
+	fmt.Printf("===> CheckBalance, data check v2: %s\n", result)
+
 	return decimal.NewFromFloat(result.Balance), nil
 }
 
