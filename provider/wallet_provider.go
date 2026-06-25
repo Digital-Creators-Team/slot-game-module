@@ -207,6 +207,8 @@ func (p *WalletProvider) PlaceBets(ctx context.Context, productId, userName, cur
 	}
 	defer func() { _ = resp.Body.Close() }()
 
+	fmt.Printf("===> PlaceBets, data check v2: %s\n", resp)
+
 	if resp.StatusCode == http.StatusOK {
 		return nil
 	}
