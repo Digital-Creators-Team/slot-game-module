@@ -114,11 +114,15 @@ func (h *GameHandler) Authorize(c *gin.Context) {
 		InternalError(c, errors.New(errors.ErrInternalServerError, "Wallet provider not configured"))
 		return
 	}
-	balance, err := h.app.walletProvider.GetBalance(ctx, userID, currencyID)
+
+	balance, err := h.app.walletProvider.CheckBalance(ctx, "sexy", userID, currencyID) //TODO, now cheat sexy
 	if err != nil {
-		h.logger.Error().Err(err).Msg("Failed to get balance")
-		InternalError(c, errors.Wrap(err, errors.ErrWalletError, "Failed to get balance"))
-		return
+		balance, err = h.app.walletProvider.GetBalance(ctx, userID, currencyID)
+		if err != nil {
+			h.logger.Error().Err(err).Msg("Failed to get balance")
+			InternalError(c, errors.Wrap(err, errors.ErrWalletError, "Failed to get balance"))
+			return
+		}
 	}
 
 	// Build response
