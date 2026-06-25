@@ -1,6 +1,8 @@
 package server
 
 import (
+	"fmt"
+
 	"github.com/Digital-Creators-Team/slot-game-module/auth"
 	"github.com/Digital-Creators-Team/slot-game-module/errors"
 	"github.com/Digital-Creators-Team/slot-game-module/game"
@@ -124,6 +126,8 @@ func (h *GameHandler) Authorize(c *gin.Context) {
 			return
 		}
 	}
+	
+	fmt.Printf("===> Authorize, data check v2: %+v\n", balance)
 
 	// Build response
 	response := game.AuthorizeResponse{
