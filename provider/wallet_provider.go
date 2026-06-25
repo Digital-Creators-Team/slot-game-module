@@ -86,7 +86,9 @@ func (p *WalletProvider) GetBalance(ctx context.Context, userID, currencyID stri
 
 // CheckBalance retrieves player balance from wallet service
 func (p *WalletProvider) CheckBalance(ctx context.Context, productId, username, currencyID string) (decimal.Decimal, error) {
-	url := fmt.Sprintf("%s/wallet/checkBalance", p.baseURL)
+	//url := fmt.Sprintf("%s/wallet/checkBalance", p.baseURL)
+	url := fmt.Sprintf("%s/sexy/checkBalance", p.baseURL) //TODO, replace sexy by productID or other
+	fmt.Printf("===> CheckBalance, data check: %s %s\n", url, productId)
 
 	id := uuid.NewString()
 	reqBody := map[string]any{
@@ -166,7 +168,8 @@ func (p *WalletProvider) Withdraw(ctx context.Context, userID, currencyID string
 
 // Withdraw deducts amount from player balance
 func (p *WalletProvider) PlaceBets(ctx context.Context, productId, userName, currencyID string, amount decimal.Decimal) error {
-	url := fmt.Sprintf("%s/wallet/placeBets", p.baseURL)
+	url := fmt.Sprintf("%s/sexy/placeBets", p.baseURL)
+	fmt.Printf("===> PlaceBets, data check: %s\n", url)
 
 	body, _ := json.Marshal(map[string]interface{}{
 		"id":              uuid.New().String(),
@@ -247,7 +250,7 @@ func (p *WalletProvider) Deposit(ctx context.Context, userID, currencyID string,
 }
 
 func (p *WalletProvider) SettleBets(ctx context.Context, productId, username, currencyID string, amount decimal.Decimal, payoutAmount decimal.Decimal) error {
-	url := fmt.Sprintf("%s/wallet/settleBets", p.baseURL)
+	url := fmt.Sprintf("%s/sexy/settleBets", p.baseURL)
 
 	body, _ := json.Marshal(map[string]interface{}{
 		"id":              uuid.New().String(),
