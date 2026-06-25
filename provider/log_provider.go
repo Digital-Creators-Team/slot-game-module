@@ -296,6 +296,7 @@ func (p *LogProvider) convertToBet(entry LogEntry, betType server.BetType) *serv
 		bet.TotalBet = details.BetAmount
 		bet.TotalWin = details.WinAmount
 		bet.IsFreeSpin = details.SpinType == 1
+		bet.SpinType = details.SpinType
 		bet.Currency = details.Currency
 
 		// Extract reels and winLines from spinResult if available
@@ -345,6 +346,7 @@ func (p *LogProvider) convertToBet(entry LogEntry, betType server.BetType) *serv
 		bet.Username = &details.Username
 		bet.TotalWinJackpot = details.TotalWinJackpot
 		bet.IsFreeSpin = details.SpinType == 1
+		bet.SpinType = details.SpinType
 		bet.Currency = details.Currency
 		bet.JackpotType = &details.Tier
 		bet.IsJackpot = true
