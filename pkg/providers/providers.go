@@ -140,6 +140,7 @@ type Bet struct {
 	Round           any         `json:"round,omitempty"`
 	IsJackpot       any         `json:"isJackpot"`
 	ExtraData       any         `json:"extraData,omitempty"`
+	SpinType        int         `json:"spinType"`
 }
 
 type GameRound struct {
