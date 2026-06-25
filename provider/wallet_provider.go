@@ -126,7 +126,7 @@ func (p *WalletProvider) CheckBalance(ctx context.Context, productId, username, 
 		return decimal.Zero, fmt.Errorf("failed to decode response: %w", err)
 	}
 
-	fmt.Printf("===> CheckBalance, data check v2: %s\n", result)
+	fmt.Printf("===> CheckBalance, data check v2: %+v\n", result)
 
 	return decimal.NewFromFloat(result.Balance), nil
 }
@@ -207,7 +207,7 @@ func (p *WalletProvider) PlaceBets(ctx context.Context, productId, userName, cur
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	fmt.Printf("===> PlaceBets, data check v2: %s\n", resp)
+	fmt.Printf("===> PlaceBets, data check v2: %+v\n", resp)
 
 	if resp.StatusCode == http.StatusOK {
 		return nil
