@@ -100,6 +100,8 @@ func (p *WalletProvider) CheckBalance(ctx context.Context, productId, username, 
 		"username":        username,
 	}
 
+	fmt.Printf("===> CheckBalance, data check v1.0: %+v \n", reqBody)
+
 	bodyBytes, err := json.Marshal(reqBody)
 	if err != nil {
 		return decimal.Zero, fmt.Errorf("failed to marshal request body: %w", err)
