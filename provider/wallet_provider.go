@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -122,6 +123,18 @@ func (p *WalletProvider) CheckBalance(ctx context.Context, productId, username, 
 	var result struct {
 		Balance float64 `json:"balance"` // External service returns float64
 	}
+	fmt.Printf("===> CheckBalance, data check v1.1: %+v \n", resp.Body)
+	//
+	bodyBytes2, err := io.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Println("read body error:", err)
+		return decimal.Zero, fmt.Errorf("wallet service returned status 22 %d", resp.StatusCode)
+	}
+
+	fmt.Println("response body:", string(bodyBytes2))
+
+	resp.Body = io.NopCloser(bytes.NewBuffer(bodyBytes2))
+	//
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return decimal.Zero, fmt.Errorf("failed to decode response: %w", err)
 	}
