@@ -117,7 +117,7 @@ func (h *GameHandler) Authorize(c *gin.Context) {
 		return
 	}
 
-	balance, err := h.app.walletProvider.CheckBalance(ctx, "sexy", userID, currencyID) //TODO, now cheat sexy
+	balance, err := h.app.walletProvider.CheckBalance(ctx, "sexy", username, currencyID) //TODO, now cheat sexy
 	if err != nil {
 		balance, err = h.app.walletProvider.GetBalance(ctx, userID, currencyID)
 		if err != nil {
@@ -126,7 +126,7 @@ func (h *GameHandler) Authorize(c *gin.Context) {
 			return
 		}
 	}
-	
+
 	fmt.Printf("===> Authorize, data check v2: %+v\n", balance)
 
 	// Build response
