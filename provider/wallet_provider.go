@@ -184,7 +184,7 @@ func (p *WalletProvider) Withdraw(ctx context.Context, userID, currencyID string
 }
 
 // Withdraw deducts amount from player balance
-func (p *WalletProvider) PlaceBets(ctx context.Context, productId, userName, currencyID string, amount decimal.Decimal) error {
+func (p *WalletProvider) PlaceBets(ctx context.Context, productId, userName, currencyID string, amount decimal.Decimal, roundID string) error {
 	url := fmt.Sprintf("%s/sexy/placeBets", p.baseURL)
 	fmt.Printf("===> PlaceBets, data check: %s\n", url)
 
@@ -198,14 +198,12 @@ func (p *WalletProvider) PlaceBets(ctx context.Context, productId, userName, cur
 		// edit info later
 		"txns": []map[string]interface{}{
 			{
-				"id":           "T-001",
-				"gameCode":     "10300",
-				"status":       "OPEN",
-				"roundId":      "R-0001",
-				"betAmount":    amount.InexactFloat64(), // docs is int, now using float
-				"playInfo":     "Golden Coyote",
-				"isFeature":    false,
-				"isFeatureBuy": false,
+				"id":        "T-001",
+				"gameCode":  "MX-LIVE-001",
+				"status":    "OPEN",
+				"roundId":   roundID,
+				"betAmount": amount.InexactFloat64(), // docs is int, now using float
+				"playInfo":  "Golden Coyote",
 			},
 		},
 	})
@@ -268,7 +266,7 @@ func (p *WalletProvider) Deposit(ctx context.Context, userID, currencyID string,
 	return nil
 }
 
-func (p *WalletProvider) SettleBets(ctx context.Context, productId, username, currencyID string, amount decimal.Decimal, payoutAmount decimal.Decimal) error {
+func (p *WalletProvider) SettleBets(ctx context.Context, productId, username, currencyID string, amount decimal.Decimal, payoutAmount decimal.Decimal, roundID string) error {
 	url := fmt.Sprintf("%s/sexy/settleBets", p.baseURL)
 
 	body, _ := json.Marshal(map[string]interface{}{
@@ -282,17 +280,15 @@ func (p *WalletProvider) SettleBets(ctx context.Context, productId, username, cu
 		"txns": []map[string]interface{}{
 			{
 				"id":              "T-001",
-				"gameCode":        "10300",
-				"status":          "OPEN",
-				"roundId":         "R-0001",
+				"gameCode":        "MX-LIVE-001",
+				"status":          "SETTLED",
+				"roundId":         roundID,
 				"betAmount":       amount.InexactFloat64(), // docs is int, now using float
 				"payoutAmount":    payoutAmount.InexactFloat64(),
 				"playInfo":        "Golden Coyote",
 				"turnOver":        amount.InexactFloat64(),
-				"isSingleState":   true,
-				"transactionType": "",
-				"isFeature":       false,
-				"isFeatureBuy":    false,
+				"isSingleState":   false,
+				"transactionType": "BY_TRANSACTION",
 			},
 		},
 	})
