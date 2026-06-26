@@ -18,7 +18,7 @@ type WalletProvider interface {
 	GetBalance(ctx context.Context, userID, currencyID string) (decimal.Decimal, error)
 	CheckBalance(ctx context.Context, productid, username, currencyID string) (decimal.Decimal, error)
 	Withdraw(ctx context.Context, userID, currencyID string, amount decimal.Decimal) error
-	PlaceBets(ctx context.Context, productId, username, currencyID string, amount decimal.Decimal) error
+	PlaceBets(ctx context.Context, productId, username, currencyID string, amount decimal.Decimal, roundID string) error
 	Deposit(ctx context.Context, userID, currencyID string, amount decimal.Decimal) error
 	SettleBets(ctx context.Context, productId, username, currencyID string, amount decimal.Decimal, payoutAmount decimal.Decimal) error
 }
