@@ -283,7 +283,10 @@ func (s *GameService) ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest
 
 	playerBalance, err := s.walletProvider.CheckBalance(ctx, productId, req.Username, req.CurrencyID)
 	if err != nil {
-		fmt.Println("===> get balance error:", productId, err)
+		s.logger.Error().
+			Err(err).
+			Str("product_id", productId).
+			Msg("===> get balance error")
 		return nil, errors.New(errors.ErrInternalServerError, "get balance error")
 	}
 
@@ -464,12 +467,21 @@ func (s *GameService) executeNormalSpin(
 	roundID := uuid.New().String()
 	err := s.walletProvider.PlaceBets(ctx, productId, req.Username, req.CurrencyID, totalBet, roundID)
 	if err != nil {
-		fmt.Println("===> PlaceBets error:", req.Username, req.CurrencyID, totalBet, err)
+		s.logger.Error().
+			Err(err).
+			Str("username", req.Username).
+			Str("currency_id", req.CurrencyID).
+			Str("total_bet", totalBet.String()).
+			Msg("===> PlaceBets error")
 		if err := s.walletProvider.Withdraw(ctx, req.UserID, req.CurrencyID, totalBet); err != nil {
 			return nil, errors.Wrap(err, errors.GetCode(err), "failed to withdraw bet")
 		}
 	} else {
-		fmt.Println("===> PlaceBets ok:", req.Username, req.CurrencyID, totalBet)
+		s.logger.Debug().
+			Str("username", req.Username).
+			Str("currency_id", req.CurrencyID).
+			Str("total_bet", totalBet.String()).
+			Msg("===> PlaceBets ok")
 	}
 
 	// 2. Execute spin
@@ -498,7 +510,7 @@ func (s *GameService) executeNormalSpin(
 		}
 		err := s.walletProvider.SettleBets(ctx, productId, req.Username, req.CurrencyID, totalBet, spinResult.TotalWin, roundID)
 		if err != nil {
-			fmt.Println("SettleBets error:", err)
+			s.logger.Error().Err(err).Msg("SettleBets error")
 			err = s.walletProvider.Deposit(ctx, req.UserID, req.CurrencyID, spinResult.TotalWin)
 			if err != nil {
 				return nil, errors.Wrap(err, errors.ErrWalletError, "failed to deposit winnings")
