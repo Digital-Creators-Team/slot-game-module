@@ -468,3 +468,80 @@ func (h *GameHandler) GetBetHistory(c *gin.Context) {
 
 	OK(c, result)
 }
+
+// GetBetHistoryV2 godoc
+// @Summary      Get bet history v2
+// @Description  Returns the bet history for the current user (normal, free_spin, or jackpot)
+// @Tags         history
+// @Accept       json
+// @Produce      json
+// @Param        game_code   path      string  true  "Game code"
+// @Param        type       query     string  true   "Bet type (normal, free_spin, jackpot)"
+// @Param        gameCode   query     string  true   "Game code"
+// @Param        limit      query     int     true   "Items per page"
+// @Param        page       query     int     true   "Page number (0-based)"
+// @Success      200        {object}  server.SuccessResponse[BetHistoryResponse]
+// @Failure      400        {object}  server.ErrorResponse
+// @Failure      401        {object}  server.ErrorResponse
+// @Failure      500        {object}  server.ErrorResponse
+// @Security     BearerAuth
+// @Router       /games/{game_code}/bet-history-v2 [get]
+func (h *GameHandler) GetBetHistoryV2(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	gameModule := h.app.GetGame()
+	if gameModule == nil {
+		h.logger.Error().Msg("No game module registered")
+		InternalError(c, errors.New(errors.ErrGameModuleNotFound, "Game not configured"))
+		return
+	}
+
+	// Parse query parameters
+	var params BetHistoryQueryParams
+	if err := c.ShouldBindQuery(&params); err != nil {
+		BadRequest(c, errors.New(errors.ErrInvalidRequest, err.Error()))
+		return
+	}
+
+	// Set default values for Limit and Page if not provided
+	if params.Limit <= 0 {
+		params.Limit = 20
+	}
+	if params.Limit > 100 {
+		params.Limit = 100
+	}
+	if params.Page < 0 {
+		params.Page = 0
+	}
+
+	// For jackpot history, we don't need userID (show all users)
+	var userID string
+	if params.Type != BetTypeJackpot {
+		var err error
+		userID, err = h.extractUserID(c)
+		if err != nil {
+			h.logger.Error().Err(err).Msg("Failed to extract user ID")
+			Unauthorized(c, errors.New(errors.ErrUnauthorized, "Invalid or missing authentication token"))
+			return
+		}
+	}
+
+	// Build query
+	query := &BetHistoryQuery{
+		UserID:   userID,
+		GameCode: params.GameCode,
+		Type:     params.Type,
+		Page:     params.Page,
+		Limit:    params.Limit,
+	}
+
+	// Get history
+	result, err := h.app.logProvider.GetBetHistoryV2(ctx, query)
+	if err != nil {
+		h.logger.Error().Err(err).Msg("Failed to get bet history")
+		InternalError(c, errors.Wrap(err, errors.ErrInternalServerError, "Failed to get bet history"))
+		return
+	}
+
+	OK(c, result)
+}

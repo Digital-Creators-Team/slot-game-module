@@ -302,6 +302,7 @@ func (a *App) RegisterCommonGameRoutes() {
 				authRoutes.POST("/spin", a.gameHandler.Spin)
 				authRoutes.GET("/get-player-state", a.gameHandler.GetState)
 				authRoutes.GET("/bet-history", a.gameHandler.GetBetHistory)
+				authRoutes.GET("/bet-history-v2", a.gameHandler.GetBetHistoryV2)
 			}
 		}
 	}
