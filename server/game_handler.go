@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/Digital-Creators-Team/slot-game-module/auth"
 	"github.com/Digital-Creators-Team/slot-game-module/errors"
@@ -451,8 +452,9 @@ func (h *GameHandler) GetBetHistory(c *gin.Context) {
 
 	// Build query
 	query := &BetHistoryQuery{
-		UserID:   userID,
-		GameCode: params.GameCode,
+		UserID: userID,
+		//GameCode: params.GameCode,
+		GameCode: strings.TrimPrefix(params.GameCode, "amb-"), //TODO, hard code, improve later
 		Type:     params.Type,
 		Page:     params.Page,
 		Limit:    params.Limit,
