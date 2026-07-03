@@ -567,8 +567,19 @@ func (s *GameService) executeFreeSpin(
 		if s.walletProvider == nil {
 			return nil, errors.New(errors.ErrInternalServerError, "wallet provider not configured")
 		}
-		if err := s.walletProvider.Deposit(ctx, req.UserID, req.CurrencyID, spinResult.TotalWin); err != nil {
-			return nil, errors.Wrap(err, errors.ErrWalletError, "failed to deposit winnings")
+		productId := s.gameModule.GetProductId()
+		roundID := uuid.New().String()
+		err := s.walletProvider.PlaceBets(ctx, productId, req.Username, req.CurrencyID, decimal.Zero, roundID)
+		if err == nil {
+			err = s.walletProvider.SettleBets(ctx, productId, req.Username, req.CurrencyID, decimal.Zero, spinResult.TotalWin, roundID)
+			if err != nil {
+				fmt.Println("SettleBets error:", err)
+				if err := s.walletProvider.Deposit(ctx, req.UserID, req.CurrencyID, spinResult.TotalWin); err != nil {
+					return nil, errors.Wrap(err, errors.ErrWalletError, "failed to deposit winnings")
+				}
+			}
+		} else {
+			fmt.Println("===> PlaceBets for free spin error:", req.Username, req.CurrencyID, decimal.Zero, err)
 		}
 	}
 
