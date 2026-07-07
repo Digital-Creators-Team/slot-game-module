@@ -260,14 +260,31 @@ func (p *LogProvider) GetBetHistory(ctx context.Context, query *server.BetHistor
 		bet := p.convertToBet(entry, query.Type)
 
 		if bet != nil && bet.Rounds != nil && len(bet.Rounds) > 0 {
-			for idx, round := range bet.Rounds {
+			// Reverse loops for the correct order
+			for i := len(bet.Rounds) - 1; i >= 0; i-- {
+				idx, round := i, bet.Rounds[i]
 				b := p.convertToBetEachRound(*bet, round)
 
 				// Index round
 				b.Round = idx
 
+				// Add 1ms for each round
+				// b.Time = b.Time.Add(time.Duration(idx*1000) * time.Microsecond)
+
 				bets = append(bets, *b)
 			}
+
+			// for idx, round := range bet.Rounds {
+			// 	b := p.convertToBetEachRound(*bet, round)
+
+			// 	// Index round
+			// 	b.Round = idx
+
+			// 	// Sort by time
+			// 	// b.Time = b.Time.Add(time.Duration(idx*1000) * time.Microsecond)
+
+			// 	bets = append(bets, *b)
+			// }
 		} else if bet != nil {
 			bets = append(bets, *bet)
 		}
