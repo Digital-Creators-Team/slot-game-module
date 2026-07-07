@@ -143,6 +143,7 @@ type Bet struct {
 }
 
 type GameRound struct {
+	TotalBet       float64                `json:"totalBet,omitempty"`
 	Reels          any                    `json:"reels,omitempty"`
 	Winlines       any                    `json:"winlines,omitempty"`
 	TotalWin       float64                `json:"totalWin,omitempty"`

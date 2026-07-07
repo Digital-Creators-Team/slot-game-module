@@ -398,6 +398,7 @@ func (p *LogProvider) convertToBetEachRound(entry server.Bet, round server.GameR
 	// More data for each round here
 	if round.Reels != nil {
 		bet.Reels = round.Reels
+		bet.TotalBet = round.TotalBet
 	}
 
 	if round.ExtraData != nil {
