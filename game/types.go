@@ -41,6 +41,7 @@ type Winline struct {
 
 // Some cascade and tumble games feature more than one set of reels
 type GameRound struct {
+	TotalBet       decimal.Decimal        `json:"totalBet,omitempty"`
 	Reels          [][]Symbol             `json:"reels,omitempty"`
 	Winlines       []Winline              `json:"winlines,omitempty"`
 	TotalWin       decimal.Decimal        `json:"totalWin,omitempty"`
