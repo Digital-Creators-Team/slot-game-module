@@ -245,9 +245,16 @@ func (h *GameHandler) Spin(c *gin.Context) {
 		return
 	}
 
+	name, _ := auth.GetName(c)
+	if len(name) == 0 {
+		BadRequest(c, errors.New(errors.ErrInvalidRequest, "Name not found in JWT"))
+		return
+	}
+
 	result, err := gameService.ExecuteSpinV2(ctx, &SpinServiceRequest{
 		UserID:        userID,
 		Username:      username,
+		Name:          name,
 		CurrencyID:    currencyID,
 		BetMultiplier: betMul,
 		Tier:          req.Tier,
@@ -261,6 +268,7 @@ func (h *GameHandler) Spin(c *gin.Context) {
 		result2, err := gameService.ExecuteSpin(ctx, &SpinServiceRequest{
 			UserID:        userID,
 			Username:      username,
+			Name:          name,
 			CurrencyID:    currencyID,
 			BetMultiplier: betMul,
 			Tier:          req.Tier,
@@ -272,6 +280,7 @@ func (h *GameHandler) Spin(c *gin.Context) {
 			h.logger.Error().Err(err).
 				Str("user_id", userID).
 				Float32("bet_multiplier", betMul).
+				Str("name", name).
 				Msg("Failed to execute spin")
 			HandleAppError(c, err)
 			return
