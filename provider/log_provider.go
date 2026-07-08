@@ -32,6 +32,7 @@ type SpinDetails struct {
 type JackpotDetails struct {
 	SessionID       string  `mapstructure:"sessionId" json:"sessionId"`
 	Username        string  `mapstructure:"username" json:"username"`
+	Name            string  `mapstructure:"name" json:"name"`
 	GameCode        string  `mapstructure:"gameCode" json:"gameCode"`
 	Tier            string  `mapstructure:"tier" json:"tier"`
 	BetAmount       float64 `mapstructure:"betAmount" json:"betAmount"`
@@ -154,6 +155,7 @@ func (p *LogProvider) LogJackpot(ctx context.Context, log *server.JackpotLog) (s
 		Details: JackpotDetails{
 			SessionID:       sessionID,
 			Username:        log.Username,
+			Name:            log.Name,
 			GameCode:        log.GameCode,
 			Tier:            log.Tier,
 			BetAmount:       log.BetAmount,
@@ -360,7 +362,9 @@ func (p *LogProvider) convertToBet(entry LogEntry, betType server.BetType) *serv
 		}
 		bet.TotalBet = details.BetAmount
 		bet.TotalWin = details.WinAmount
-		bet.Username = &details.Username
+		//bet.Username = &details.Username
+		bet.Username = &details.Name
+		bet.Name = &details.Name
 		bet.TotalWinJackpot = details.TotalWinJackpot
 		bet.IsFreeSpin = details.SpinType == 1
 		bet.SpinType = details.SpinType

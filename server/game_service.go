@@ -73,6 +73,7 @@ func NewGameService(
 type SpinServiceRequest struct {
 	UserID        string
 	Username      string
+	Name          string
 	CurrencyID    string
 	BetMultiplier float32
 	Tier          float32
@@ -217,6 +218,7 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 				sessionID, err = s.logProvider.LogJackpot(ctx, &JackpotLog{
 					UserID:          req.UserID,
 					Username:        req.Username,
+					Name:            req.Name,
 					GameCode:        gameCode,
 					Tier:            j.Tier,
 					BetAmount:       totalBet.InexactFloat64(),
@@ -378,6 +380,7 @@ func (s *GameService) ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest
 				sessionID, err = s.logProvider.LogJackpot(ctx, &JackpotLog{
 					UserID:          req.UserID,
 					Username:        req.Username,
+					Name:            req.Name,
 					GameCode:        gameCode,
 					Tier:            j.Tier,
 					BetAmount:       totalBet.InexactFloat64(),

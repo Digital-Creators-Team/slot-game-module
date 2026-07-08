@@ -103,6 +103,7 @@ type JackpotLog struct {
 	UserID          string      `json:"userId"`
 	Username        string      `json:"username"` // Display name for history
 	GameCode        string      `json:"gameCode"`
+	Name            string      `json:"name"`
 	Tier            string      `json:"tier"`      // "mini", "minor", "grand"
 	BetAmount       float64     `json:"betAmount"` // Bet amount when jackpot won
 	WinAmount       float64     `json:"winAmount"`
@@ -131,6 +132,7 @@ type Bet struct {
 	Currency        string      `json:"currency"`
 	TotalWinJackpot float64     `json:"totalWinJackpot,omitempty"`
 	Username        *string     `json:"userName,omitempty"`
+	Name            *string     `json:"name,omitempty"`
 	JackpotType     *string     `json:"jackpotType,omitempty"`
 	IsFreeSpin      bool        `json:"isFreeSpin"`
 	Reels           any         `json:"reels,omitempty"`

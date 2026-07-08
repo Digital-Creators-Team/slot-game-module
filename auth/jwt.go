@@ -16,6 +16,7 @@ import (
 const (
 	UserIDKey     = "user_id"
 	UsernameKey   = "username"
+	NameKey       = "name"
 	CurrencyIDKey = "currency_id"
 	ClaimsKey     = "claims"
 )
@@ -24,6 +25,7 @@ const (
 type Claims struct {
 	UserID     string `json:"user_id"`
 	Username   string `json:"username"`
+	Name       string `json:"name"`
 	CurrencyID string `json:"currency_id,omitempty"`
 	jwt.RegisteredClaims
 }
@@ -151,6 +153,7 @@ func JWTMiddlewareWithConfig(config JWTConfig, logger zerolog.Logger) gin.Handle
 		// Store user information in context
 		c.Set(UserIDKey, claims.UserID)
 		c.Set(UsernameKey, claims.Username)
+		c.Set(NameKey, claims.Name)
 		c.Set(ClaimsKey, claims)
 
 		// Set currency ID (use default if not in claims)
@@ -189,6 +192,15 @@ func GetUsername(c *gin.Context) (string, bool) {
 	return usernameStr, ok
 }
 
+func GetName(c *gin.Context) (string, bool) {
+	name, exists := c.Get(NameKey)
+	if !exists {
+		return "", false
+	}
+	nameStr, ok := name.(string)
+	return nameStr, ok
+}
+
 // GetCurrencyID extracts currency ID from context
 func GetCurrencyID(c *gin.Context) (string, bool) {
 	currencyID, exists := c.Get(CurrencyIDKey)
@@ -210,14 +222,18 @@ func GetClaims(c *gin.Context) (*Claims, bool) {
 }
 
 // GenerateToken generates a new JWT token
-func GenerateToken(secret string, userID, username string, expiration time.Duration) (string, error) {
+func GenerateToken(secret string, userID, username, name string, expiration time.Duration) (string, error) {
+	now := time.Now()
+	expiresAt := now.Add(expiration)
+
 	claims := &Claims{
 		UserID:   userID,
 		Username: username,
+		Name:     name,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(expiration)),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-			NotBefore: jwt.NewNumericDate(time.Now()),
+			ExpiresAt: jwt.NewNumericDate(expiresAt),
+			IssuedAt:  jwt.NewNumericDate(now),
+			NotBefore: jwt.NewNumericDate(now),
 		},
 	}
 
@@ -226,15 +242,19 @@ func GenerateToken(secret string, userID, username string, expiration time.Durat
 }
 
 // GenerateTokenWithCurrency generates a new JWT token with currency
-func GenerateTokenWithCurrency(secret string, userID, username, currencyID string, expiration time.Duration) (string, error) {
+func GenerateTokenWithCurrency(secret string, userID, username, name, currencyID string, expiration time.Duration) (string, error) {
+	now := time.Now()
+	expiresAt := now.Add(expiration)
+
 	claims := &Claims{
 		UserID:     userID,
 		Username:   username,
+		Name:       name,
 		CurrencyID: currencyID,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(expiration)),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-			NotBefore: jwt.NewNumericDate(time.Now()),
+			ExpiresAt: jwt.NewNumericDate(expiresAt),
+			IssuedAt:  jwt.NewNumericDate(now),
+			NotBefore: jwt.NewNumericDate(now),
 		},
 	}
 
