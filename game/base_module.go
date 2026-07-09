@@ -29,6 +29,7 @@ import (
 //	}
 type BaseModule struct {
 	// GameCode is the unique identifier for this game
+	// Deprecated: use Config.GameCode instead
 	GameCode string
 
 	// Config holds the game configuration
@@ -44,7 +45,7 @@ func NewBaseModule(gameCode, configPath string) (*BaseModule, error) {
 	}
 
 	return &BaseModule{
-		GameCode: gameCode,
+		GameCode: cfg.GameCode,
 		Config:   cfg,
 	}, nil
 }
@@ -61,7 +62,7 @@ func (b *BaseModule) GetConfig(ctx context.Context) (ConfigNormalizer, error) {
 // GetGameCode returns the unique identifier for this game
 // Can be overridden if you need custom game code logic
 func (b *BaseModule) GetGameCode() string {
-	return b.GameCode
+	return b.Config.GetConfig().GameCode
 }
 
 // GetProductId returns the product id for this game
