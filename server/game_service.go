@@ -582,7 +582,9 @@ func (s *GameService) executeFreeSpin(
 				}
 			}
 		} else {
-			fmt.Println("===> PlaceBets for free spin error:", req.Username, req.CurrencyID, decimal.Zero, err)
+			if err := s.walletProvider.Deposit(ctx, req.UserID, req.CurrencyID, spinResult.TotalWin); err != nil {
+				return nil, errors.Wrap(err, errors.ErrWalletError, "failed to deposit winnings")
+			}
 		}
 	}
 
