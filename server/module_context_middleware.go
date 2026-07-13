@@ -13,9 +13,8 @@ import (
 // If ModuleContext already exists in context, it will update the user info if available from JWT
 //
 // Usage:
-//
-//	games.Use(auth.JWTMiddleware(...))
-//	games.Use(app.ModuleContextMiddleware())
+//   games.Use(auth.JWTMiddleware(...))
+//   games.Use(app.ModuleContextMiddleware())
 func (a *App) ModuleContextMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Try to extract user info from JWT (may not be available if no auth middleware)
