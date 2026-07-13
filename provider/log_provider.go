@@ -19,6 +19,7 @@ import (
 // SpinDetails represents spin log details for mapstructure decoding
 type SpinDetails struct {
 	SessionID  string      `mapstructure:"sessionId" json:"sessionId"`
+	TenantID   string      `mapstructure:"tenantId" json:"tenantId"`
 	Username   string      `mapstructure:"username" json:"username"`
 	GameCode   string      `mapstructure:"gameCode" json:"gameCode"`
 	BetAmount  float64     `mapstructure:"betAmount" json:"betAmount"`
@@ -31,6 +32,7 @@ type SpinDetails struct {
 // JackpotDetails represents jackpot log details for mapstructure decoding
 type JackpotDetails struct {
 	SessionID       string  `mapstructure:"sessionId" json:"sessionId"`
+	TenantID        string  `mapstructure:"tenantId" json:"tenantId"`
 	Username        string  `mapstructure:"username" json:"username"`
 	Name            string  `mapstructure:"name" json:"name"`
 	GameCode        string  `mapstructure:"gameCode" json:"gameCode"`
@@ -109,6 +111,7 @@ func (p *LogProvider) LogSpin(ctx context.Context, log *server.SpinLog) (string,
 		Action:        "normal", // Default action for spin
 		Details: SpinDetails{
 			SessionID:  sessionID,
+			TenantID:   log.TenantID,
 			Username:   log.Username,
 			GameCode:   log.GameCode,
 			BetAmount:  log.BetAmount,
@@ -154,6 +157,7 @@ func (p *LogProvider) LogJackpot(ctx context.Context, log *server.JackpotLog) (s
 		Action:        "jackpot",
 		Details: JackpotDetails{
 			SessionID:       sessionID,
+			TenantID:        log.TenantID,
 			Username:        log.Username,
 			Name:            log.Name,
 			GameCode:        log.GameCode,
@@ -362,6 +366,7 @@ func (p *LogProvider) convertToBet(entry LogEntry, betType server.BetType) *serv
 		}
 		bet.TotalBet = details.BetAmount
 		bet.TotalWin = details.WinAmount
+		bet.TenantID = &details.TenantID
 		//bet.Username = &details.Username
 		bet.Username = &details.Name
 		bet.Name = &details.Name

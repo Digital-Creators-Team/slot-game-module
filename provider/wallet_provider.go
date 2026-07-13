@@ -86,7 +86,7 @@ func (p *WalletProvider) GetBalance(ctx context.Context, userID, currencyID stri
 }
 
 // CheckBalance retrieves player balance from wallet service
-func (p *WalletProvider) CheckBalance(ctx context.Context, productId, username, currencyID string) (decimal.Decimal, error) {
+func (p *WalletProvider) CheckBalance(ctx context.Context, productId, tenantID, username, currencyID string) (decimal.Decimal, error) {
 	//url := fmt.Sprintf("%s/wallet/checkBalance", p.baseURL)
 	url := fmt.Sprintf("%s/checkBalance", p.baseURL) //TODO, replace sexy by productID or other
 	fmt.Printf("===> CheckBalance, data check: %s %s\n", url, productId)
@@ -97,6 +97,7 @@ func (p *WalletProvider) CheckBalance(ctx context.Context, productId, username, 
 		"timestampMillis": time.Now().UnixNano() / 1000000,
 		"productId":       productId,
 		"currency":        currencyID,
+		"tenantId":        tenantID,
 		"username":        username,
 	}
 
@@ -184,7 +185,7 @@ func (p *WalletProvider) Withdraw(ctx context.Context, userID, currencyID string
 }
 
 // Withdraw deducts amount from player balance
-func (p *WalletProvider) PlaceBets(ctx context.Context, productId, userName, currencyID string, amount decimal.Decimal, roundID string) error {
+func (p *WalletProvider) PlaceBets(ctx context.Context, productId, tenantID, userName, currencyID string, amount decimal.Decimal, roundID string) error {
 	url := fmt.Sprintf("%s/placeBets", p.baseURL)
 	fmt.Printf("===> PlaceBets, data check: %s\n", url)
 
@@ -192,6 +193,7 @@ func (p *WalletProvider) PlaceBets(ctx context.Context, productId, userName, cur
 		"id":              uuid.New().String(),
 		"timestampMillis": time.Now().UnixMilli(),
 		"productId":       productId,
+		"tenantId":        tenantID,
 		"username":        userName,
 		"currency":        currencyID,
 		//"amount":          amount.InexactFloat64(), // Convert to float64 for external service
@@ -266,13 +268,14 @@ func (p *WalletProvider) Deposit(ctx context.Context, userID, currencyID string,
 	return nil
 }
 
-func (p *WalletProvider) SettleBets(ctx context.Context, productId, username, currencyID string, amount decimal.Decimal, payoutAmount decimal.Decimal, roundID string) error {
+func (p *WalletProvider) SettleBets(ctx context.Context, productId, tenantID, username, currencyID string, amount decimal.Decimal, payoutAmount decimal.Decimal, roundID string) error {
 	url := fmt.Sprintf("%s/settleBets", p.baseURL)
 
 	body, _ := json.Marshal(map[string]interface{}{
 		"id":              uuid.New().String(),
 		"timestampMillis": time.Now().UnixMilli(),
 		"productId":       productId,
+		"tenantId":        tenantID,
 		"username":        username,
 		"currency":        currencyID,
 		//"amount":          amount.InexactFloat64(), // Convert to float64 for external service

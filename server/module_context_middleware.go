@@ -20,9 +20,10 @@ func (a *App) ModuleContextMiddleware() gin.HandlerFunc {
 		// Try to extract user info from JWT (may not be available if no auth middleware)
 		var user *game.User
 		if userID, ok := auth.GetUserID(c); ok {
+			tenantID, _ := auth.GetTenantID(c)
 			username, _ := auth.GetUsername(c)
 			currencyID, _ := auth.GetCurrencyID(c)
-			user = game.NewUser(userID, username, currencyID)
+			user = game.NewUser(tenantID, userID, username, currencyID)
 		}
 		// user will be nil if no auth middleware or no user in token
 
@@ -59,5 +60,3 @@ func (a *App) ModuleContextMiddleware() gin.HandlerFunc {
 		c.Next()
 	}
 }
-
-

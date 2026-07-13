@@ -16,6 +16,7 @@ import (
 //
 //	mc := game.MustFromContext(ctx)
 //	if user := mc.User(); user != nil {
+//	    tenantID := user.TenantID()
 //	    userID := user.ID()
 //	    username := user.Username()
 //	    currencyID := user.CurrencyID()
