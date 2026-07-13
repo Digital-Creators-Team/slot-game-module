@@ -14,6 +14,7 @@ import (
 
 // Context keys for user information
 const (
+	TenantIDKey   = "tenant_id"
 	UserIDKey     = "user_id"
 	UsernameKey   = "username"
 	NameKey       = "name"
@@ -23,6 +24,7 @@ const (
 
 // Claims represents the JWT claims structure
 type Claims struct {
+	TenantID   string `json:"tenant_id"`
 	UserID     string `json:"user_id"`
 	Username   string `json:"username"`
 	Name       string `json:"name"`
@@ -37,6 +39,7 @@ type JWTConfig struct {
 	TokenPrefix     string // "Bearer"
 	SkipPaths       []string
 	DefaultCurrency string
+	DefaultTenantID string
 }
 
 // DefaultJWTConfig returns default JWT configuration
@@ -47,6 +50,7 @@ func DefaultJWTConfig(secret string) JWTConfig {
 		TokenPrefix:     "Bearer",
 		SkipPaths:       []string{"/health", "/api/health"},
 		DefaultCurrency: "gold",
+		DefaultTenantID: "fgs",
 	}
 }
 
@@ -163,13 +167,31 @@ func JWTMiddlewareWithConfig(config JWTConfig, logger zerolog.Logger) gin.Handle
 		}
 		c.Set(CurrencyIDKey, currencyID)
 
+		// Set tenant ID
+		tenantID := claims.TenantID
+		if tenantID == "" {
+			tenantID = config.DefaultTenantID
+		}
+		c.Set(TenantIDKey, tenantID)
+
 		logger.Debug().
+			Str("tenant_id", claims.TenantID).
 			Str("user_id", claims.UserID).
 			Str("username", claims.Username).
 			Msg("JWT authentication successful")
 
 		c.Next()
 	}
+}
+
+// GetTenantID extracts tenant ID from context
+func GetTenantID(c *gin.Context) (string, bool) {
+	tenantID, exists := c.Get(TenantIDKey)
+	if !exists {
+		return "", false
+	}
+	tenantIDStr, ok := tenantID.(string)
+	return tenantIDStr, ok
 }
 
 // GetUserID extracts user ID from context
@@ -222,11 +244,12 @@ func GetClaims(c *gin.Context) (*Claims, bool) {
 }
 
 // GenerateToken generates a new JWT token
-func GenerateToken(secret string, userID, username, name string, expiration time.Duration) (string, error) {
+func GenerateToken(secret string, tenantID, userID, username, name string, expiration time.Duration) (string, error) {
 	now := time.Now()
 	expiresAt := now.Add(expiration)
 
 	claims := &Claims{
+		TenantID: tenantID,
 		UserID:   userID,
 		Username: username,
 		Name:     name,
@@ -242,11 +265,12 @@ func GenerateToken(secret string, userID, username, name string, expiration time
 }
 
 // GenerateTokenWithCurrency generates a new JWT token with currency
-func GenerateTokenWithCurrency(secret string, userID, username, name, currencyID string, expiration time.Duration) (string, error) {
+func GenerateTokenWithCurrency(secret string, tenantID, userID, username, name, currencyID string, expiration time.Duration) (string, error) {
 	now := time.Now()
 	expiresAt := now.Add(expiration)
 
 	claims := &Claims{
+		TenantID:   tenantID,
 		UserID:     userID,
 		Username:   username,
 		Name:       name,

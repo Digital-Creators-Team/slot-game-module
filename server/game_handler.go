@@ -37,6 +37,15 @@ func NewGameHandler(app *App) *GameHandler {
 	}
 }
 
+// extractTenantID extracts tenant ID from gin context
+func (h *GameHandler) extractTenantID(c *gin.Context) string {
+	tenantID, ok := auth.GetTenantID(c)
+	if !ok {
+		return "fgs"
+	}
+	return tenantID
+}
+
 // extractUserID extracts user ID from gin context
 func (h *GameHandler) extractUserID(c *gin.Context) (string, error) {
 	userID, ok := auth.GetUserID(c)
@@ -86,6 +95,7 @@ func (h *GameHandler) Authorize(c *gin.Context) {
 	}
 
 	// Extract username and currency
+	tenantID := h.extractTenantID(c)
 	username, _ := auth.GetUsername(c)
 	currencyID := h.extractCurrencyID(c)
 
@@ -118,7 +128,7 @@ func (h *GameHandler) Authorize(c *gin.Context) {
 		return
 	}
 
-	balance, err := h.app.walletProvider.CheckBalance(ctx, "sexy", username, currencyID) //TODO, now cheat sexy
+	balance, err := h.app.walletProvider.CheckBalance(ctx, "sexy", tenantID, username, currencyID) //TODO, now cheat sexy
 	if err != nil {
 		balance, err = h.app.walletProvider.GetBalance(ctx, userID, currencyID)
 		if err != nil {
@@ -135,6 +145,7 @@ func (h *GameHandler) Authorize(c *gin.Context) {
 		LastState:  s,
 		GameConfig: buildConfig(cfg),
 		Player: game.Player{
+			TenantID: tenantID,
 			UserID:   userID,
 			Username: username,
 			Balance:  balance,
@@ -175,7 +186,7 @@ type SpinRequest struct {
 // @Router       /games/{game_code}/spin [post]
 //
 // Flow:
-// 1. Extract user info from JWT (userID, username, currencyID)
+// 1. Extract user info from JWT (tenantID, userID, username, currencyID)
 // 2. Validate request (betMultiplier > 0)
 // 3. Get providers (StateProvider, WalletProvider, RewardProvider, LogProvider)
 // 4. Create GameService with providers
@@ -251,7 +262,10 @@ func (h *GameHandler) Spin(c *gin.Context) {
 		return
 	}
 
+	tenantID := h.extractTenantID(c)
+
 	result, err := gameService.ExecuteSpinV2(ctx, &SpinServiceRequest{
+		TenantID:      tenantID,
 		UserID:        userID,
 		Username:      username,
 		Name:          name,
@@ -266,6 +280,7 @@ func (h *GameHandler) Spin(c *gin.Context) {
 	if err != nil {
 		// Execute spin with full flow
 		result2, err := gameService.ExecuteSpin(ctx, &SpinServiceRequest{
+			TenantID:      tenantID,
 			UserID:        userID,
 			Username:      username,
 			Name:          name,

@@ -199,6 +199,7 @@ func (p *PlayerState) Reset() {
 
 // Player represents player information
 type Player struct {
+	TenantID string          `json:"tenantID"`
 	UserID   string          `json:"userID"`
 	Username string          `json:"username"`
 	Balance  decimal.Decimal `json:"balance"`

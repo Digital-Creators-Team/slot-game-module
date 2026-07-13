@@ -1772,6 +1772,7 @@ func (m *{{.GameCodeUpper}}Module) GetConfig(ctx context.Context) (game.ConfigNo
 // ModuleContext is ALWAYS available - use game.MustFromContext(ctx) to get it:
 //
 //	ctx := game.MustFromContext(ctx)
+//  tenantID := ctx.User().TenantID()
 //	userID := ctx.User().ID()
 //	username := ctx.User().Username()
 //	currencyID := ctx.User().CurrencyID()
@@ -1782,12 +1783,14 @@ func (m *{{.GameCodeUpper}}Module) PlayNormalSpin(ctx context.Context, betMultip
 	
 	// User may be nil if no auth middleware - always check
 	if user := mc.User(); user != nil {
+		tenantID := user.TenantID()
 		userID := user.ID()
 		username := user.Username()
 		currencyID := user.CurrencyID()
 		
 		// Use logger with user info
 		mc.Logger.Info().
+			Str("tenant_id", tenantID).
 			Str("user_id", userID).
 			Str("username", username).
 			Str("currency", currencyID).

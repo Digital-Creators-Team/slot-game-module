@@ -10,19 +10,21 @@ import (
 // This middleware should be used after JWT middleware (if authentication is required)
 // User info will only be available if JWT middleware has set user info in the context
 //
-// If ModuleContext already exists in context, it will update the user info if available from JWT
+// # If ModuleContext already exists in context, it will update the user info if available from JWT
 //
 // Usage:
-//   games.Use(auth.JWTMiddleware(...))
-//   games.Use(app.ModuleContextMiddleware())
+//
+//	games.Use(auth.JWTMiddleware(...))
+//	games.Use(app.ModuleContextMiddleware())
 func (a *App) ModuleContextMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Try to extract user info from JWT (may not be available if no auth middleware)
 		var user *game.User
 		if userID, ok := auth.GetUserID(c); ok {
+			tenantID, _ := auth.GetTenantID(c)
 			username, _ := auth.GetUsername(c)
 			currencyID, _ := auth.GetCurrencyID(c)
-			user = game.NewUser(userID, username, currencyID)
+			user = game.NewUser(tenantID, userID, username, currencyID)
 		}
 		// user will be nil if no auth middleware or no user in token
 
@@ -59,5 +61,3 @@ func (a *App) ModuleContextMiddleware() gin.HandlerFunc {
 		c.Next()
 	}
 }
-
-

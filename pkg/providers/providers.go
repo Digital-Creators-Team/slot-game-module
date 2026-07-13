@@ -16,11 +16,11 @@ type StateProvider interface {
 // WalletProvider interface for wallet operations
 type WalletProvider interface {
 	GetBalance(ctx context.Context, userID, currencyID string) (decimal.Decimal, error)
-	CheckBalance(ctx context.Context, productid, username, currencyID string) (decimal.Decimal, error)
+	CheckBalance(ctx context.Context, productid, tenantID, username, currencyID string) (decimal.Decimal, error)
 	Withdraw(ctx context.Context, userID, currencyID string, amount decimal.Decimal) error
-	PlaceBets(ctx context.Context, productId, username, currencyID string, amount decimal.Decimal, roundID string) error
+	PlaceBets(ctx context.Context, productId, tenantID, username, currencyID string, amount decimal.Decimal, roundID string) error
 	Deposit(ctx context.Context, userID, currencyID string, amount decimal.Decimal) error
-	SettleBets(ctx context.Context, productId, username, currencyID string, amount decimal.Decimal, payoutAmount decimal.Decimal, roundID string) error
+	SettleBets(ctx context.Context, productId, tenantID, username, currencyID string, amount decimal.Decimal, payoutAmount decimal.Decimal, roundID string) error
 }
 
 // ContributeRequest represents a request to contribute to a jackpot pool
@@ -86,6 +86,7 @@ type LogProvider interface {
 
 // SpinLog represents a spin log entry to be saved
 type SpinLog struct {
+	TenantID     string      `json:"tenantId"`
 	UserID       string      `json:"userId"`
 	Username     string      `json:"username"`
 	GameCode     string      `json:"gameCode"`
@@ -100,6 +101,7 @@ type SpinLog struct {
 
 // JackpotLog represents a jackpot log entry to be saved
 type JackpotLog struct {
+	TenantID        string      `json:"tenantId"`
 	UserID          string      `json:"userId"`
 	Username        string      `json:"username"` // Display name for history
 	GameCode        string      `json:"gameCode"`
@@ -131,6 +133,7 @@ type Bet struct {
 	TotalWin        float64     `json:"totalWin"`
 	Currency        string      `json:"currency"`
 	TotalWinJackpot float64     `json:"totalWinJackpot,omitempty"`
+	TenantID        *string     `json:"tenantID,omitempty"`
 	Username        *string     `json:"userName,omitempty"`
 	Name            *string     `json:"name,omitempty"`
 	JackpotType     *string     `json:"jackpotType,omitempty"`
