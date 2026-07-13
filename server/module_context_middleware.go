@@ -10,7 +10,7 @@ import (
 // This middleware should be used after JWT middleware (if authentication is required)
 // User info will only be available if JWT middleware has set user info in the context
 //
-// # If ModuleContext already exists in context, it will update the user info if available from JWT
+// If ModuleContext already exists in context, it will update the user info if available from JWT
 //
 // Usage:
 //
