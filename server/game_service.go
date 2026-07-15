@@ -740,6 +740,7 @@ func (s *GameService) processJackpotWin(
 
 			if spinResult.Rounds != nil && i.Round != nil {
 				spinResult.Rounds[*i.Round].JackpotPrize = append(spinResult.Rounds[*i.Round].JackpotPrize, p)
+				spinResult.Rounds[*i.Round].TotalWin = spinResult.Rounds[*i.Round].TotalWin.Add(p.Value)
 			}
 		}
 		spinResult.JackpotTypes = lo.ToSlicePtr(tier)
