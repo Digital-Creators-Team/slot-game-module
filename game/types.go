@@ -23,6 +23,8 @@ const (
 	WinTypeBigWin
 	WinTypeSuperWin
 	WinTypeMegaWin
+	WinTypeMicroWin
+	WinTypeSmallWin
 )
 
 // Winline represents a winning line on the game board
