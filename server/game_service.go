@@ -513,6 +513,12 @@ func (s *GameService) executeNormalSpin(
 				return nil, errors.Wrap(err, errors.ErrWalletError, "failed to deposit winnings")
 			}
 		}
+	} else {
+		err := s.walletProvider.SettleBets(ctx, productId, req.TenantID, req.Username, req.CurrencyID, totalBet, decimal.Zero, roundID)
+		if err != nil {
+			fmt.Println("SettleBets error (zero):", err)
+			return nil, errors.Wrap(err, errors.ErrWalletError, "failed to deposit winnings zero!")
+		}
 	}
 
 	// Default state
