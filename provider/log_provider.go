@@ -306,6 +306,84 @@ func (p *LogProvider) GetBetHistory(ctx context.Context, query *server.BetHistor
 	}, nil
 }
 
+// GetBetHistory gets bet history for a user
+func (p *LogProvider) GetBetHistoryV2(ctx context.Context, query *server.BetHistoryQuery) (*server.BetHistoryResponse, error) {
+	// Map BetType to action string
+	var action string
+	switch query.Type {
+	case server.BetTypeNormal:
+		action = "normal"
+	case server.BetTypeFreeSpin:
+		action = "free_spin"
+	case server.BetTypeJackpot:
+		action = "jackpot"
+	default:
+		action = string(query.Type)
+	}
+
+	// Build URL for log service API
+	url := fmt.Sprintf("%s/events/search?source_service=%s&action=%s&offset=%d&limit=%d",
+		p.baseURL, query.GameCode, action, query.Page, query.Limit)
+
+	// Add user_id for non-jackpot queries
+	if query.UserID != "" && query.Type != server.BetTypeJackpot {
+		url += fmt.Sprintf("&user_id=%s", query.UserID)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := p.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get bet history: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("log service returned status %d", resp.StatusCode)
+	}
+
+	var result LogServiceResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	if !result.IsSuccess {
+		errMsg := "unknown error"
+		if result.Error.ErrorMessage != "" {
+			errMsg = result.Error.ErrorMessage
+		}
+		return nil, fmt.Errorf("log service error: %s", errMsg)
+	}
+
+	// Convert to Bet format
+	bets := make([]server.Bet, 0, len(result.Data.Logs))
+	for _, entry := range result.Data.Logs {
+		bet := p.convertToBet(entry, query.Type)
+
+		if bet != nil && bet.Rounds != nil && len(bet.Rounds) > 0 {
+			for idx, round := range bet.Rounds {
+				b := p.convertToBetEachRound(*bet, round)
+
+				// Index round
+				b.Round = idx
+
+				bets = append(bets, *b)
+			}
+		} else if bet != nil {
+			bets = append(bets, *bet)
+		}
+	}
+
+	return &server.BetHistoryResponse{
+		Total: result.Data.Total,
+		Items: bets,
+	}, nil
+}
+
+/*----------------------------------------------------*/
 // convertToBet converts a LogEntry to Bet format
 func (p *LogProvider) convertToBet(entry LogEntry, betType server.BetType) *server.Bet {
 	bet := &server.Bet{
