@@ -82,6 +82,7 @@ func NewLogProvider(cfg *config.Config, kafkaProducer *kafka.Producer, logger ze
 // AuditEvent represents an audit event for Kafka
 type AuditEvent struct {
 	Timestamp     time.Time   `json:"timestamp"`
+	TenantID      string      `json:"tenant_id"`
 	UserID        string      `json:"user_id"`
 	SessionID     string      `json:"session_id,omitempty"`
 	SourceService string      `json:"source_service"`
@@ -105,6 +106,7 @@ func (p *LogProvider) LogSpin(ctx context.Context, log *server.SpinLog) (string,
 
 	event := AuditEvent{
 		Timestamp:     log.Timestamp,
+		TenantID:      log.TenantID,
 		UserID:        log.UserID,
 		SessionID:     sessionID,
 		SourceService: log.GameCode,
@@ -151,6 +153,7 @@ func (p *LogProvider) LogJackpot(ctx context.Context, log *server.JackpotLog) (s
 
 	event := AuditEvent{
 		Timestamp:     log.Timestamp,
+		TenantID:      log.TenantID,
 		UserID:        log.UserID,
 		SessionID:     sessionID,
 		SourceService: log.GameCode,
@@ -185,6 +188,7 @@ func (p *LogProvider) LogJackpot(ctx context.Context, log *server.JackpotLog) (s
 type LogEntry struct {
 	ID            string                 `json:"id"`
 	Timestamp     time.Time              `json:"timestamp"`
+	TenantID      string                 `json:"tenant_id"`
 	UserID        string                 `json:"user_id"`
 	SessionID     string                 `json:"session_id,omitempty"`
 	SourceService string                 `json:"source_service"`
