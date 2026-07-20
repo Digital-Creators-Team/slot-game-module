@@ -185,7 +185,7 @@ func (p *WalletProvider) Withdraw(ctx context.Context, userID, currencyID string
 }
 
 // Withdraw deducts amount from player balance
-func (p *WalletProvider) PlaceBets(ctx context.Context, productId, tenantID, userName, currencyID string, amount decimal.Decimal, roundID string) error {
+func (p *WalletProvider) PlaceBets(ctx context.Context, productId, tenantID, userName, currencyID string, amount decimal.Decimal, roundID string, transactionId string, gameCode string, gameName string) error {
 	url := fmt.Sprintf("%s/placeBets", p.baseURL)
 	fmt.Printf("===> PlaceBets, data check: %s\n", url)
 
@@ -196,16 +196,14 @@ func (p *WalletProvider) PlaceBets(ctx context.Context, productId, tenantID, use
 		"tenantId":        tenantID,
 		"username":        userName,
 		"currency":        currencyID,
-		//"amount":          amount.InexactFloat64(), // Convert to float64 for external service
-		// edit info later
 		"txns": []map[string]interface{}{
 			{
-				"id":        "T-001",
-				"gameCode":  "MX-LIVE-001",
+				"id":        transactionId,
+				"gameCode":  gameCode,
 				"status":    "OPEN",
 				"roundId":   roundID,
 				"betAmount": amount.InexactFloat64(), // docs is int, now using float
-				"playInfo":  "Golden Coyote",
+				"playInfo":  gameName,
 			},
 		},
 	})
