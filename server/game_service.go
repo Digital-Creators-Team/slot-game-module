@@ -461,16 +461,17 @@ func (s *GameService) executeNormalSpin(
 	gameConfig *game.Config,
 	totalBet decimal.Decimal,
 ) (*game.SpinResult, error) {
-	gameCode := s.gameModule.GetGameCode()
 
 	// 1. Withdraw bet from wallet
 	if s.walletProvider == nil {
 		return nil, errors.New(errors.ErrInternalServerError, "wallet provider not configured")
 	}
 
+	gameCode := s.gameModule.GetGameCode()
+	gameName := s.gameModule.GetGameName()
 	productId := s.gameModule.GetProductId()
 	roundID := uuid.New().String()
-	err := s.walletProvider.PlaceBets(ctx, productId, req.TenantID, req.Username, req.CurrencyID, totalBet, roundID)
+	err := s.walletProvider.PlaceBets(ctx, productId, req.TenantID, req.Username, req.CurrencyID, totalBet, roundID, roundID, gameCode, gameName) // now using roundID for transactionId
 	if err != nil {
 		fmt.Println("===> PlaceBets error:", req.Username, req.CurrencyID, totalBet, err)
 		if err := s.walletProvider.Withdraw(ctx, req.UserID, req.CurrencyID, totalBet); err != nil {
@@ -576,8 +577,10 @@ func (s *GameService) executeFreeSpin(
 			return nil, errors.New(errors.ErrInternalServerError, "wallet provider not configured")
 		}
 		productId := s.gameModule.GetProductId()
+		gameCode := s.gameModule.GetGameCode()
+		gameName := s.gameModule.GetGameName()
 		roundID := uuid.New().String()
-		err := s.walletProvider.PlaceBets(ctx, productId, req.TenantID, req.Username, req.CurrencyID, decimal.Zero, roundID)
+		err := s.walletProvider.PlaceBets(ctx, productId, req.TenantID, req.Username, req.CurrencyID, decimal.Zero, roundID, roundID, gameCode, gameName) // now using roundID for transactionId
 		if err == nil {
 			err = s.walletProvider.SettleBets(ctx, productId, req.TenantID, req.Username, req.CurrencyID, decimal.Zero, spinResult.TotalWin, roundID)
 			if err != nil {
