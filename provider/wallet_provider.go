@@ -266,7 +266,7 @@ func (p *WalletProvider) Deposit(ctx context.Context, userID, currencyID string,
 	return nil
 }
 
-func (p *WalletProvider) SettleBets(ctx context.Context, productId, tenantID, username, currencyID string, amount decimal.Decimal, payoutAmount decimal.Decimal, roundID string) error {
+func (p *WalletProvider) SettleBets(ctx context.Context, productId, tenantID, username, currencyID string, amount decimal.Decimal, payoutAmount decimal.Decimal, roundID string, transactionId string, gameCode string, gameName string) error {
 	url := fmt.Sprintf("%s/settleBets", p.baseURL)
 
 	body, _ := json.Marshal(map[string]interface{}{
@@ -276,17 +276,15 @@ func (p *WalletProvider) SettleBets(ctx context.Context, productId, tenantID, us
 		"tenantId":        tenantID,
 		"username":        username,
 		"currency":        currencyID,
-		//"amount":          amount.InexactFloat64(), // Convert to float64 for external service
-		// edit info later
 		"txns": []map[string]interface{}{
 			{
-				"id":              "T-001",
-				"gameCode":        "MX-LIVE-001",
+				"id":              transactionId,
+				"gameCode":        gameCode,
 				"status":          "SETTLED",
 				"roundId":         roundID,
 				"betAmount":       amount.InexactFloat64(), // docs is int, now using float
 				"payoutAmount":    payoutAmount.InexactFloat64(),
-				"playInfo":        "Golden Coyote",
+				"playInfo":        gameName,
 				"turnOver":        amount.InexactFloat64(),
 				"isSingleState":   false,
 				"transactionType": "BY_TRANSACTION",
