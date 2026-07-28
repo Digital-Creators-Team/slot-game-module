@@ -71,6 +71,12 @@ type Module interface {
 	GetGameName() string
 }
 
+// Other games may feature multiple game modes with varying base bets (pay_line)
+type GetTotalBet interface {
+	// GetTotalBet returns the total bet for this game
+	GetTotalBet(ctx context.Context, betMultiplier float32) (*decimal.Decimal, error)
+}
+
 // LifecycleHooks provides optional lifecycle hooks for game modules
 type LifecycleHooks interface {
 	// Init is called when the game module is initialized
