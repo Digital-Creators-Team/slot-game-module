@@ -279,7 +279,7 @@ func (h *GameHandler) Spin(c *gin.Context) {
 
 	if err != nil {
 		// Execute spin with full flow
-		result2, err := gameService.ExecuteSpin(ctx, &SpinServiceRequest{
+		/*/result2, err := gameService.ExecuteSpin(ctx, &SpinServiceRequest{
 			TenantID:      tenantID,
 			UserID:        userID,
 			Username:      username,
@@ -290,17 +290,17 @@ func (h *GameHandler) Spin(c *gin.Context) {
 			Multiplier:    req.Multiplier,
 			CheatPayout:   req.CheatPayout,
 			ExtraData:     req.ExtraData,
-		})
-		if err != nil {
-			h.logger.Error().Err(err).
-				Str("user_id", userID).
-				Float32("bet_multiplier", betMul).
-				Str("name", name).
-				Msg("Failed to execute spin")
-			HandleAppError(c, err)
-			return
-		}
-		result = result2
+		})*/
+		//if err != nil {
+		h.logger.Error().Err(err).
+			Str("user_id", userID).
+			Float32("bet_multiplier", betMul).
+			Str("name", name).
+			Msg("Failed to execute spin")
+		HandleAppError(c, err)
+		return
+		//}
+		//result = result2
 	}
 
 	// Convert to response format
