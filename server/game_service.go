@@ -494,9 +494,9 @@ func (s *GameService) executeNormalSpin(
 	err := s.walletProvider.PlaceBets(ctx, productId, req.TenantID, req.Username, req.CurrencyID, totalBet, roundID, roundID, gameCode, gameName) // now using roundID for transactionId
 	if err != nil {
 		fmt.Println("===> PlaceBets error:", req.Username, req.CurrencyID, totalBet, err)
-		if err := s.walletProvider.Withdraw(ctx, req.UserID, req.CurrencyID, totalBet); err != nil {
-			return nil, errors.Wrap(err, errors.GetCode(err), "failed to withdraw bet")
-		}
+		//if err := s.walletProvider.Withdraw(ctx, req.UserID, req.CurrencyID, totalBet); err != nil {
+		return nil, errors.Wrap(err, errors.GetCode(err), "failed to withdraw bet")
+		//}
 	} else {
 		fmt.Println("===> PlaceBets ok:", req.Username, req.CurrencyID, totalBet)
 	}
@@ -528,10 +528,10 @@ func (s *GameService) executeNormalSpin(
 		err := s.walletProvider.SettleBets(ctx, productId, req.TenantID, req.Username, req.CurrencyID, totalBet, spinResult.TotalWin, roundID, roundID, gameCode, gameName)
 		if err != nil {
 			fmt.Println("SettleBets error:", err)
-			err = s.walletProvider.Deposit(ctx, req.UserID, req.CurrencyID, spinResult.TotalWin)
-			if err != nil {
-				return nil, errors.Wrap(err, errors.ErrWalletError, "failed to deposit winnings")
-			}
+			//err = s.walletProvider.Deposit(ctx, req.UserID, req.CurrencyID, spinResult.TotalWin)
+			//if err != nil {
+			return nil, errors.Wrap(err, errors.ErrWalletError, "failed to deposit winnings")
+			//}
 		}
 	} else {
 		err := s.walletProvider.SettleBets(ctx, productId, req.TenantID, req.Username, req.CurrencyID, totalBet, decimal.Zero, roundID, roundID, gameCode, gameName)
@@ -611,14 +611,14 @@ func (s *GameService) executeFreeSpin(
 			err = s.walletProvider.SettleBets(ctx, productId, req.TenantID, req.Username, req.CurrencyID, decimal.Zero, spinResult.TotalWin, roundID, roundID, gameCode, gameName)
 			if err != nil {
 				fmt.Println("SettleBets error:", err)
-				if err := s.walletProvider.Deposit(ctx, req.UserID, req.CurrencyID, spinResult.TotalWin); err != nil {
-					return nil, errors.Wrap(err, errors.ErrWalletError, "failed to deposit winnings")
-				}
+				//if err := s.walletProvider.Deposit(ctx, req.UserID, req.CurrencyID, spinResult.TotalWin); err != nil {
+				return nil, errors.Wrap(err, errors.ErrWalletError, "failed to deposit winnings")
+				//}
 			}
 		} else {
-			if err := s.walletProvider.Deposit(ctx, req.UserID, req.CurrencyID, spinResult.TotalWin); err != nil {
-				return nil, errors.Wrap(err, errors.ErrWalletError, "failed to deposit winnings")
-			}
+			//if err := s.walletProvider.Deposit(ctx, req.UserID, req.CurrencyID, spinResult.TotalWin); err != nil {
+			return nil, errors.Wrap(err, errors.ErrWalletError, "failed to deposit winnings")
+			//}
 		}
 	}
 
