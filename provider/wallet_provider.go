@@ -238,6 +238,13 @@ func (p *WalletProvider) PlaceBets(ctx context.Context, productId, tenantID, use
 	if err := json.NewDecoder(resp.Body).Decode(&errResp); err != nil {
 		return fmt.Errorf("withdraw failed with status %d", resp.StatusCode)
 	}
+
+	if errResp.StatusCode == (int)(moduleerrors.InsufficientBalance) || errResp.StatusCode == (int)(moduleerrors.InternalServerError) {
+		return ErrInsufficientFunds
+	} else if errResp.StatusCode != (int)(moduleerrors.Success) {
+		return fmt.Errorf("wallet service returned status %d", errResp.StatusCode)
+	}
+
 	switch strings.ToLower(errResp.Error.ErrorMessage) {
 	case ErrInsufficientFunds.Error():
 		return ErrInsufficientFunds
