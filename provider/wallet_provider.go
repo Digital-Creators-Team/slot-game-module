@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Digital-Creators-Team/slot-game-module/config"
+	moduleerrors "github.com/Digital-Creators-Team/slot-game-module/errors"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
@@ -89,7 +90,7 @@ func (p *WalletProvider) GetBalance(ctx context.Context, userID, currencyID stri
 func (p *WalletProvider) CheckBalance(ctx context.Context, productId, tenantID, username, currencyID string) (decimal.Decimal, error) {
 	//url := fmt.Sprintf("%s/wallet/checkBalance", p.baseURL)
 	url := fmt.Sprintf("%s/checkBalance", p.baseURL) //TODO, replace sexy by productID or other
-	fmt.Printf("===> CheckBalance, data check: %s %s\n", url, productId)
+	//fmt.Printf("===> CheckBalance, data check: %s %s\n", url, productId)
 
 	id := uuid.NewString()
 	reqBody := map[string]any{
@@ -124,9 +125,11 @@ func (p *WalletProvider) CheckBalance(ctx context.Context, productId, tenantID, 
 	}
 
 	var result struct {
-		Balance float64 `json:"balance"` // External service returns float64
+		StatusCode int     `json:"statusCode"`
+		Balance    float64 `json:"balance"` // External service returns float64
 	}
-	fmt.Printf("===> CheckBalance, data check v1.1: %+v \n", resp.Body)
+
+	fmt.Printf("===> CheckBalance, data check v1.1: %+v %s, %s \n", resp.Body, url, productId)
 	//
 	bodyBytes2, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -140,6 +143,12 @@ func (p *WalletProvider) CheckBalance(ctx context.Context, productId, tenantID, 
 	//
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return decimal.Zero, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	if result.StatusCode == (int)(moduleerrors.InsufficientBalance) || (result.StatusCode == (int)(moduleerrors.InternalServerError) && result.Balance == 0) {
+		return decimal.Zero, ErrInsufficientFunds
+	} else if result.StatusCode != (int)(moduleerrors.Success) {
+		return decimal.Zero, fmt.Errorf("wallet service returned status %d", result.StatusCode)
 	}
 
 	fmt.Printf("===> CheckBalance, data check v2: %+v \n ===> %+v\n", result, resp.Body)

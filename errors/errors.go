@@ -27,6 +27,19 @@ const (
 	ErrGameLogicError      = 1009
 )
 
+type StatusCode int
+
+const (
+	Success              StatusCode = 0
+	UserNotFound         StatusCode = 10001
+	InsufficientBalance  StatusCode = 10002
+	TransactionNotFound  StatusCode = 20001
+	TransactionDuplicate StatusCode = 20002
+	InvalidToken         StatusCode = 30001
+	ForbiddenRequest     StatusCode = 40003
+	InternalServerError  StatusCode = 50001
+)
+
 // AppError represents a custom application error
 type AppError struct {
 	Code         int    `json:"code"`
