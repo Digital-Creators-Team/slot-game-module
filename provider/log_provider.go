@@ -18,15 +18,16 @@ import (
 
 // SpinDetails represents spin log details for mapstructure decoding
 type SpinDetails struct {
-	SessionID  string      `mapstructure:"sessionId" json:"sessionId"`
-	TenantID   string      `mapstructure:"tenantId" json:"tenantId"`
-	Username   string      `mapstructure:"username" json:"username"`
-	GameCode   string      `mapstructure:"gameCode" json:"gameCode"`
-	BetAmount  float64     `mapstructure:"betAmount" json:"betAmount"`
-	WinAmount  float64     `mapstructure:"winAmount" json:"winAmount"`
-	Currency   string      `mapstructure:"currency" json:"currency"`
-	SpinType   int         `mapstructure:"spinType" json:"spinType"`
-	SpinResult interface{} `mapstructure:"spinResult" json:"spinResult"`
+	SessionID         string      `mapstructure:"sessionId" json:"sessionId"`
+	TenantID          string      `mapstructure:"tenantId" json:"tenantId"`
+	Username          string      `mapstructure:"username" json:"username"`
+	GameCode          string      `mapstructure:"gameCode" json:"gameCode"`
+	BetAmount         float64     `mapstructure:"betAmount" json:"betAmount"`
+	WinAmount         float64     `mapstructure:"winAmount" json:"winAmount"`
+	Currency          string      `mapstructure:"currency" json:"currency"`
+	SpinType          int         `mapstructure:"spinType" json:"spinType"`
+	SpinResult        interface{} `mapstructure:"spinResult" json:"spinResult"`
+	SplitRoundHistory bool        `mapstructure:"splitRoundHistory" json:"splitRoundHistory"`
 }
 
 // JackpotDetails represents jackpot log details for mapstructure decoding
@@ -121,6 +122,9 @@ func (p *LogProvider) LogSpin(ctx context.Context, log *server.SpinLog) (string,
 			Currency:   log.Currency,
 			SpinType:   log.SpinType,
 			SpinResult: log.SpinResult,
+			// this also exists in SpinResult, but adding it here saves time
+			// marshaling and unmarshaling in log-service for unrelated events
+			SplitRoundHistory: log.SplitRoundHistory,
 		},
 		Result:  "success",
 		TraceID: sessionID,
@@ -230,6 +234,11 @@ func (p *LogProvider) GetBetHistory(ctx context.Context, query *server.BetHistor
 	// Build URL for log service API
 	url := fmt.Sprintf("%s/logs/search?source_service=%s&action=%s&offset=%d&limit=%d",
 		p.baseURL, query.GameCode, action, query.Page, query.Limit)
+
+	// Add round filter
+	if query.Type == server.BetTypeNormal || query.Type == server.BetTypeFreeSpin {
+		url += fmt.Sprintf("&action=%s_round", action)
+	}
 
 	// Add user_id for non-jackpot queries
 	if query.UserID != "" && query.Type != server.BetTypeJackpot {
