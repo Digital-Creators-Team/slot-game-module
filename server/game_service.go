@@ -149,7 +149,16 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 	game.SetSpinRequestCheatPayoutForModule(ctx, req.CheatPayout)
 
 	// 4. Calculate total bet
-	totalBet := decimal.NewFromFloat32(req.BetMultiplier).Mul(decimal.NewFromInt(int64(gameConfig.PayLine)))
+	var totalBet decimal.Decimal
+	if m, ok := s.gameModule.(game.GetTotalBet); ok {
+		tmpBet, err := m.GetTotalBet(ctx, req.BetMultiplier)
+		if err != nil {
+			return nil, errors.New(errors.ErrInternalServerError, "get multi total bet error")
+		}
+		totalBet = *tmpBet
+	} else {
+		totalBet = decimal.NewFromFloat32(req.BetMultiplier).Mul(decimal.NewFromInt(int64(gameConfig.PayLine)))
+	}
 
 	// 5. Determine spin type and execute
 	var spinResult *game.SpinResult
@@ -315,7 +324,16 @@ func (s *GameService) ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest
 	game.SetSpinRequestCheatPayoutForModule(ctx, req.CheatPayout)
 
 	// 4. Calculate total bet
-	totalBet := decimal.NewFromFloat32(req.BetMultiplier).Mul(decimal.NewFromInt(int64(gameConfig.PayLine)))
+	var totalBet decimal.Decimal
+	if m, ok := s.gameModule.(game.GetTotalBet); ok {
+		tmpBet, err := m.GetTotalBet(ctx, req.BetMultiplier)
+		if err != nil {
+			return nil, errors.New(errors.ErrInternalServerError, "get multi total bet error")
+		}
+		totalBet = *tmpBet
+	} else {
+		totalBet = decimal.NewFromFloat32(req.BetMultiplier).Mul(decimal.NewFromInt(int64(gameConfig.PayLine)))
+	}
 
 	// 5. Determine spin type and execute
 	var spinResult *game.SpinResult
