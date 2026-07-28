@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/Digital-Creators-Team/slot-game-module/config"
@@ -18,15 +19,39 @@ import (
 
 // SpinDetails represents spin log details for mapstructure decoding
 type SpinDetails struct {
-	SessionID  string      `mapstructure:"sessionId" json:"sessionId"`
-	TenantID   string      `mapstructure:"tenantId" json:"tenantId"`
-	Username   string      `mapstructure:"username" json:"username"`
-	GameCode   string      `mapstructure:"gameCode" json:"gameCode"`
-	BetAmount  float64     `mapstructure:"betAmount" json:"betAmount"`
-	WinAmount  float64     `mapstructure:"winAmount" json:"winAmount"`
-	Currency   string      `mapstructure:"currency" json:"currency"`
-	SpinType   int         `mapstructure:"spinType" json:"spinType"`
-	SpinResult interface{} `mapstructure:"spinResult" json:"spinResult"`
+	SessionID         string      `mapstructure:"sessionId" json:"sessionId"`
+	TenantID          string      `mapstructure:"tenantId" json:"tenantId"`
+	Username          string      `mapstructure:"username" json:"username"`
+	GameCode          string      `mapstructure:"gameCode" json:"gameCode"`
+	BetAmount         float64     `mapstructure:"betAmount" json:"betAmount"`
+	WinAmount         float64     `mapstructure:"winAmount" json:"winAmount"`
+	Currency          string      `mapstructure:"currency" json:"currency"`
+	SpinType          int         `mapstructure:"spinType" json:"spinType"`
+	SpinResult        interface{} `mapstructure:"spinResult" json:"spinResult"`
+	SplitRoundHistory bool        `mapstructure:"splitRoundHistory" json:"splitRoundHistory"`
+}
+
+// RoundDetails represents round log details for mapstructure decoding
+type RoundDetails struct {
+	// data from parent bet
+	SessionID string `mapstructure:"sessionId" json:"sessionId"`
+	Username  string `mapstructure:"username" json:"username"`
+	GameCode  string `mapstructure:"gameCode" json:"gameCode"`
+	Currency  string `mapstructure:"currency" json:"currency"`
+	SpinType  int    `mapstructure:"spinType" json:"spinType"`
+	SubReel   any    `mapstructure:"subReel" json:"subReel"`
+	Round     any    `mapstructure:"round" json:"round"`
+
+	TotalBet       float64                `mapstructure:"totalBet" json:"totalBet"`
+	Reels          any                    `mapstructure:"reels" json:"reels"`
+	Winlines       any                    `mapstructure:"winlines" json:"winlines"`
+	TotalWin       float64                `mapstructure:"totalWin" json:"totalWin"`
+	IsGetFreeSpin  *bool                  `mapstructure:"isGetFreeSpin" json:"isGetFreeSpin"`
+	ResultFreeSpin *int                   `mapstructure:"resultFreeSpin" json:"resultFreeSpin"`
+	IsGetJackpot   *bool                  `mapstructure:"isGetJackpot" json:"isGetJackpot"`
+	JackpotTypes   []*string              `mapstructure:"jackpotTypes" json:"jackpotTypes"`
+	JackpotPrize   any                    `mapstructure:"jackpotPrize" json:"jackpotPrize"`
+	ExtraData      map[string]interface{} `mapstructure:"extraData" json:"extraData"`
 }
 
 // JackpotDetails represents jackpot log details for mapstructure decoding
@@ -121,6 +146,9 @@ func (p *LogProvider) LogSpin(ctx context.Context, log *server.SpinLog) (string,
 			Currency:   log.Currency,
 			SpinType:   log.SpinType,
 			SpinResult: log.SpinResult,
+			// this also exists in SpinResult, but adding it here saves time
+			// marshaling and unmarshaling in log-service for unrelated events
+			SplitRoundHistory: log.SplitRoundHistory,
 		},
 		Result:  "success",
 		TraceID: sessionID,
@@ -231,6 +259,11 @@ func (p *LogProvider) GetBetHistory(ctx context.Context, query *server.BetHistor
 	url := fmt.Sprintf("%s/logs/search?source_service=%s&action=%s&offset=%d&limit=%d",
 		p.baseURL, query.GameCode, action, query.Page, query.Limit)
 
+	// Add round filter
+	if query.Type == server.BetTypeNormal || query.Type == server.BetTypeFreeSpin {
+		url += fmt.Sprintf("&action=%s_round", action)
+	}
+
 	// Add user_id for non-jackpot queries
 	if query.UserID != "" && query.Type != server.BetTypeJackpot {
 		url += fmt.Sprintf("&user_id=%s", query.UserID)
@@ -269,20 +302,10 @@ func (p *LogProvider) GetBetHistory(ctx context.Context, query *server.BetHistor
 	for _, entry := range result.Data.Logs {
 		bet := p.convertToBet(entry, query.Type)
 
-		if bet != nil && bet.Rounds != nil && len(bet.Rounds) > 0 {
-			// Reverse loops for the correct order
-			for i := len(bet.Rounds) - 1; i >= 0; i-- {
-				idx, round := i, bet.Rounds[i]
-				b := p.convertToBetEachRound(*bet, round)
-
-				// Index round
-				b.Round = idx
-
-				// Add 1ms for each round
-				// b.Time = b.Time.Add(time.Duration(idx*1000) * time.Microsecond)
-
-				bets = append(bets, *b)
-			}
+		if bet != nil && bet.Rounds != nil && len(bet.Rounds) > 0 && bet.SplitRoundHistory {
+			b := p.convertToBetEachRound(*bet, bet.Rounds[0])
+			b.Round = 0
+			bets = append(bets, *b)
 
 			// for idx, round := range bet.Rounds {
 			// 	b := p.convertToBetEachRound(*bet, round)
@@ -315,51 +338,74 @@ func (p *LogProvider) convertToBet(entry LogEntry, betType server.BetType) *serv
 
 	switch betType {
 	case server.BetTypeNormal, server.BetTypeFreeSpin:
-		var details SpinDetails
-		if err := mapstructure.Decode(entry.Details, &details); err != nil {
-			p.logger.Warn().Err(err).Msg("Failed to decode spin details")
-			return nil
-		}
-		bet.TotalBet = details.BetAmount
-		bet.TotalWin = details.WinAmount
-		bet.IsFreeSpin = details.SpinType == 1
-		bet.SpinType = details.SpinType
-		bet.Currency = details.Currency
+		if strings.HasSuffix(entry.Action, "_round") {
+			var details RoundDetails
+			if err := mapstructure.Decode(entry.Details, &details); err != nil {
+				p.logger.Warn().Err(err).Msg("Failed to decode round details")
+				return nil
+			}
+			bet.Round = details.Round
+			bet.TotalBet = details.TotalBet
+			bet.TotalWin = details.TotalWin
+			bet.IsFreeSpin = details.SpinType == 1
+			bet.SpinType = details.SpinType
+			bet.Currency = details.Currency
+			bet.Reels = details.Reels
+			bet.WinLines = details.Winlines
+			bet.SubReel = details.SubReel
+			bet.ExtraData = details.ExtraData
 
-		// Extract reels and winLines from spinResult if available
-		if details.SpinResult != nil {
-			if resultMap, ok := details.SpinResult.(map[string]interface{}); ok {
-				if reels, ok := resultMap["reels"]; ok {
-					bet.Reels = reels
-				}
+			bet.IsJackpot = false
+			if details.IsGetJackpot != nil {
+				bet.IsJackpot = *details.IsGetJackpot
+			}
+		} else {
+			var details SpinDetails
+			if err := mapstructure.Decode(entry.Details, &details); err != nil {
+				p.logger.Warn().Err(err).Msg("Failed to decode spin details")
+				return nil
+			}
+			bet.TotalBet = details.BetAmount
+			bet.TotalWin = details.WinAmount
+			bet.IsFreeSpin = details.SpinType == 1
+			bet.SpinType = details.SpinType
+			bet.Currency = details.Currency
+			bet.SplitRoundHistory = details.SplitRoundHistory
 
-				if winLines, ok := resultMap["winlines"]; ok {
-					bet.WinLines = winLines
-				}
+			// Extract reels and winLines from spinResult if available
+			if details.SpinResult != nil {
+				if resultMap, ok := details.SpinResult.(map[string]interface{}); ok {
+					if reels, ok := resultMap["reels"]; ok {
+						bet.Reels = reels
+					}
 
-				if subReel, ok := resultMap["subReel"]; ok {
-					bet.SubReel = subReel
-				}
+					if winLines, ok := resultMap["winlines"]; ok {
+						bet.WinLines = winLines
+					}
 
-				bet.IsJackpot = false
-				if isJackpot, ok := resultMap["isGetJackpot"]; ok {
-					bet.IsJackpot, _ = isJackpot.(bool)
-				}
+					if subReel, ok := resultMap["subReel"]; ok {
+						bet.SubReel = subReel
+					}
 
-				if extra, ok := resultMap["extraData"]; ok {
-					bet.ExtraData = extra
-				}
+					bet.IsJackpot = false
+					if isJackpot, ok := resultMap["isGetJackpot"]; ok {
+						bet.IsJackpot, _ = isJackpot.(bool)
+					}
 
-				if rounds, ok := resultMap["rounds"]; ok {
-					bytes, err := json.Marshal(rounds)
-					if err == nil {
-						var r []server.GameRound
-						if err := json.Unmarshal(bytes, &r); err == nil {
-							bet.Rounds = r
+					if extra, ok := resultMap["extraData"]; ok {
+						bet.ExtraData = extra
+					}
+
+					if rounds, ok := resultMap["rounds"]; ok {
+						bytes, err := json.Marshal(rounds)
+						if err == nil {
+							var r []server.GameRound
+							if err := json.Unmarshal(bytes, &r); err == nil {
+								bet.Rounds = r
+							}
 						}
 					}
 				}
-
 			}
 		}
 	case server.BetTypeJackpot:

@@ -198,16 +198,17 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 		timestamp := time.Now().UTC()
 
 		sessionID, err = s.logProvider.LogSpin(ctx, &SpinLog{
-			TenantID:   req.TenantID,
-			UserID:     req.UserID,
-			Username:   req.Username,
-			GameCode:   gameCode,
-			BetAmount:  spinResult.TotalBet.InexactFloat64(),
-			WinAmount:  spinResult.TotalWin.InexactFloat64(),
-			Currency:   req.CurrencyID,
-			SpinType:   spinResult.SpinType,
-			SpinResult: spinResult,
-			Timestamp:  timestamp,
+			TenantID:          req.TenantID,
+			UserID:            req.UserID,
+			Username:          req.Username,
+			GameCode:          gameCode,
+			BetAmount:         spinResult.TotalBet.InexactFloat64(),
+			WinAmount:         spinResult.TotalWin.InexactFloat64(),
+			Currency:          req.CurrencyID,
+			SpinType:          spinResult.SpinType,
+			SpinResult:        spinResult,
+			SplitRoundHistory: spinResult.SplitRoundHistory && len(spinResult.Rounds) > 1,
+			Timestamp:         timestamp,
 		})
 		if err != nil {
 			s.logger.Error().Err(err).Msg("Failed to log spin")
@@ -363,16 +364,17 @@ func (s *GameService) ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest
 		timestamp := time.Now().UTC()
 
 		sessionID, err = s.logProvider.LogSpin(ctx, &SpinLog{
-			TenantID:   req.TenantID,
-			UserID:     req.UserID,
-			Username:   req.Username,
-			GameCode:   gameCode,
-			BetAmount:  spinResult.TotalBet.InexactFloat64(),
-			WinAmount:  spinResult.TotalWin.InexactFloat64(),
-			Currency:   req.CurrencyID,
-			SpinType:   spinResult.SpinType,
-			SpinResult: spinResult,
-			Timestamp:  timestamp,
+			TenantID:          req.TenantID,
+			UserID:            req.UserID,
+			Username:          req.Username,
+			GameCode:          gameCode,
+			BetAmount:         spinResult.TotalBet.InexactFloat64(),
+			WinAmount:         spinResult.TotalWin.InexactFloat64(),
+			Currency:          req.CurrencyID,
+			SpinType:          spinResult.SpinType,
+			SpinResult:        spinResult,
+			SplitRoundHistory: spinResult.SplitRoundHistory && len(spinResult.Rounds) > 1,
+			Timestamp:         timestamp,
 		})
 		if err != nil {
 			s.logger.Error().Err(err).Msg("Failed to log spin")

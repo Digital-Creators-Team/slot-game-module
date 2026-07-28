@@ -86,17 +86,18 @@ type LogProvider interface {
 
 // SpinLog represents a spin log entry to be saved
 type SpinLog struct {
-	TenantID     string      `json:"tenantId"`
-	UserID       string      `json:"userId"`
-	Username     string      `json:"username"`
-	GameCode     string      `json:"gameCode"`
-	BetAmount    float64     `json:"betAmount"`
-	Currency     string      `json:"currency"` // e.g. "USD", "VND"
-	WinAmount    float64     `json:"winAmount"`
-	SpinType     int         `json:"spinType"` // 0 = normal, 1 = free spin
-	IsGetJackpot *bool       `json:"isGetJackpot"`
-	SpinResult   interface{} `json:"spinResult"`
-	Timestamp    time.Time   `json:"timestamp"`
+	TenantID          string      `json:"tenantId"`
+	UserID            string      `json:"userId"`
+	Username          string      `json:"username"`
+	GameCode          string      `json:"gameCode"`
+	BetAmount         float64     `json:"betAmount"`
+	Currency          string      `json:"currency"` // e.g. "USD", "VND"
+	WinAmount         float64     `json:"winAmount"`
+	SpinType          int         `json:"spinType"` // 0 = normal, 1 = free spin
+	IsGetJackpot      *bool       `json:"isGetJackpot"`
+	SpinResult        interface{} `json:"spinResult"`
+	SplitRoundHistory bool        `json:"splitRoundHistory"`
+	Timestamp         time.Time   `json:"timestamp"`
 }
 
 // JackpotLog represents a jackpot log entry to be saved
@@ -127,25 +128,26 @@ type BetHistoryQuery struct {
 
 // Bet represents a single bet history item
 type Bet struct {
-	SessionID       string      `json:"sessionID"`
-	Time            time.Time   `json:"time"`
-	TotalBet        float64     `json:"totalBet"`
-	TotalWin        float64     `json:"totalWin"`
-	Currency        string      `json:"currency"`
-	TotalWinJackpot float64     `json:"totalWinJackpot,omitempty"`
-	TenantID        *string     `json:"tenantID,omitempty"`
-	Username        *string     `json:"userName,omitempty"`
-	Name            *string     `json:"name,omitempty"`
-	JackpotType     *string     `json:"jackpotType,omitempty"`
-	IsFreeSpin      bool        `json:"isFreeSpin"`
-	Reels           any         `json:"reels,omitempty"`
-	WinLines        any         `json:"winLines,omitempty"`
-	SubReel         any         `json:"subReel,omitempty"`
-	Rounds          []GameRound `json:"rounds,omitempty"`
-	Round           any         `json:"round,omitempty"`
-	IsJackpot       any         `json:"isJackpot"`
-	ExtraData       any         `json:"extraData,omitempty"`
-	SpinType        int         `json:"spinType"`
+	SessionID         string      `json:"sessionID"`
+	Time              time.Time   `json:"time"`
+	TotalBet          float64     `json:"totalBet"`
+	TotalWin          float64     `json:"totalWin"`
+	Currency          string      `json:"currency"`
+	TotalWinJackpot   float64     `json:"totalWinJackpot,omitempty"`
+	TenantID          *string     `json:"tenantID,omitempty"`
+	Username          *string     `json:"userName,omitempty"`
+	Name              *string     `json:"name,omitempty"`
+	JackpotType       *string     `json:"jackpotType,omitempty"`
+	IsFreeSpin        bool        `json:"isFreeSpin"`
+	Reels             any         `json:"reels,omitempty"`
+	WinLines          any         `json:"winLines,omitempty"`
+	SubReel           any         `json:"subReel,omitempty"`
+	SplitRoundHistory bool        `json:"-"`
+	Rounds            []GameRound `json:"rounds,omitempty"`
+	Round             any         `json:"round,omitempty"`
+	IsJackpot         any         `json:"isJackpot"`
+	ExtraData         any         `json:"extraData,omitempty"`
+	SpinType          int         `json:"spinType"`
 }
 
 type GameRound struct {

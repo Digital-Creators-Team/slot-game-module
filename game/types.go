@@ -70,6 +70,7 @@ type SpinResult struct {
 	IsGetFreeSpin     *bool                  `json:"isGetFreeSpin,omitempty"`
 	ResultFreeSpin    *int                   `json:"resultFreeSpin,omitempty"`
 	FreeSpinBets      []*SpinResult          `json:"freeSpinBets,omitempty"`
+	SplitRoundHistory bool                   `json:"splitRoundHistory,omitempty"`
 	Rounds            []*GameRound           `json:"rounds,omitempty"`
 	IsGetJackpot      *bool                  `json:"isGetJackpot,omitempty"`
 	TotalWinJackpot   decimal.Decimal        `json:"totalWinJackpot,omitempty"`
