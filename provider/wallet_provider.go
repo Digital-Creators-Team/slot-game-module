@@ -235,28 +235,29 @@ func (p *WalletProvider) PlaceBets(ctx context.Context, productId, tenantID, use
 		return nil
 	}*/
 
-	var errResp ErrorResponse
-	if err := json.NewDecoder(resp.Body).Decode(&errResp); err != nil {
+	var result struct {
+		ID            string  `json:"id"`
+		StatusCode    int     `json:"statusCode"`
+		BalanceBefore float64 `json:"balanceBefore"` // External service returns float64
+		BalanceAfter  float64 `json:"balanceAfter"`
+	}
+	//var errResp ErrorResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return fmt.Errorf("withdraw failed with status %d", resp.StatusCode)
 	}
 
-	fmt.Printf("===> PlaceBets, data check v3: %+v\n", errResp)
-	if resp.StatusCode == http.StatusOK && errResp.StatusCode == (int)(moduleerrors.Success) {
+	fmt.Printf("===> PlaceBets, data check v3: %+v\n", result)
+	if resp.StatusCode == http.StatusOK && result.StatusCode == (int)(moduleerrors.Success) {
 		return nil
 	}
 
-	if errResp.StatusCode == (int)(moduleerrors.InsufficientBalance) || errResp.StatusCode == (int)(moduleerrors.InternalServerError) {
+	if result.StatusCode == (int)(moduleerrors.InsufficientBalance) || result.StatusCode == (int)(moduleerrors.InternalServerError) {
 		return ErrInsufficientFunds
-	} else if errResp.StatusCode != (int)(moduleerrors.Success) {
-		return fmt.Errorf("wallet service returned status %d", errResp.StatusCode)
+	} else if result.StatusCode != (int)(moduleerrors.Success) {
+		return fmt.Errorf("wallet service returned status %d", result.StatusCode)
 	}
 
-	switch strings.ToLower(errResp.Error.ErrorMessage) {
-	case ErrInsufficientFunds.Error():
-		return ErrInsufficientFunds
-	default:
-		return fmt.Errorf("withdraw failed: %s", errResp.Error.ErrorMessage)
-	}
+	return fmt.Errorf("withdraw failed: %d", result.StatusCode)
 }
 
 // Deposit adds amount to player balance
