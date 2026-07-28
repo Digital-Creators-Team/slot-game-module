@@ -128,25 +128,26 @@ type BetHistoryQuery struct {
 
 // Bet represents a single bet history item
 type Bet struct {
-	SessionID       string      `json:"sessionID"`
-	Time            time.Time   `json:"time"`
-	TotalBet        float64     `json:"totalBet"`
-	TotalWin        float64     `json:"totalWin"`
-	Currency        string      `json:"currency"`
-	TotalWinJackpot float64     `json:"totalWinJackpot,omitempty"`
-	TenantID        *string     `json:"tenantID,omitempty"`
-	Username        *string     `json:"userName,omitempty"`
-	Name            *string     `json:"name,omitempty"`
-	JackpotType     *string     `json:"jackpotType,omitempty"`
-	IsFreeSpin      bool        `json:"isFreeSpin"`
-	Reels           any         `json:"reels,omitempty"`
-	WinLines        any         `json:"winLines,omitempty"`
-	SubReel         any         `json:"subReel,omitempty"`
-	Rounds          []GameRound `json:"rounds,omitempty"`
-	Round           any         `json:"round,omitempty"`
-	IsJackpot       any         `json:"isJackpot"`
-	ExtraData       any         `json:"extraData,omitempty"`
-	SpinType        int         `json:"spinType"`
+	SessionID         string      `json:"sessionID"`
+	Time              time.Time   `json:"time"`
+	TotalBet          float64     `json:"totalBet"`
+	TotalWin          float64     `json:"totalWin"`
+	Currency          string      `json:"currency"`
+	TotalWinJackpot   float64     `json:"totalWinJackpot,omitempty"`
+	TenantID          *string     `json:"tenantID,omitempty"`
+	Username          *string     `json:"userName,omitempty"`
+	Name              *string     `json:"name,omitempty"`
+	JackpotType       *string     `json:"jackpotType,omitempty"`
+	IsFreeSpin        bool        `json:"isFreeSpin"`
+	Reels             any         `json:"reels,omitempty"`
+	WinLines          any         `json:"winLines,omitempty"`
+	SubReel           any         `json:"subReel,omitempty"`
+	SplitRoundHistory bool        `json:"-"`
+	Rounds            []GameRound `json:"rounds,omitempty"`
+	Round             any         `json:"round,omitempty"`
+	IsJackpot         any         `json:"isJackpot"`
+	ExtraData         any         `json:"extraData,omitempty"`
+	SpinType          int         `json:"spinType"`
 }
 
 type GameRound struct {
