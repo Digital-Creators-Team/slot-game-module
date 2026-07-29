@@ -216,7 +216,7 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 			Currency:          req.CurrencyID,
 			SpinType:          spinResult.SpinType,
 			SpinResult:        spinResult,
-			SplitRoundHistory: spinResult.SplitRoundHistory && len(spinResult.Rounds) > 1,
+			SplitRoundHistory: spinResult.SplitRoundHistory,
 			Timestamp:         timestamp,
 		})
 		if err != nil {
@@ -391,7 +391,7 @@ func (s *GameService) ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest
 			Currency:          req.CurrencyID,
 			SpinType:          spinResult.SpinType,
 			SpinResult:        spinResult,
-			SplitRoundHistory: spinResult.SplitRoundHistory && len(spinResult.Rounds) > 1,
+			SplitRoundHistory: spinResult.SplitRoundHistory,
 			Timestamp:         timestamp,
 		})
 		if err != nil {
