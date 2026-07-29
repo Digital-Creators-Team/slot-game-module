@@ -182,7 +182,7 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 	// 6. Process jackpot win (if any)
 	if spinResult.IsGetJackpot != nil && *spinResult.IsGetJackpot {
 		// Claim jackpot
-		if err := s.processJackpotWin(ctx, spinResult, req.TenantID, req.UserID, req.Username, gameCode, req.CurrencyID, gameConfig, totalBet); err != nil {
+		if err := s.processJackpotWin(ctx, spinResult, req.TenantID, req.UserID, req.Name, gameCode, req.CurrencyID, gameConfig, totalBet); err != nil {
 			s.logger.Error().Err(err).Msg("Failed to process jackpot win")
 		}
 		if playerState.TotalWinFreeSpin != nil {
@@ -357,7 +357,7 @@ func (s *GameService) ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest
 	// 6. Process jackpot win (if any)
 	if spinResult.IsGetJackpot != nil && *spinResult.IsGetJackpot {
 		// Claim jackpot
-		if err := s.processJackpotWin(ctx, spinResult, req.TenantID, req.UserID, req.Username, gameCode, req.CurrencyID, gameConfig, totalBet); err != nil {
+		if err := s.processJackpotWin(ctx, spinResult, req.TenantID, req.UserID, req.Name, gameCode, req.CurrencyID, gameConfig, totalBet); err != nil {
 			s.logger.Error().Err(err).Msg("Failed to process jackpot win")
 		}
 		if playerState.TotalWinFreeSpin != nil {
@@ -706,7 +706,7 @@ func (s *GameService) contributeToJackpot(ctx context.Context, userID, gameCode 
 func (s *GameService) processJackpotWin(
 	ctx context.Context,
 	spinResult *game.SpinResult,
-	tenantID, userID, username, gameCode, currency string,
+	tenantID, userID, nickname, gameCode, currency string,
 	gameConfig *game.Config,
 	totalBet decimal.Decimal,
 ) error {
@@ -750,6 +750,8 @@ func (s *GameService) processJackpotWin(
 				UserID:    userID,
 				GameCode:  gameCode,
 				InitValue: i.InitValue,
+				Agency:    tenantID,
+				WalletUrl: s.walletProvider.GetWalletUrl(ctx),
 			})
 
 			if err != nil {
