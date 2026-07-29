@@ -333,3 +333,7 @@ func (p *WalletProvider) SettleBets(ctx context.Context, productId, tenantID, us
 
 	return nil
 }
+
+func (p *WalletProvider) GetWalletUrl(ctx context.Context) string {
+	return p.baseURL
+}

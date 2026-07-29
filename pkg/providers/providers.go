@@ -21,6 +21,7 @@ type WalletProvider interface {
 	PlaceBets(ctx context.Context, productId, tenantID, username, currencyID string, amount decimal.Decimal, roundID string, transactionId string, gameCode string, ameName string) error
 	Deposit(ctx context.Context, userID, currencyID string, amount decimal.Decimal) error
 	SettleBets(ctx context.Context, productId, tenantID, username, currencyID string, amount decimal.Decimal, payoutAmount decimal.Decimal, roundID string, transactionId string, gameCode string, gameName string) error
+	GetWalletUrl(ctx context.Context) string
 }
 
 // ContributeRequest represents a request to contribute to a jackpot pool
@@ -39,6 +40,8 @@ type ClaimRequest struct {
 	UserID    string          // User ID claiming the jackpot
 	GameCode  string          // Game code
 	InitValue decimal.Decimal // Initial pool value for claim calculation
+	Agency    string
+	WalletUrl string
 }
 
 // RewardProvider interface for jackpot/reward operations
