@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Digital-Creators-Team/slot-game-module/auth"
 	"github.com/Digital-Creators-Team/slot-game-module/config"
 	"github.com/Digital-Creators-Team/slot-game-module/events/kafka"
 	"github.com/Digital-Creators-Team/slot-game-module/pkg/utils"
@@ -22,7 +23,6 @@ import (
 // SpinDetails represents spin log details for mapstructure decoding
 type SpinDetails struct {
 	SessionID         string      `mapstructure:"sessionId" json:"sessionId"`
-	TenantID          string      `mapstructure:"tenantId" json:"tenantId"`
 	Username          string      `mapstructure:"username" json:"username"`
 	GameCode          string      `mapstructure:"gameCode" json:"gameCode"`
 	BetAmount         float64     `mapstructure:"betAmount" json:"betAmount"`
@@ -59,7 +59,6 @@ type RoundDetails struct {
 // JackpotDetails represents jackpot log details for mapstructure decoding
 type JackpotDetails struct {
 	SessionID       string  `mapstructure:"sessionId" json:"sessionId"`
-	TenantID        string  `mapstructure:"tenantId" json:"tenantId"`
 	Username        string  `mapstructure:"username" json:"username"`
 	Name            string  `mapstructure:"name" json:"name"`
 	GameCode        string  `mapstructure:"gameCode" json:"gameCode"`
@@ -140,7 +139,6 @@ func (p *LogProvider) LogSpin(ctx context.Context, log *server.SpinLog) (string,
 		Action:        "normal", // Default action for spin
 		Details: SpinDetails{
 			SessionID: sessionID,
-			TenantID:  log.TenantID,
 			Username:  log.Username,
 			GameCode:  log.GameCode,
 			BetAmount: log.BetAmount,
@@ -192,7 +190,6 @@ func (p *LogProvider) LogJackpot(ctx context.Context, log *server.JackpotLog) (s
 		Action:        "jackpot",
 		Details: JackpotDetails{
 			SessionID:       sessionID,
-			TenantID:        log.TenantID,
 			Username:        log.Username,
 			Name:            log.Name,
 			GameCode:        log.GameCode,
@@ -262,6 +259,10 @@ func (p *LogProvider) GetBetHistory(ctx context.Context, query *server.BetHistor
 	// Build URL for log service API
 	url := fmt.Sprintf("%s/logs/search?source_service=%s&action=%s&offset=%d&limit=%d",
 		p.baseURL, query.GameCode, action, query.Page, query.Limit)
+
+	if query.Type == server.BetTypeJackpot {
+		url += fmt.Sprintf("&tenant_id=%v", ctx.Value(auth.TenantIDKey))
+	}
 
 	// Add round filter
 	if query.Type == server.BetTypeNormal || query.Type == server.BetTypeFreeSpin {
@@ -336,6 +337,7 @@ func (p *LogProvider) GetBetHistory(ctx context.Context, query *server.BetHistor
 // convertToBet converts a LogEntry to Bet format
 func (p *LogProvider) convertToBet(entry LogEntry, betType server.BetType) *server.Bet {
 	bet := &server.Bet{
+		TenantID:  &entry.TenantID,
 		SessionID: entry.SessionID,
 		Time:      entry.Timestamp,
 	}
@@ -420,7 +422,6 @@ func (p *LogProvider) convertToBet(entry LogEntry, betType server.BetType) *serv
 		}
 		bet.TotalBet = details.BetAmount
 		bet.TotalWin = details.WinAmount
-		bet.TenantID = &details.TenantID
 		//bet.Username = &details.Username
 		bet.Username = &details.Name
 		bet.Name = &details.Name
