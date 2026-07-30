@@ -357,7 +357,7 @@ func (s *GameService) ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest
 	// 6. Process jackpot win (if any)
 	if spinResult.IsGetJackpot != nil && *spinResult.IsGetJackpot {
 		// Claim jackpot
-		if err := s.processJackpotWin(ctx, spinResult, req.TenantID, req.UserID, req.Name, gameCode, req.CurrencyID, gameConfig, totalBet); err != nil {
+		if err := s.processJackpotWin(ctx, spinResult, req.TenantID, req.UserID, req.Username, gameCode, req.CurrencyID, gameConfig, totalBet); err != nil {
 			s.logger.Error().Err(err).Msg("Failed to process jackpot win")
 		}
 		if playerState.TotalWinFreeSpin != nil {
