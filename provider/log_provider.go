@@ -482,7 +482,10 @@ func (s SpinWrapper) MarshalJSON() ([]byte, error) {
 	b, _ := json.Marshal(s.Value)
 
 	var m map[string]json.RawMessage
-	json.Unmarshal(b, &m)
+	err := json.Unmarshal(b, &m)
+	if err != nil {
+		return nil, err
+	}
 
 	rv := reflect.ValueOf(s.Value)
 	if rv.Kind() == reflect.Pointer {
