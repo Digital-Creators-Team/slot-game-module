@@ -85,6 +85,7 @@ func (p *RewardProvider) Claim(ctx context.Context, req *providers.ClaimRequest)
 	body, _ := json.Marshal(map[string]interface{}{
 		"pool_id":    req.PoolID,
 		"user_id":    req.UserID,
+		"username":   req.Username,
 		"game_code":  req.GameCode,
 		"init_value": req.InitValue.String(),
 		"agency":     req.Agency,

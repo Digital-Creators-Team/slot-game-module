@@ -36,8 +36,9 @@ type ContributeRequest struct {
 
 // ClaimRequest represents a request to claim a jackpot pool
 type ClaimRequest struct {
-	PoolID    string          // Pool ID to claim from
-	UserID    string          // User ID claiming the jackpot
+	PoolID    string // Pool ID to claim from
+	UserID    string // User ID claiming the jackpot
+	Username  string
 	GameCode  string          // Game code
 	InitValue decimal.Decimal // Initial pool value for claim calculation
 	Agency    string
