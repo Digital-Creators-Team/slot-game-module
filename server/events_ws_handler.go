@@ -206,13 +206,13 @@ func (h *EventsWSHandler) Stream(g *gin.Context) {
 	h.connMgr.Register(wsConn)
 
 	ctx := context.Background()
-	oldConnID, err := h.connMgr.AcquireSession(ctx, wsConn.TenantID, wsConn.UserID, wsConn.ID, h.sessionTTL)
-	if err != nil {
-		wsConn.logger.Error().Err(err).Msg("failed to acquire session")
-		h.connMgr.Unregister(wsConn.ID)
-		wsConn.CloseWithReason("failed_to_acquire_session")
-		return
-	}
+	oldConnID, _ := h.connMgr.AcquireSession(ctx, wsConn.TenantID, wsConn.UserID, wsConn.ID, h.sessionTTL)
+	//if err != nil {
+	//	wsConn.logger.Error().Err(err).Msg("failed to acquire session")
+	//	h.connMgr.Unregister(wsConn.ID)
+	//	wsConn.CloseWithReason("failed_to_acquire_session")
+	//	return
+	//}
 	if oldConnID != "" && oldConnID != wsConn.ID {
 		_ = h.connMgr.PublishKick(ctx, WSKickMessage{
 			TenantID: wsConn.TenantID,
