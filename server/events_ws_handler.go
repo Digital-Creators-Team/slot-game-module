@@ -172,6 +172,8 @@ func (h *EventsWSHandler) Stream(g *gin.Context) {
 		claims.CurrencyID = "gold"
 	}
 
+	connID := uuid.NewString()
+
 	conn, err := h.upgrader.Upgrade(g.Writer, g.Request, nil)
 	if err != nil {
 		h.logger.Error().Err(err).Msg("failed to upgrade to websocket")
@@ -179,12 +181,12 @@ func (h *EventsWSHandler) Stream(g *gin.Context) {
 	}
 
 	wsConn := &WSConn{
-		ID:       uuid.NewString(),
+		ID:       connID,
 		TenantID: claims.TenantID,
 		UserID:   claims.UserID,
 		conn:     conn,
 		logger: h.logger.With().
-			Str("conn_id", uuid.NewString()).
+			Str("conn_id", connID).
 			Str("tenant_id", claims.TenantID).
 			Str("user_id", claims.UserID).
 			Logger(),
@@ -206,9 +208,9 @@ func (h *EventsWSHandler) Stream(g *gin.Context) {
 	ctx := context.Background()
 	oldConnID, err := h.connMgr.AcquireSession(ctx, wsConn.TenantID, wsConn.UserID, wsConn.ID, h.sessionTTL)
 	if err != nil {
+		wsConn.logger.Error().Err(err).Msg("failed to acquire session")
 		h.connMgr.Unregister(wsConn.ID)
-		_ = conn.Close()
-		ErrorWithMessage(g, http.StatusInternalServerError, "failed to acquire session")
+		wsConn.CloseWithReason("failed_to_acquire_session")
 		return
 	}
 	if oldConnID != "" && oldConnID != wsConn.ID {
