@@ -45,8 +45,15 @@ func NewEventsWSHandler(app *App, connMgr *WSConnManager) *EventsWSHandler {
 	}
 }
 
-func (h *EventsWSHandler) Context() (context.Context, context.CancelFunc) {
-	return context.WithTimeout(context.Background(), wsTimeout)
+func (h *EventsWSHandler) buildWSBaseContext(reqCtx context.Context, claims *auth.Claims) context.Context {
+	if reqCtx != nil {
+		if mc := game.FromContext(reqCtx); mc != nil {
+			return game.WithContext(context.Background(), mc)
+		}
+	}
+	user := game.NewUser(claims.TenantID, claims.UserID, claims.Username, claims.CurrencyID)
+	mc := game.NewModuleContext(user, h.app.logger, h.app.stateProvider, h.app.walletProvider, h.app.rewardProvider, h.app.logProvider)
+	return game.WithContext(context.Background(), mc)
 }
 
 func (h *EventsWSHandler) timeoutReplyIfNeeded(ctx context.Context, err error) *wsReply {
@@ -78,10 +85,27 @@ type WSConn struct {
 
 	jackpotMu     sync.Mutex
 	jackpotCancel context.CancelFunc
+
+	baseCtx context.Context
 }
 
 func (c *WSConn) Done() <-chan struct{} {
 	return c.closed
+}
+
+func (c *WSConn) Context() context.Context {
+	if c.baseCtx != nil {
+		return c.baseCtx
+	}
+	return context.Background()
+}
+
+func (c *WSConn) NewCtxWithTimeout(timeout time.Duration) (context.Context, context.CancelFunc) {
+	base := c.Context()
+	if _, ok := base.Deadline(); ok {
+		return base, func() {}
+	}
+	return context.WithTimeout(base, timeout)
 }
 
 func (c *WSConn) Send(payload []byte) error {
@@ -174,6 +198,8 @@ func (h *EventsWSHandler) Stream(g *gin.Context) {
 		Str("tenant_id", claims.TenantID).
 		Str("user_id", claims.UserID).
 		Logger()
+
+	wsConn.baseCtx = h.buildWSBaseContext(g.Request.Context(), claims)
 
 	h.connMgr.Register(wsConn)
 
@@ -290,19 +316,19 @@ func (h *EventsWSHandler) handleMessage(c *WSConn, claims *auth.Claims, req WSRe
 		return
 	}
 
-	h.writeReply(c, req, path, h.dispatch(claims, req))
+	h.writeReply(c, req, path, h.dispatch(c, claims, req))
 }
 
-func (h *EventsWSHandler) dispatch(claims *auth.Claims, req WSRequest) *wsReply {
+func (h *EventsWSHandler) dispatch(c *WSConn, claims *auth.Claims, req WSRequest) *wsReply {
 	switch req.Type {
 	case WSEventAuthorizeGame:
-		return h.handleAuthorize(claims, req)
+		return h.handleAuthorize(c, claims, req)
 	case WSEventSpin:
-		return h.handleSpin(claims, req)
+		return h.handleSpin(c, claims, req)
 	case WSEventGetPlayerState:
-		return h.handleGetState(claims, req)
+		return h.handleGetState(c, claims, req)
 	case WSEventBetHistory:
-		return h.handleBetHistory(claims, req)
+		return h.handleBetHistory(c, claims, req)
 	default:
 		return errReply(http.StatusBadRequest, apperrors.New(apperrors.ErrInvalidRequest, "unknown event type"))
 	}
@@ -345,8 +371,8 @@ func (h *EventsWSHandler) sendError(c *WSConn, req WSRequest, path string, statu
 	_ = c.Send(b)
 }
 
-func (h *EventsWSHandler) handleAuthorize(claims *auth.Claims, req WSRequest) *wsReply {
-	ctx, cancel := h.Context()
+func (h *EventsWSHandler) handleAuthorize(c *WSConn, claims *auth.Claims, req WSRequest) *wsReply {
+	ctx, cancel := c.NewCtxWithTimeout(wsTimeout)
 	defer cancel()
 
 	gameModule := h.app.GetGame()
@@ -406,8 +432,8 @@ func (h *EventsWSHandler) handleAuthorize(claims *auth.Claims, req WSRequest) *w
 	return &wsReply{status: http.StatusOK, data: response}
 }
 
-func (h *EventsWSHandler) handleSpin(claims *auth.Claims, req WSRequest) *wsReply {
-	ctx, cancel := h.Context()
+func (h *EventsWSHandler) handleSpin(c *WSConn, claims *auth.Claims, req WSRequest) *wsReply {
+	ctx, cancel := c.NewCtxWithTimeout(wsTimeout)
 	defer cancel()
 
 	gameModule := h.app.GetGame()
@@ -478,8 +504,8 @@ func (h *EventsWSHandler) handleSpin(claims *auth.Claims, req WSRequest) *wsRepl
 	return &wsReply{status: http.StatusOK, data: response}
 }
 
-func (h *EventsWSHandler) handleGetState(claims *auth.Claims, req WSRequest) *wsReply {
-	ctx, cancel := h.Context()
+func (h *EventsWSHandler) handleGetState(c *WSConn, claims *auth.Claims, req WSRequest) *wsReply {
+	ctx, cancel := c.NewCtxWithTimeout(wsTimeout)
 	defer cancel()
 
 	gameModule := h.app.GetGame()
@@ -509,8 +535,8 @@ type betHistoryWSRequest struct {
 	Page     int     `json:"page"`
 }
 
-func (h *EventsWSHandler) handleBetHistory(claims *auth.Claims, req WSRequest) *wsReply {
-	ctx, cancel := h.Context()
+func (h *EventsWSHandler) handleBetHistory(c *WSConn, claims *auth.Claims, req WSRequest) *wsReply {
+	ctx, cancel := c.NewCtxWithTimeout(wsTimeout)
 	defer cancel()
 
 	gameModule := h.app.GetGame()
@@ -607,7 +633,8 @@ func (h *EventsWSHandler) autoSubscribeJackpot(c *WSConn, claims *auth.Claims) {
 	if gameModule == nil {
 		return
 	}
-	ctx := context.Background()
+	ctx, cancel := c.NewCtxWithTimeout(wsTimeout)
+	defer cancel()
 	state, err := h.app.stateProvider.GetPlayerState(ctx, claims.UserID, gameModule.GetGameCode())
 	if err != nil {
 		return
@@ -629,7 +656,8 @@ func (h *EventsWSHandler) autoSubscribeJackpot(c *WSConn, claims *auth.Claims) {
 func (h *EventsWSHandler) subscribeJackpot(c *WSConn, betMultiplier float32) {
 	c.StopJackpot()
 
-	ctx, cancel := context.WithCancel(context.Background())
+	base := c.Context()
+	ctx, cancel := context.WithCancel(base)
 	c.jackpotMu.Lock()
 	c.jackpotCancel = cancel
 	c.jackpotMu.Unlock()
