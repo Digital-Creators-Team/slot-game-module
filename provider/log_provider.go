@@ -138,16 +138,14 @@ func (p *LogProvider) LogSpin(ctx context.Context, log *server.SpinLog) (string,
 		SourceService: log.GameCode,
 		Action:        "normal", // Default action for spin
 		Details: SpinDetails{
-			SessionID: sessionID,
-			Username:  log.Username,
-			GameCode:  log.GameCode,
-			BetAmount: log.BetAmount,
-			WinAmount: log.WinAmount,
-			Currency:  log.Currency,
-			SpinType:  log.SpinType,
-			SpinResult: SpinWrapper{
-				Value: log.SpinResult,
-			},
+			SessionID:  sessionID,
+			Username:   log.Username,
+			GameCode:   log.GameCode,
+			BetAmount:  log.BetAmount,
+			WinAmount:  log.WinAmount,
+			Currency:   log.Currency,
+			SpinType:   log.SpinType,
+			SpinResult: log.SpinResult,
 			// this also exists in SpinResult, but adding it here saves time
 			// marshaling and unmarshaling in log-service for unrelated events
 			SplitRoundHistory: log.SplitRoundHistory,
