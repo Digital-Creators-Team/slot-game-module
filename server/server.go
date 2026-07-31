@@ -103,6 +103,8 @@ func New(opts Options) *App {
 	app.gameHandler = NewGameHandler(app)
 	app.jackpotHandler = NewJackpotHandler(app, app.jackpotService)
 	app.wsConnManager = NewWSConnManager(opts.Logger)
+	redis, _ := dbredis.New(app.config.Redis)
+	app.wsConnManager.SetRedisClient(redis)
 	app.eventsWSHandler = NewEventsWSHandler(app, app.wsConnManager)
 
 	return app
