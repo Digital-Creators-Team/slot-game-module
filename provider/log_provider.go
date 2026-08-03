@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Digital-Creators-Team/slot-game-module/auth"
 	"github.com/Digital-Creators-Team/slot-game-module/config"
 	"github.com/Digital-Creators-Team/slot-game-module/events/kafka"
 	"github.com/Digital-Creators-Team/slot-game-module/pkg/utils"
@@ -259,7 +258,7 @@ func (p *LogProvider) GetBetHistory(ctx context.Context, query *server.BetHistor
 		p.baseURL, query.GameCode, action, query.Page, query.Limit)
 
 	if query.Type == server.BetTypeJackpot {
-		url += fmt.Sprintf("&tenant_id=%v", ctx.Value(auth.TenantIDKey))
+		url += fmt.Sprintf("&tenant_id=%v", query.TenantID)
 	}
 
 	// Add round filter
