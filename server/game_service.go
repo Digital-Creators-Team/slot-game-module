@@ -406,6 +406,7 @@ func (s *GameService) ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest
 		}
 
 		// For games having Mini/Minor/Major bonus, but it's not jackpot
+		// TODO : Should be added a new "action" which is called "bonus"
 		for i, j := range spinResult.BonusJackpotPrizes {
 			sessionID, err = s.logJackpot(ctx, req.TenantID, req.UserID, req.Username, req.Name, gameCode, j.Tier,
 				totalBet.InexactFloat64(), spinResult.TotalWin.InexactFloat64(), j.Value.InexactFloat64(),
