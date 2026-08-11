@@ -261,6 +261,7 @@ func (p *LogProvider) GetBetHistory(ctx context.Context, query *server.BetHistor
 		p.baseURL, query.GameCode, action, query.Page, query.Limit)
 
 	if query.Type == server.BetTypeJackpot {
+		fmt.Println("222222 TenantIDKey :", ctx.Value(auth.TenantIDKey))
 		url += fmt.Sprintf("&tenant_id=%v", ctx.Value(auth.TenantIDKey))
 	}
 
