@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Digital-Creators-Team/slot-game-module/auth"
 	"github.com/Digital-Creators-Team/slot-game-module/config"
 	"github.com/Digital-Creators-Team/slot-game-module/events/kafka"
 	"github.com/Digital-Creators-Team/slot-game-module/pkg/utils"
@@ -165,18 +164,18 @@ func (p *LogProvider) LogSpin(ctx context.Context, log *server.SpinLog) (string,
 func (p *LogProvider) LogJackpot(ctx context.Context, log *server.JackpotLog) (string, error) {
 	if p.kafkaProducer == nil {
 		p.logger.Warn().Msg("Kafka producer not configured, skipping jackpot log")
-		return log.SessionId, nil
+		return log.SessionID, nil
 	}
 
 	event := AuditEvent{
 		Timestamp:     log.Timestamp,
 		TenantID:      log.TenantID,
 		UserID:        log.UserID,
-		SessionID:     log.SessionId,
+		SessionID:     log.SessionID,
 		SourceService: log.GameCode,
 		Action:        "jackpot",
 		Details: JackpotDetails{
-			SessionID:       log.SessionId,
+			SessionID:       log.SessionID,
 			Username:        log.Username,
 			Name:            log.Name,
 			GameCode:        log.GameCode,
@@ -189,15 +188,15 @@ func (p *LogProvider) LogJackpot(ctx context.Context, log *server.JackpotLog) (s
 			//SpinResult:      log.SpinResult,
 		},
 		Result:  "success",
-		TraceID: log.SessionId,
+		TraceID: log.SessionID,
 	}
 
-	if err := p.kafkaProducer.SendMessage(p.auditTopic, log.SessionId, event); err != nil {
+	if err := p.kafkaProducer.SendMessage(p.auditTopic, log.SessionID, event); err != nil {
 		p.logger.Error().Err(err).Msg("Failed to send jackpot log to Kafka")
 		return "", fmt.Errorf("failed to log jackpot: %w", err)
 	}
 
-	return log.SessionId, nil
+	return log.SessionID, nil
 }
 
 // LogEntry represents an audit log entry from the log service
@@ -248,12 +247,7 @@ func (p *LogProvider) GetBetHistory(ctx context.Context, query *server.BetHistor
 		p.baseURL, query.GameCode, action, query.Page, query.Limit)
 
 	if query.Type == server.BetTypeJackpot {
-		// TODO : Add tenant_id to jackpot queries if available in context
-		tenantId := ctx.Value(auth.TenantIDKey)
-		if tenantId == nil {
-			tenantId = "fgs"
-		}
-		url += fmt.Sprintf("&tenant_id=%v", tenantId)
+		url += fmt.Sprintf("&tenant_id=%v", query.TenantID)
 	}
 
 	// Add round filter

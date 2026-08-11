@@ -107,7 +107,7 @@ type SpinLog struct {
 
 // JackpotLog represents a jackpot log entry to be saved
 type JackpotLog struct {
-	SessionId       string      `json:"sessionId"`
+	SessionID       string      `json:"sessionId"`
 	TenantID        string      `json:"tenantId"`
 	UserID          string      `json:"userId"`
 	Username        string      `json:"username"` // Display name for history

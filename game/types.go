@@ -60,7 +60,7 @@ type JackpotPrize struct {
 	Value decimal.Decimal `json:"value,omitempty"`
 
 	// For games having Mini/Minor/Major bonus, but it's not jackpot
-	NumTreasures int `json:"numTreasures,omitempty"` // min = 1
+	SameItem int `json:"sameItem,omitempty"` // min = 1
 }
 
 // SpinResult represents the result of a single spin
