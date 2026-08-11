@@ -476,7 +476,8 @@ func (h *GameHandler) GetBetHistory(c *gin.Context) {
 
 	// Build query
 	query := &BetHistoryQuery{
-		UserID: userID,
+		TenantID: h.extractTenantID(c),
+		UserID:   userID,
 		//GameCode: params.GameCode,
 		GameCode: strings.TrimPrefix(params.GameCode, "amb-"), //TODO, hard code, improve later
 		Type:     params.Type,

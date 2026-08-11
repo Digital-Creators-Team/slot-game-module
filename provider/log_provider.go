@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Digital-Creators-Team/slot-game-module/auth"
 	"github.com/Digital-Creators-Team/slot-game-module/config"
 	"github.com/Digital-Creators-Team/slot-game-module/events/kafka"
 	"github.com/Digital-Creators-Team/slot-game-module/pkg/utils"
@@ -138,16 +137,14 @@ func (p *LogProvider) LogSpin(ctx context.Context, log *server.SpinLog) (string,
 		SourceService: log.GameCode,
 		Action:        "normal", // Default action for spin
 		Details: SpinDetails{
-			SessionID: sessionID,
-			Username:  log.Username,
-			GameCode:  log.GameCode,
-			BetAmount: log.BetAmount,
-			WinAmount: log.WinAmount,
-			Currency:  log.Currency,
-			SpinType:  log.SpinType,
-			SpinResult: SpinWrapper{
-				Value: log.SpinResult,
-			},
+			SessionID:  sessionID,
+			Username:   log.Username,
+			GameCode:   log.GameCode,
+			BetAmount:  log.BetAmount,
+			WinAmount:  log.WinAmount,
+			Currency:   log.Currency,
+			SpinType:   log.SpinType,
+			SpinResult: log.SpinResult,
 			// this also exists in SpinResult, but adding it here saves time
 			// marshaling and unmarshaling in log-service for unrelated events
 			SplitRoundHistory: log.SplitRoundHistory,
@@ -261,7 +258,7 @@ func (p *LogProvider) GetBetHistory(ctx context.Context, query *server.BetHistor
 		p.baseURL, query.GameCode, action, query.Page, query.Limit)
 
 	if query.Type == server.BetTypeJackpot {
-		url += fmt.Sprintf("&tenant_id=%v", ctx.Value(auth.TenantIDKey))
+		url += fmt.Sprintf("&tenant_id=%v", query.TenantID)
 	}
 
 	// Add round filter
