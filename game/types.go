@@ -62,55 +62,57 @@ type JackpotPrize struct {
 
 // SpinResult represents the result of a single spin
 type SpinResult struct {
-	Reels             [][]Symbol             `json:"reels,omitempty"`
-	Winlines          []Winline              `json:"winlines,omitempty"`
-	TotalWin          decimal.Decimal        `json:"totalWin,omitempty"`
-	TotalBet          decimal.Decimal        `json:"totalBet,omitempty"`
-	Multiplier        int                    `json:"multiplier,omitempty"`
-	IsGetFreeSpin     *bool                  `json:"isGetFreeSpin,omitempty"`
-	ResultFreeSpin    *int                   `json:"resultFreeSpin,omitempty"`
-	FreeSpinBets      []*SpinResult          `json:"freeSpinBets,omitempty"`
-	SplitRoundHistory bool                   `json:"splitRoundHistory,omitempty"`
-	Rounds            []*GameRound           `json:"rounds,omitempty"`
-	IsGetJackpot      *bool                  `json:"isGetJackpot,omitempty"`
-	TotalWinJackpot   decimal.Decimal        `json:"totalWinJackpot,omitempty"`
-	EndingBalance     decimal.Decimal        `json:"endingBalance,omitempty"`
-	RemainingFreeSpin *int                   `json:"remainingFreeSpin,omitempty"`
-	PlayedFreeSpin    *int                   `json:"playedFreeSpin,omitempty"`
-	TotalWinFreeSpin  decimal.Decimal        `json:"totalWinFreeSpin,omitempty"`
-	IsLastFreeSpin    *bool                  `json:"isLastFreeSpin,omitempty"`
-	JackpotType       *string                `json:"jackpotType,omitempty"`
-	JackpotTypes      []*string              `json:"jackpotTypes,omitempty"`
-	JackpotPrize      []JackpotPrize         `json:"jackpotPrize,omitempty"`
-	WinTitle          WinType                `json:"winTitle"`
-	SpinType          int                    `json:"spinType"`            // 0 = normal, 1 = free spin
-	SubReel           []int                  `json:"subReel,omitempty"`   // For games with sub reel (e.g., parrot treasure)
-	ExtraData         map[string]interface{} `json:"extraData,omitempty"` // Custom data for game-specific use
+	Reels              [][]Symbol             `json:"reels,omitempty"`
+	Winlines           []Winline              `json:"winlines,omitempty"`
+	TotalWin           decimal.Decimal        `json:"totalWin,omitempty"`
+	TotalBet           decimal.Decimal        `json:"totalBet,omitempty"`
+	Multiplier         int                    `json:"multiplier,omitempty"`
+	IsGetFreeSpin      *bool                  `json:"isGetFreeSpin,omitempty"`
+	ResultFreeSpin     *int                   `json:"resultFreeSpin,omitempty"`
+	FreeSpinBets       []*SpinResult          `json:"freeSpinBets,omitempty"`
+	SplitRoundHistory  bool                   `json:"splitRoundHistory,omitempty"`
+	Rounds             []*GameRound           `json:"rounds,omitempty"`
+	IsGetJackpot       *bool                  `json:"isGetJackpot,omitempty"`
+	TotalWinJackpot    decimal.Decimal        `json:"totalWinJackpot,omitempty"`
+	EndingBalance      decimal.Decimal        `json:"endingBalance,omitempty"`
+	RemainingFreeSpin  *int                   `json:"remainingFreeSpin,omitempty"`
+	PlayedFreeSpin     *int                   `json:"playedFreeSpin,omitempty"`
+	TotalWinFreeSpin   decimal.Decimal        `json:"totalWinFreeSpin,omitempty"`
+	IsLastFreeSpin     *bool                  `json:"isLastFreeSpin,omitempty"`
+	JackpotType        *string                `json:"jackpotType,omitempty"`
+	JackpotTypes       []*string              `json:"jackpotTypes,omitempty"`
+	JackpotPrize       []JackpotPrize         `json:"jackpotPrize,omitempty"`
+	BonusJackpotPrizes []JackpotPrize         `json:"bonusJackpotPrize,omitempty"` // For games having Mini/Minor/Major bonus, but it's not jackpot
+	WinTitle           WinType                `json:"winTitle"`
+	SpinType           int                    `json:"spinType"`            // 0 = normal, 1 = free spin
+	SubReel            []int                  `json:"subReel,omitempty"`   // For games with sub reel (e.g., parrot treasure)
+	ExtraData          map[string]interface{} `json:"extraData,omitempty"` // Custom data for game-specific use
 }
 
 // SpinResponse represents the API response for a spin
 type SpinResponse struct {
-	TotalWin          decimal.Decimal        `json:"totalWin,omitempty"`
-	WinTitle          WinType                `json:"winTitle"`
-	ResultFreeSpin    *int                   `json:"resultFreeSpin,omitempty"`
-	TotalWinJackpot   decimal.Decimal        `json:"totalWinJackpot,omitempty"`
-	IsGetFreeSpin     *bool                  `json:"isGetFreeSpin,omitempty"`
-	IsGetJackpot      *bool                  `json:"isGetJackpot,omitempty"`
-	Rounds            []*GameRound           `json:"rounds,omitempty"`
-	Reels             [][]Symbol             `json:"reels,omitempty"`
-	Winlines          *[]Winline             `json:"winlines,omitempty"`
-	TotalWinFreeSpin  decimal.Decimal        `json:"totalWinFreeSpin,omitempty"`
-	RemainingFreeSpin *int                   `json:"remainingFreeSpin,omitempty"`
-	PlayedFreeSpin    *int                   `json:"playedFreeSpin,omitempty"`
-	IsLastFreeSpin    *bool                  `json:"isLastFreeSpin,omitempty"`
-	EndingBalance     decimal.Decimal        `json:"endingBalance,omitempty"`
-	TotalBet          decimal.Decimal        `json:"totalBet,omitempty"`
-	Multiplier        int                    `json:"multiplier,omitempty"`
-	SpinType          int                    `json:"spinType"`
-	JackpotPrize      []JackpotPrize         `json:"jackpotPrize,omitempty"`
-	SubReel           []int                  `json:"subReel,omitempty"`
-	JackpotTypes      []*string              `json:"jackpotTypes,omitempty"`
-	ExtraData         map[string]interface{} `json:"extraData,omitempty"` // Custom data for game-specific use
+	TotalWin           decimal.Decimal        `json:"totalWin,omitempty"`
+	WinTitle           WinType                `json:"winTitle"`
+	ResultFreeSpin     *int                   `json:"resultFreeSpin,omitempty"`
+	TotalWinJackpot    decimal.Decimal        `json:"totalWinJackpot,omitempty"`
+	IsGetFreeSpin      *bool                  `json:"isGetFreeSpin,omitempty"`
+	IsGetJackpot       *bool                  `json:"isGetJackpot,omitempty"`
+	Rounds             []*GameRound           `json:"rounds,omitempty"`
+	Reels              [][]Symbol             `json:"reels,omitempty"`
+	Winlines           *[]Winline             `json:"winlines,omitempty"`
+	TotalWinFreeSpin   decimal.Decimal        `json:"totalWinFreeSpin,omitempty"`
+	RemainingFreeSpin  *int                   `json:"remainingFreeSpin,omitempty"`
+	PlayedFreeSpin     *int                   `json:"playedFreeSpin,omitempty"`
+	IsLastFreeSpin     *bool                  `json:"isLastFreeSpin,omitempty"`
+	EndingBalance      decimal.Decimal        `json:"endingBalance,omitempty"`
+	TotalBet           decimal.Decimal        `json:"totalBet,omitempty"`
+	Multiplier         int                    `json:"multiplier,omitempty"`
+	SpinType           int                    `json:"spinType"`
+	JackpotPrize       []JackpotPrize         `json:"jackpotPrize,omitempty"`
+	SubReel            []int                  `json:"subReel,omitempty"`
+	JackpotTypes       []*string              `json:"jackpotTypes,omitempty"`
+	BonusJackpotPrizes []JackpotPrize         `json:"bonusJackpotPrizes,omitempty"` // For games having Mini/Minor/Major bonus, but it's not jackpot
+	ExtraData          map[string]interface{} `json:"extraData,omitempty"`          // Custom data for game-specific use
 }
 
 // ToSpinResponse converts SpinResult to SpinResponse format
@@ -121,27 +123,28 @@ func (sr *SpinResult) ToSpinResponse() *SpinResponse {
 	}
 
 	return &SpinResponse{
-		TotalWin:          sr.TotalWin,
-		WinTitle:          sr.WinTitle,
-		Rounds:            sr.Rounds,
-		ResultFreeSpin:    sr.ResultFreeSpin,
-		TotalWinJackpot:   sr.TotalWinJackpot,
-		IsGetFreeSpin:     sr.IsGetFreeSpin,
-		IsGetJackpot:      sr.IsGetJackpot,
-		Reels:             sr.Reels,
-		Winlines:          winlines,
-		TotalWinFreeSpin:  sr.TotalWinFreeSpin,
-		RemainingFreeSpin: sr.RemainingFreeSpin,
-		PlayedFreeSpin:    sr.PlayedFreeSpin,
-		IsLastFreeSpin:    sr.IsLastFreeSpin,
-		EndingBalance:     sr.EndingBalance,
-		TotalBet:          sr.TotalBet,
-		Multiplier:        sr.Multiplier,
-		SpinType:          sr.SpinType,
-		JackpotTypes:      sr.JackpotTypes,
-		JackpotPrize:      sr.JackpotPrize,
-		SubReel:           sr.SubReel,
-		ExtraData:         sr.ExtraData,
+		TotalWin:           sr.TotalWin,
+		WinTitle:           sr.WinTitle,
+		Rounds:             sr.Rounds,
+		ResultFreeSpin:     sr.ResultFreeSpin,
+		TotalWinJackpot:    sr.TotalWinJackpot,
+		IsGetFreeSpin:      sr.IsGetFreeSpin,
+		IsGetJackpot:       sr.IsGetJackpot,
+		Reels:              sr.Reels,
+		Winlines:           winlines,
+		TotalWinFreeSpin:   sr.TotalWinFreeSpin,
+		RemainingFreeSpin:  sr.RemainingFreeSpin,
+		PlayedFreeSpin:     sr.PlayedFreeSpin,
+		IsLastFreeSpin:     sr.IsLastFreeSpin,
+		EndingBalance:      sr.EndingBalance,
+		TotalBet:           sr.TotalBet,
+		Multiplier:         sr.Multiplier,
+		SpinType:           sr.SpinType,
+		JackpotTypes:       sr.JackpotTypes,
+		JackpotPrize:       sr.JackpotPrize,
+		BonusJackpotPrizes: sr.BonusJackpotPrizes,
+		SubReel:            sr.SubReel,
+		ExtraData:          sr.ExtraData,
 	}
 }
 
