@@ -108,8 +108,8 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 	if err := s.validateSpinRequest(req); err != nil {
 		return nil, err
 	}
-	sessionId := uuid.New().String()
-	ctx = context.WithValue(ctx, SessionIDKey, sessionId)
+	sessionID := uuid.New().String()
+	ctx = context.WithValue(ctx, SessionIDKey, sessionID)
 
 	gameCode := s.gameModule.GetGameCode()
 
@@ -163,8 +163,6 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 
 	// 5. Determine spin type and execute
 	var spinResult *game.SpinResult
-	var sessionID string
-
 	if playerState.IsFreeSpin && playerState.RemainingFreeSpin > 0 {
 		// Execute free spin
 		spinResult, err = s.executeFreeSpin(ctx, req, playerState, playerState.BetMultiplier)
@@ -208,7 +206,7 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 		timestamp := time.Now().UTC()
 
 		sessionID, err = s.logProvider.LogSpin(ctx, &SpinLog{
-			SessionId:         sessionId,
+			SessionID:         sessionID,
 			TenantID:          req.TenantID,
 			UserID:            req.UserID,
 			Username:          req.Username,
@@ -282,8 +280,8 @@ func (s *GameService) ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest
 	if err := s.validateSpinRequest(req); err != nil {
 		return nil, err
 	}
-	sessionId := uuid.New().String()
-	ctx = context.WithValue(ctx, SessionIDKey, sessionId)
+	sessionID := uuid.New().String()
+	ctx = context.WithValue(ctx, SessionIDKey, sessionID)
 
 	gameCode := s.gameModule.GetGameCode()
 
@@ -340,8 +338,6 @@ func (s *GameService) ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest
 
 	// 5. Determine spin type and execute
 	var spinResult *game.SpinResult
-	var sessionID string
-
 	if playerState.IsFreeSpin && playerState.RemainingFreeSpin > 0 {
 		// Execute free spin
 		spinResult, err = s.executeFreeSpin(ctx, req, playerState, playerState.BetMultiplier)
@@ -383,7 +379,7 @@ func (s *GameService) ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest
 	if s.logProvider != nil {
 		timestamp := time.Now().UTC()
 		sessionID, err = s.logProvider.LogSpin(ctx, &SpinLog{
-			SessionId:         sessionId,
+			SessionID:         sessionID,
 			TenantID:          req.TenantID,
 			UserID:            req.UserID,
 			Username:          req.Username,
@@ -403,7 +399,7 @@ func (s *GameService) ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest
 		// log jackpot
 		if spinResult.IsGetJackpot != nil && *spinResult.IsGetJackpot {
 			for i, j := range spinResult.JackpotPrize {
-				sessionID, err = s.logJackpot(ctx, sessionId, req.TenantID, req.UserID, req.Username, req.Name, gameCode, j.Tier,
+				sessionID, err = s.logJackpot(ctx, sessionID, req.TenantID, req.UserID, req.Username, req.Name, gameCode, j.Tier,
 					totalBet.InexactFloat64(), spinResult.TotalWin.InexactFloat64(), j.Value.InexactFloat64(),
 					spinResult.SpinType, req.CurrencyID, i, spinResult)
 			}
@@ -415,7 +411,7 @@ func (s *GameService) ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest
 			eachWinBonus := spinResult.TotalWin.InexactFloat64() / float64(j.SameItem)
 			eachWinJackpotBonus := j.Value.InexactFloat64() / float64(j.SameItem)
 			for k := 0; k < j.SameItem; k++ {
-				sessionID, err = s.logJackpot(ctx, sessionId, req.TenantID, req.UserID, req.Username, req.Name, gameCode, j.Tier,
+				sessionID, err = s.logJackpot(ctx, sessionID, req.TenantID, req.UserID, req.Username, req.Name, gameCode, j.Tier,
 					totalBet.InexactFloat64(), eachWinBonus, eachWinJackpotBonus,
 					spinResult.SpinType, req.CurrencyID, i, spinResult)
 			}
