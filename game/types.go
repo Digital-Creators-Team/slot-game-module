@@ -58,6 +58,9 @@ type GameRound struct {
 type JackpotPrize struct {
 	Tier  string          `json:"jackpotType,omitempty"`
 	Value decimal.Decimal `json:"value,omitempty"`
+
+	// For games having Mini/Minor/Major bonus, but it's not jackpot
+	NumTreasures int `json:"numTreasures,omitempty"` // min = 1
 }
 
 // SpinResult represents the result of a single spin
