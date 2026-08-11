@@ -120,18 +120,18 @@ type AuditEvent struct {
 func (p *LogProvider) LogSpin(ctx context.Context, log *server.SpinLog) (string, error) {
 	if p.kafkaProducer == nil {
 		p.logger.Warn().Msg("Kafka producer not configured, skipping spin log")
-		return log.SessionId, nil
+		return log.SessionID, nil
 	}
 
 	event := AuditEvent{
 		Timestamp:     log.Timestamp,
 		TenantID:      log.TenantID,
 		UserID:        log.UserID,
-		SessionID:     log.SessionId,
+		SessionID:     log.SessionID,
 		SourceService: log.GameCode,
 		Action:        "normal", // Default action for spin
 		Details: SpinDetails{
-			SessionID:  log.SessionId,
+			SessionID:  log.SessionID,
 			Username:   log.Username,
 			GameCode:   log.GameCode,
 			BetAmount:  log.BetAmount,
@@ -144,7 +144,7 @@ func (p *LogProvider) LogSpin(ctx context.Context, log *server.SpinLog) (string,
 			SplitRoundHistory: log.SplitRoundHistory,
 		},
 		Result:  "success",
-		TraceID: log.SessionId,
+		TraceID: log.SessionID,
 	}
 
 	// Set action based on spin type
@@ -152,12 +152,12 @@ func (p *LogProvider) LogSpin(ctx context.Context, log *server.SpinLog) (string,
 	// 	event.Action = "free_spin"
 	// }
 
-	if err := p.kafkaProducer.SendMessage(p.auditTopic, log.SessionId, event); err != nil {
+	if err := p.kafkaProducer.SendMessage(p.auditTopic, log.SessionID, event); err != nil {
 		p.logger.Error().Err(err).Msg("Failed to send spin log to Kafka")
 		return "", fmt.Errorf("failed to log spin: %w", err)
 	}
 
-	return log.SessionId, nil
+	return log.SessionID, nil
 }
 
 // LogJackpot logs a jackpot win event and returns sessionID
