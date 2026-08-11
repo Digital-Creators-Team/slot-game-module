@@ -125,6 +125,7 @@ type JackpotLog struct {
 
 // BetHistoryQuery represents query parameters for bet history
 type BetHistoryQuery struct {
+	TenantID string  `json:"tenantId"`
 	UserID   string  `json:"userId"`
 	GameCode string  `json:"gameCode"`
 	Type     BetType `json:"type"`
