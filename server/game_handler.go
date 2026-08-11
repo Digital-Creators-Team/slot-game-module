@@ -484,9 +484,6 @@ func (h *GameHandler) GetBetHistory(c *gin.Context) {
 		Limit:    params.Limit,
 	}
 
-	tenantID := h.extractTenantID(c)
-	fmt.Println("1111111 ", tenantID)
-
 	// Get history
 	result, err := h.app.logProvider.GetBetHistory(ctx, query)
 	if err != nil {

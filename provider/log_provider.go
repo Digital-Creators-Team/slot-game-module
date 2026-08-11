@@ -261,8 +261,12 @@ func (p *LogProvider) GetBetHistory(ctx context.Context, query *server.BetHistor
 		p.baseURL, query.GameCode, action, query.Page, query.Limit)
 
 	if query.Type == server.BetTypeJackpot {
-		fmt.Println("222222 TenantIDKey :", ctx.Value(auth.TenantIDKey))
-		url += fmt.Sprintf("&tenant_id=%v", ctx.Value(auth.TenantIDKey))
+		// TODO : Add tenant_id to jackpot queries if available in context
+		tenantId := ctx.Value(auth.TenantIDKey)
+		if tenantId == nil {
+			tenantId = "fgs"
+		}
+		url += fmt.Sprintf("&tenant_id=%v", tenantId)
 	}
 
 	// Add round filter
