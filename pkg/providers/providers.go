@@ -90,6 +90,7 @@ type LogProvider interface {
 
 // SpinLog represents a spin log entry to be saved
 type SpinLog struct {
+	SessionID         string      `json:"sessionId"`
 	TenantID          string      `json:"tenantId"`
 	UserID            string      `json:"userId"`
 	Username          string      `json:"username"`
@@ -106,6 +107,7 @@ type SpinLog struct {
 
 // JackpotLog represents a jackpot log entry to be saved
 type JackpotLog struct {
+	SessionID       string      `json:"sessionId"`
 	TenantID        string      `json:"tenantId"`
 	UserID          string      `json:"userId"`
 	Username        string      `json:"username"` // Display name for history
