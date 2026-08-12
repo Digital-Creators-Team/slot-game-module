@@ -14,7 +14,6 @@ import (
 	"github.com/Digital-Creators-Team/slot-game-module/pkg/utils"
 	"github.com/Digital-Creators-Team/slot-game-module/server"
 	"github.com/Digital-Creators-Team/slot-game-module/types"
-	"github.com/google/uuid"
 	"github.com/mitchellh/mapstructure"
 	"github.com/rs/zerolog"
 )
@@ -119,25 +118,20 @@ type AuditEvent struct {
 
 // LogSpin logs a spin event and returns sessionID
 func (p *LogProvider) LogSpin(ctx context.Context, log *server.SpinLog) (string, error) {
-	sessionID, _ := ctx.Value(server.SessionIDKey).(string)
-	if sessionID == "" {
-		sessionID = uuid.New().String()
-	}
-
 	if p.kafkaProducer == nil {
 		p.logger.Warn().Msg("Kafka producer not configured, skipping spin log")
-		return sessionID, nil
+		return log.SessionID, nil
 	}
 
 	event := AuditEvent{
 		Timestamp:     log.Timestamp,
 		TenantID:      log.TenantID,
 		UserID:        log.UserID,
-		SessionID:     sessionID,
+		SessionID:     log.SessionID,
 		SourceService: log.GameCode,
 		Action:        "normal", // Default action for spin
 		Details: SpinDetails{
-			SessionID:  sessionID,
+			SessionID:  log.SessionID,
 			Username:   log.Username,
 			GameCode:   log.GameCode,
 			BetAmount:  log.BetAmount,
@@ -150,7 +144,7 @@ func (p *LogProvider) LogSpin(ctx context.Context, log *server.SpinLog) (string,
 			SplitRoundHistory: log.SplitRoundHistory,
 		},
 		Result:  "success",
-		TraceID: sessionID,
+		TraceID: log.SessionID,
 	}
 
 	// Set action based on spin type
@@ -158,35 +152,30 @@ func (p *LogProvider) LogSpin(ctx context.Context, log *server.SpinLog) (string,
 	// 	event.Action = "free_spin"
 	// }
 
-	if err := p.kafkaProducer.SendMessage(p.auditTopic, sessionID, event); err != nil {
+	if err := p.kafkaProducer.SendMessage(p.auditTopic, log.SessionID, event); err != nil {
 		p.logger.Error().Err(err).Msg("Failed to send spin log to Kafka")
 		return "", fmt.Errorf("failed to log spin: %w", err)
 	}
 
-	return sessionID, nil
+	return log.SessionID, nil
 }
 
 // LogJackpot logs a jackpot win event and returns sessionID
 func (p *LogProvider) LogJackpot(ctx context.Context, log *server.JackpotLog) (string, error) {
-	sessionID, _ := ctx.Value(server.SessionIDKey).(string)
-	if sessionID == "" {
-		sessionID = uuid.New().String()
-	}
-
 	if p.kafkaProducer == nil {
 		p.logger.Warn().Msg("Kafka producer not configured, skipping jackpot log")
-		return sessionID, nil
+		return log.SessionID, nil
 	}
 
 	event := AuditEvent{
 		Timestamp:     log.Timestamp,
 		TenantID:      log.TenantID,
 		UserID:        log.UserID,
-		SessionID:     sessionID,
+		SessionID:     log.SessionID,
 		SourceService: log.GameCode,
 		Action:        "jackpot",
 		Details: JackpotDetails{
-			SessionID:       sessionID,
+			SessionID:       log.SessionID,
 			Username:        log.Username,
 			Name:            log.Name,
 			GameCode:        log.GameCode,
@@ -199,15 +188,15 @@ func (p *LogProvider) LogJackpot(ctx context.Context, log *server.JackpotLog) (s
 			//SpinResult:      log.SpinResult,
 		},
 		Result:  "success",
-		TraceID: sessionID,
+		TraceID: log.SessionID,
 	}
 
-	if err := p.kafkaProducer.SendMessage(p.auditTopic, sessionID, event); err != nil {
+	if err := p.kafkaProducer.SendMessage(p.auditTopic, log.SessionID, event); err != nil {
 		p.logger.Error().Err(err).Msg("Failed to send jackpot log to Kafka")
 		return "", fmt.Errorf("failed to log jackpot: %w", err)
 	}
 
-	return sessionID, nil
+	return log.SessionID, nil
 }
 
 // LogEntry represents an audit log entry from the log service
