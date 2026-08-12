@@ -211,8 +211,8 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 			UserID:            req.UserID,
 			Username:          req.Username,
 			GameCode:          gameCode,
-			BetAmount:         spinResult.TotalBet.InexactFloat64(),
-			WinAmount:         spinResult.TotalWin.InexactFloat64(),
+			BetAmount:         spinResult.TotalBet,
+			WinAmount:         spinResult.TotalWin,
 			Currency:          req.CurrencyID,
 			SpinType:          spinResult.SpinType,
 			SpinResult:        spinResult,
@@ -234,9 +234,9 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 					Name:            req.Name,
 					GameCode:        gameCode,
 					Tier:            j.Tier,
-					BetAmount:       totalBet.InexactFloat64(),
-					WinAmount:       spinResult.TotalWin.InexactFloat64(),
-					TotalWinJackpot: j.Value.InexactFloat64(),
+					BetAmount:       totalBet,
+					WinAmount:       spinResult.TotalWin,
+					TotalWinJackpot: j.Value,
 					SpinType:        spinResult.SpinType,
 					Currency:        req.CurrencyID,
 					Timestamp:       time.Now().UTC().Add(time.Duration(i*1000) * time.Microsecond), // add 1ms for each jp log
@@ -384,8 +384,8 @@ func (s *GameService) ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest
 			UserID:            req.UserID,
 			Username:          req.Username,
 			GameCode:          gameCode,
-			BetAmount:         spinResult.TotalBet.InexactFloat64(),
-			WinAmount:         spinResult.TotalWin.InexactFloat64(),
+			BetAmount:         spinResult.TotalBet,
+			WinAmount:         spinResult.TotalWin,
 			Currency:          req.CurrencyID,
 			SpinType:          spinResult.SpinType,
 			SpinResult:        spinResult,
@@ -400,7 +400,7 @@ func (s *GameService) ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest
 		if spinResult.IsGetJackpot != nil && *spinResult.IsGetJackpot {
 			for i, j := range spinResult.JackpotPrize {
 				sessionID, err = s.logJackpot(ctx, sessionID, req.TenantID, req.UserID, req.Username, req.Name, gameCode, j.Tier,
-					totalBet.InexactFloat64(), spinResult.TotalWin.InexactFloat64(), j.Value.InexactFloat64(),
+					totalBet, spinResult.TotalWin, j.Value,
 					spinResult.SpinType, req.CurrencyID, i, spinResult)
 			}
 		}
@@ -408,11 +408,12 @@ func (s *GameService) ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest
 		// For games having Mini/Minor/Major bonus, but it's not jackpot
 		// TODO : Should be added a new "action" which is called "bonus"
 		for i, j := range spinResult.BonusJackpotPrizes {
-			eachWinBonus := spinResult.TotalWin.InexactFloat64() / float64(j.SameItem)
-			eachWinJackpotBonus := j.Value.InexactFloat64() / float64(j.SameItem)
+			sameItems := decimal.NewFromInt(int64(j.SameItem))
+			eachWinBonus := spinResult.TotalWin.Div(sameItems)
+			eachWinJackpotBonus := j.Value.Div(sameItems)
 			for k := 0; k < j.SameItem; k++ {
 				sessionID, err = s.logJackpot(ctx, sessionID, req.TenantID, req.UserID, req.Username, req.Name, gameCode, j.Tier,
-					totalBet.InexactFloat64(), eachWinBonus, eachWinJackpotBonus,
+					totalBet, eachWinBonus, eachWinJackpotBonus,
 					spinResult.SpinType, req.CurrencyID, i, spinResult)
 			}
 		}
@@ -780,7 +781,7 @@ func (s *GameService) processJackpotWin(
 }
 
 func (s *GameService) logJackpot(ctx context.Context, sessionId, tenantID, userID, username, name, gameCode, tier string,
-	totalBet, totalWin, totalWinJackpot float64,
+	totalBet, totalWin, totalWinJackpot decimal.Decimal,
 	spinType int, currencyID string, index int, spinResult *game.SpinResult) (string, error) {
 	sessionID, err := s.logProvider.LogJackpot(ctx, &JackpotLog{
 		SessionID:       sessionId,
