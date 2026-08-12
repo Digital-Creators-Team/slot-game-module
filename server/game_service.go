@@ -399,7 +399,7 @@ func (s *GameService) ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest
 		// log jackpot
 		if spinResult.IsGetJackpot != nil && *spinResult.IsGetJackpot {
 			for i, j := range spinResult.JackpotPrize {
-				sessionID, err = s.logJackpot(ctx, sessionID, req.TenantID, req.UserID, req.Username, req.Name, gameCode, j.Tier,
+				sessionID, _ = s.logJackpot(ctx, sessionID, req.TenantID, req.UserID, req.Username, req.Name, gameCode, j.Tier,
 					totalBet.InexactFloat64(), spinResult.TotalWin.InexactFloat64(), j.Value.InexactFloat64(),
 					spinResult.SpinType, req.CurrencyID, i, spinResult)
 			}
@@ -412,7 +412,7 @@ func (s *GameService) ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest
 			eachWinBonus := spinResult.TotalWin.Div(sameItems)
 			eachWinJackpotBonus := j.Value.Div(sameItems)
 			for k := 0; k < j.SameItem; k++ {
-				sessionID, err = s.logJackpot(ctx, sessionID, req.TenantID, req.UserID, req.Username, req.Name, gameCode, j.Tier,
+				sessionID, _ = s.logJackpot(ctx, sessionID, req.TenantID, req.UserID, req.Username, req.Name, gameCode, j.Tier,
 					totalBet.InexactFloat64(), eachWinBonus.InexactFloat64(), eachWinJackpotBonus.InexactFloat64(),
 					spinResult.SpinType, req.CurrencyID, i, spinResult)
 			}
