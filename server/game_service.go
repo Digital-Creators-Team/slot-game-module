@@ -408,9 +408,9 @@ func (s *GameService) ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest
 		// For games having Mini/Minor/Major bonus, but it's not jackpot
 		// TODO : Should be added a new "action" which is called "bonus"
 		for i, j := range spinResult.BonusJackpotPrizes {
-			sameItems := decimal.NewFromInt(int64(j.SameItem))
-			eachWinBonus := spinResult.TotalWin.Div(sameItems)
-			eachWinJackpotBonus := j.Value.Div(sameItems)
+			sameItem := decimal.NewFromInt(int64(j.SameItem))
+			eachWinBonus := spinResult.TotalWin.Div(sameItem)
+			eachWinJackpotBonus := j.Value.Div(sameItem)
 			for k := 0; k < j.SameItem; k++ {
 				sessionID, err = s.logJackpot(ctx, sessionID, req.TenantID, req.UserID, req.Username, req.Name, gameCode, j.Tier,
 					totalBet, eachWinBonus, eachWinJackpotBonus,
