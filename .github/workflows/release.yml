@@ -25,7 +25,7 @@ jobs:
 
       - name: Set up Git
         run: |
-          git config user.email "ci@futuregamestudio.net"
+          git config user.email "ci@osveuveglobel.club"
           git config user.name "GitHub Actions"
 
       - name: Get latest tag
