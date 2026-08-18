@@ -2294,7 +2294,7 @@ jobs:
       app_name: game-{{.GameCode}}
       image_name: digital-creators-team/game-{{.GameCode}}
       ingress_enabled: "true"
-      ingress_host: "data.futuregamestudio.net"
+      ingress_host: "data-dev.osveuveglobel.club"
       ingress_path: "/games/{{.GameCode}}(/|$)(.*)"
       ingress_path_type: "ImplementationSpecific"
       ingress_rewrite_target: "/api/games/{{.GameCode}}/$2"
