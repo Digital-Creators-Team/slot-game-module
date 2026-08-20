@@ -314,6 +314,7 @@ func (p *WalletProvider) SettleBets(ctx context.Context, productId, tenantID, us
 			},
 		},
 	})
+	fmt.Printf("===> SettleBets, data check: %s, betAmount: %f, payoutAmount: %f\n", url, amount.InexactFloat64(), payoutAmount.InexactFloat64())
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
@@ -326,6 +327,7 @@ func (p *WalletProvider) SettleBets(ctx context.Context, productId, tenantID, us
 		return fmt.Errorf("failed to deposit: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
+	fmt.Printf("===> SettleBets, resp check: %+v\n", resp)
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("deposit failed with status %d", resp.StatusCode)
