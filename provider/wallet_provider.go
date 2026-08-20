@@ -196,7 +196,7 @@ func (p *WalletProvider) Withdraw(ctx context.Context, userID, currencyID string
 // Withdraw deducts amount from player balance
 func (p *WalletProvider) PlaceBets(ctx context.Context, productId, tenantID, userName, currencyID string, amount decimal.Decimal, roundID string, transactionId string, gameCode string, gameName string) error {
 	url := fmt.Sprintf("%s/placeBets", p.baseURL)
-	fmt.Printf("===> PlaceBets, data check: %s\n", url)
+	fmt.Printf("===> PlaceBets, data check ver1.1: %s\n", url)
 
 	body, _ := json.Marshal(map[string]interface{}{
 		"id":              uuid.New().String(),
@@ -314,7 +314,7 @@ func (p *WalletProvider) SettleBets(ctx context.Context, productId, tenantID, us
 			},
 		},
 	})
-	fmt.Printf("===> SettleBets, data check: %s, betAmount: %f, payoutAmount: %f\n", url, amount.InexactFloat64(), payoutAmount.InexactFloat64())
+	fmt.Printf("===> SettleBets, data check: %s, betAmount: %f, payoutAmount: %f, username: %s, transactionId: %s\n", url, amount.InexactFloat64(), payoutAmount.InexactFloat64(), username, transactionId)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
