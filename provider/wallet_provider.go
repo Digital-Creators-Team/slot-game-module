@@ -328,6 +328,18 @@ func (p *WalletProvider) SettleBets(ctx context.Context, productId, tenantID, us
 	}
 	defer func() { _ = resp.Body.Close() }()
 	fmt.Printf("===> SettleBets, resp check: %+v\n", resp)
+	var result struct {
+		ID            string  `json:"id"`
+		StatusCode    int     `json:"statusCode"`
+		ProductId     string  `json:"productId"`
+		BalanceBefore float64 `json:"balanceBefore"` // External service returns float64
+		BalanceAfter  float64 `json:"balanceAfter"`
+	}
+	//var errResp ErrorResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return fmt.Errorf("withdraw failed with status %d", resp.StatusCode)
+	}
+	fmt.Printf("===> SettleBets, result check: %+v\n", result)
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("deposit failed with status %d", resp.StatusCode)
