@@ -14,7 +14,6 @@ import (
 	"github.com/Digital-Creators-Team/slot-game-module/pkg/utils"
 	"github.com/Digital-Creators-Team/slot-game-module/server"
 	"github.com/Digital-Creators-Team/slot-game-module/types"
-	"github.com/google/uuid"
 	"github.com/mitchellh/mapstructure"
 	"github.com/rs/zerolog"
 )
@@ -22,7 +21,6 @@ import (
 // SpinDetails represents spin log details for mapstructure decoding
 type SpinDetails struct {
 	SessionID         string      `mapstructure:"sessionId" json:"sessionId"`
-	TenantID          string      `mapstructure:"tenantId" json:"tenantId"`
 	Username          string      `mapstructure:"username" json:"username"`
 	GameCode          string      `mapstructure:"gameCode" json:"gameCode"`
 	BetAmount         float64     `mapstructure:"betAmount" json:"betAmount"`
@@ -59,7 +57,6 @@ type RoundDetails struct {
 // JackpotDetails represents jackpot log details for mapstructure decoding
 type JackpotDetails struct {
 	SessionID       string  `mapstructure:"sessionId" json:"sessionId"`
-	TenantID        string  `mapstructure:"tenantId" json:"tenantId"`
 	Username        string  `mapstructure:"username" json:"username"`
 	Name            string  `mapstructure:"name" json:"name"`
 	GameCode        string  `mapstructure:"gameCode" json:"gameCode"`
@@ -121,41 +118,33 @@ type AuditEvent struct {
 
 // LogSpin logs a spin event and returns sessionID
 func (p *LogProvider) LogSpin(ctx context.Context, log *server.SpinLog) (string, error) {
-	sessionID, _ := ctx.Value(server.SessionIDKey).(string)
-	if sessionID == "" {
-		sessionID = uuid.New().String()
-	}
-
 	if p.kafkaProducer == nil {
 		p.logger.Warn().Msg("Kafka producer not configured, skipping spin log")
-		return sessionID, nil
+		return log.SessionID, nil
 	}
 
 	event := AuditEvent{
 		Timestamp:     log.Timestamp,
 		TenantID:      log.TenantID,
 		UserID:        log.UserID,
-		SessionID:     sessionID,
+		SessionID:     log.SessionID,
 		SourceService: log.GameCode,
 		Action:        "normal", // Default action for spin
 		Details: SpinDetails{
-			SessionID: sessionID,
-			TenantID:  log.TenantID,
-			Username:  log.Username,
-			GameCode:  log.GameCode,
-			BetAmount: log.BetAmount,
-			WinAmount: log.WinAmount,
-			Currency:  log.Currency,
-			SpinType:  log.SpinType,
-			SpinResult: SpinWrapper{
-				Value: log.SpinResult,
-			},
+			SessionID:  log.SessionID,
+			Username:   log.Username,
+			GameCode:   log.GameCode,
+			BetAmount:  log.BetAmount,
+			WinAmount:  log.WinAmount,
+			Currency:   log.Currency,
+			SpinType:   log.SpinType,
+			SpinResult: log.SpinResult,
 			// this also exists in SpinResult, but adding it here saves time
 			// marshaling and unmarshaling in log-service for unrelated events
 			SplitRoundHistory: log.SplitRoundHistory,
 		},
 		Result:  "success",
-		TraceID: sessionID,
+		TraceID: log.SessionID,
 	}
 
 	// Set action based on spin type
@@ -163,36 +152,30 @@ func (p *LogProvider) LogSpin(ctx context.Context, log *server.SpinLog) (string,
 	// 	event.Action = "free_spin"
 	// }
 
-	if err := p.kafkaProducer.SendMessage(p.auditTopic, sessionID, event); err != nil {
+	if err := p.kafkaProducer.SendMessage(p.auditTopic, log.SessionID, event); err != nil {
 		p.logger.Error().Err(err).Msg("Failed to send spin log to Kafka")
 		return "", fmt.Errorf("failed to log spin: %w", err)
 	}
 
-	return sessionID, nil
+	return log.SessionID, nil
 }
 
 // LogJackpot logs a jackpot win event and returns sessionID
 func (p *LogProvider) LogJackpot(ctx context.Context, log *server.JackpotLog) (string, error) {
-	sessionID, _ := ctx.Value(server.SessionIDKey).(string)
-	if sessionID == "" {
-		sessionID = uuid.New().String()
-	}
-
 	if p.kafkaProducer == nil {
 		p.logger.Warn().Msg("Kafka producer not configured, skipping jackpot log")
-		return sessionID, nil
+		return log.SessionID, nil
 	}
 
 	event := AuditEvent{
 		Timestamp:     log.Timestamp,
 		TenantID:      log.TenantID,
 		UserID:        log.UserID,
-		SessionID:     sessionID,
+		SessionID:     log.SessionID,
 		SourceService: log.GameCode,
 		Action:        "jackpot",
 		Details: JackpotDetails{
-			SessionID:       sessionID,
-			TenantID:        log.TenantID,
+			SessionID:       log.SessionID,
 			Username:        log.Username,
 			Name:            log.Name,
 			GameCode:        log.GameCode,
@@ -205,15 +188,15 @@ func (p *LogProvider) LogJackpot(ctx context.Context, log *server.JackpotLog) (s
 			//SpinResult:      log.SpinResult,
 		},
 		Result:  "success",
-		TraceID: sessionID,
+		TraceID: log.SessionID,
 	}
 
-	if err := p.kafkaProducer.SendMessage(p.auditTopic, sessionID, event); err != nil {
+	if err := p.kafkaProducer.SendMessage(p.auditTopic, log.SessionID, event); err != nil {
 		p.logger.Error().Err(err).Msg("Failed to send jackpot log to Kafka")
 		return "", fmt.Errorf("failed to log jackpot: %w", err)
 	}
 
-	return sessionID, nil
+	return log.SessionID, nil
 }
 
 // LogEntry represents an audit log entry from the log service
@@ -262,6 +245,10 @@ func (p *LogProvider) GetBetHistory(ctx context.Context, query *server.BetHistor
 	// Build URL for log service API
 	url := fmt.Sprintf("%s/logs/search?source_service=%s&action=%s&offset=%d&limit=%d",
 		p.baseURL, query.GameCode, action, query.Page, query.Limit)
+
+	if query.Type == server.BetTypeJackpot {
+		url += fmt.Sprintf("&tenant_id=%v", query.TenantID)
+	}
 
 	// Add round filter
 	if query.Type == server.BetTypeNormal || query.Type == server.BetTypeFreeSpin {
@@ -336,6 +323,7 @@ func (p *LogProvider) GetBetHistory(ctx context.Context, query *server.BetHistor
 // convertToBet converts a LogEntry to Bet format
 func (p *LogProvider) convertToBet(entry LogEntry, betType server.BetType) *server.Bet {
 	bet := &server.Bet{
+		TenantID:  &entry.TenantID,
 		SessionID: entry.SessionID,
 		Time:      entry.Timestamp,
 	}
@@ -420,7 +408,6 @@ func (p *LogProvider) convertToBet(entry LogEntry, betType server.BetType) *serv
 		}
 		bet.TotalBet = details.BetAmount
 		bet.TotalWin = details.WinAmount
-		bet.TenantID = &details.TenantID
 		//bet.Username = &details.Username
 		bet.Username = &details.Name
 		bet.Name = &details.Name
@@ -481,7 +468,10 @@ func (s SpinWrapper) MarshalJSON() ([]byte, error) {
 	b, _ := json.Marshal(s.Value)
 
 	var m map[string]json.RawMessage
-	json.Unmarshal(b, &m)
+	err := json.Unmarshal(b, &m)
+	if err != nil {
+		return nil, err
+	}
 
 	rv := reflect.ValueOf(s.Value)
 	if rv.Kind() == reflect.Pointer {

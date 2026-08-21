@@ -48,7 +48,7 @@ func (p *RewardProvider) Contribute(ctx context.Context, req *providers.Contribu
 		"game_code": req.GameCode,
 		"user_id":   req.UserID,
 	}
-	
+
 	// Add spin_id and total_pools if provided
 	if req.SpinID != "" {
 		bodyMap["spin_id"] = req.SpinID
@@ -56,7 +56,7 @@ func (p *RewardProvider) Contribute(ctx context.Context, req *providers.Contribu
 	if req.TotalPools > 0 {
 		bodyMap["total_pools"] = req.TotalPools
 	}
-	
+
 	body, _ := json.Marshal(bodyMap)
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
@@ -85,8 +85,11 @@ func (p *RewardProvider) Claim(ctx context.Context, req *providers.ClaimRequest)
 	body, _ := json.Marshal(map[string]interface{}{
 		"pool_id":    req.PoolID,
 		"user_id":    req.UserID,
+		"username":   req.Username,
 		"game_code":  req.GameCode,
 		"init_value": req.InitValue.String(),
+		"agency":     req.Agency,
+		"wallet_url": req.WalletUrl,
 	})
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))

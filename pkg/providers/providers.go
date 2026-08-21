@@ -21,6 +21,7 @@ type WalletProvider interface {
 	PlaceBets(ctx context.Context, productId, tenantID, username, currencyID string, amount decimal.Decimal, roundID string, transactionId string, gameCode string, ameName string) error
 	Deposit(ctx context.Context, userID, currencyID string, amount decimal.Decimal) error
 	SettleBets(ctx context.Context, productId, tenantID, username, currencyID string, amount decimal.Decimal, payoutAmount decimal.Decimal, roundID string, transactionId string, gameCode string, gameName string) error
+	GetWalletUrl(ctx context.Context) string
 }
 
 // ContributeRequest represents a request to contribute to a jackpot pool
@@ -35,10 +36,13 @@ type ContributeRequest struct {
 
 // ClaimRequest represents a request to claim a jackpot pool
 type ClaimRequest struct {
-	PoolID    string          // Pool ID to claim from
-	UserID    string          // User ID claiming the jackpot
+	PoolID    string // Pool ID to claim from
+	UserID    string // User ID claiming the jackpot
+	Username  string
 	GameCode  string          // Game code
 	InitValue decimal.Decimal // Initial pool value for claim calculation
+	Agency    string
+	WalletUrl string
 }
 
 // RewardProvider interface for jackpot/reward operations
@@ -86,6 +90,7 @@ type LogProvider interface {
 
 // SpinLog represents a spin log entry to be saved
 type SpinLog struct {
+	SessionID         string      `json:"sessionId"`
 	TenantID          string      `json:"tenantId"`
 	UserID            string      `json:"userId"`
 	Username          string      `json:"username"`
@@ -102,6 +107,7 @@ type SpinLog struct {
 
 // JackpotLog represents a jackpot log entry to be saved
 type JackpotLog struct {
+	SessionID       string      `json:"sessionId"`
 	TenantID        string      `json:"tenantId"`
 	UserID          string      `json:"userId"`
 	Username        string      `json:"username"` // Display name for history
@@ -119,6 +125,7 @@ type JackpotLog struct {
 
 // BetHistoryQuery represents query parameters for bet history
 type BetHistoryQuery struct {
+	TenantID string  `json:"tenantId"`
 	UserID   string  `json:"userId"`
 	GameCode string  `json:"gameCode"`
 	Type     BetType `json:"type"`
