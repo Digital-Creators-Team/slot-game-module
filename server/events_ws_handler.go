@@ -283,6 +283,7 @@ type wsReply struct {
 	err    error
 }
 
+//nolint:unused
 func okReply(status int, data any) *wsReply {
 	return &wsReply{status: status, data: data}
 }
