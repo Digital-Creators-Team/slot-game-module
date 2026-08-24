@@ -19,7 +19,7 @@ import (
 )
 
 var (
-	ErrTenantNotFound = errors.New("not found")
+	ErrTenantNotFound = errors.New("tenant not found")
 )
 
 type TenantConfig struct {
