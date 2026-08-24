@@ -60,8 +60,9 @@ func NewTenantProvider(
 		httpClient: &http.Client{
 			Timeout: timeout,
 		},
-		cacheTTL: cacheTTL,
-		logger:   logger.With().Str("component", "tenant_provider").Logger(),
+		cacheTTL:  cacheTTL,
+		tenantMap: cache.NewTTLMap[server.ResponseTenant](),
+		logger:    logger.With().Str("component", "tenant_provider").Logger(),
 	}
 
 	if redisClient != nil && len(tenantConfig.EventChannel) > 0 {
