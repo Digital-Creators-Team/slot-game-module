@@ -374,7 +374,7 @@ func buildConfig(conf game.ConfigNormalizer, tenant *ResponseTenant) map[string]
 	if _, exists := n["tier"]; !exists {
 		n["tier"] = conf.GetConfig().Tier
 	}
-	if tenant != nil && len(tenant.LobbyHomeURL) > 0 {
+	if tenant != nil {
 		n["lobbyHomeUrl"] = tenant.LobbyHomeURL
 	}
 	return n
