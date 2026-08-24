@@ -107,6 +107,14 @@ func (h *GameHandler) Authorize(c *gin.Context) {
 		return
 	}
 
+	// Get tenant info
+	tenant, err := h.app.tenantProvider.Get(ctx, tenantID, false)
+	if err != nil {
+		h.logger.Error().Err(err).Msg("Failed to get tenant info")
+		InternalError(c, errors.Wrap(err, errors.ErrTenantError, "Failed to get tenant info"))
+		return
+	}
+
 	// Get player state - requires StateProvider
 	playerState, err := h.app.stateProvider.GetPlayerState(ctx, userID, gameModule.GetGameCode())
 	if err != nil {
@@ -143,7 +151,7 @@ func (h *GameHandler) Authorize(c *gin.Context) {
 	// Build response
 	response := game.AuthorizeResponse{
 		LastState:  s,
-		GameConfig: buildConfig(cfg),
+		GameConfig: buildConfig(cfg, tenant),
 		Player: game.Player{
 			TenantID: tenantID,
 			UserID:   userID,
@@ -353,18 +361,21 @@ func (h *GameHandler) GetConfig(c *gin.Context) {
 		return
 	}
 
-	response := buildConfig(cfg)
+	response := buildConfig(cfg, nil)
 
 	OK(c, response)
 }
 
-func buildConfig(conf game.ConfigNormalizer) map[string]interface{} {
+func buildConfig(conf game.ConfigNormalizer, tenant *ResponseTenant) map[string]interface{} {
 	n := conf.Normalize()
 	if _, exists := n["mul"]; !exists {
 		n["mul"] = conf.GetConfig().Multiplier
 	}
 	if _, exists := n["tier"]; !exists {
 		n["tier"] = conf.GetConfig().Tier
+	}
+	if tenant != nil {
+		n["lobbyHomeUrl"] = tenant.LobbyHomeURL
 	}
 	return n
 }

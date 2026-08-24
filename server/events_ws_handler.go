@@ -391,6 +391,18 @@ func (h *EventsWSHandler) handleAuthorize(c *WSConn, claims *auth.Claims, req WS
 		return &wsReply{status: http.StatusInternalServerError, err: apperrors.New(apperrors.ErrInternalServerError, "Failed to retrieve game configuration")}
 	}
 
+	if h.app.tenantProvider == nil {
+		return &wsReply{status: http.StatusInternalServerError, err: apperrors.New(apperrors.ErrInternalServerError, "Tenant provider not configured")}
+	}
+
+	tenant, err := h.app.tenantProvider.Get(ctx, claims.TenantID, false)
+	if err != nil {
+		if r := h.timeoutReplyIfNeeded(ctx, err); r != nil {
+			return r
+		}
+		return &wsReply{status: http.StatusInternalServerError, err: apperrors.Wrap(err, apperrors.ErrTenantError, "Failed to get tenant info")}
+	}
+
 	if h.app.stateProvider == nil {
 		return &wsReply{status: http.StatusInternalServerError, err: apperrors.New(apperrors.ErrInternalServerError, "State provider not configured")}
 	}
@@ -422,7 +434,7 @@ func (h *EventsWSHandler) handleAuthorize(c *WSConn, claims *auth.Claims, req WS
 
 	response := game.AuthorizeResponse{
 		LastState:  s,
-		GameConfig: buildConfig(cfg),
+		GameConfig: buildConfig(cfg, tenant),
 		Player: game.Player{
 			TenantID: claims.TenantID,
 			UserID:   claims.UserID,

@@ -7,6 +7,7 @@ type (
 	StateProvider      = providers.StateProvider
 	WalletProvider     = providers.WalletProvider
 	RewardProvider     = providers.RewardProvider
+	TenantProvider     = providers.TenantProvider
 	LogProvider        = providers.LogProvider
 	JackpotPool        = providers.JackpotPool
 	JackpotClaim       = providers.JackpotClaim
@@ -17,6 +18,7 @@ type (
 	Bet                = providers.Bet
 	BetHistoryResponse = providers.BetHistoryResponse
 	GameRound          = providers.GameRound
+	ResponseTenant     = providers.ResponseTenant
 )
 
 const (

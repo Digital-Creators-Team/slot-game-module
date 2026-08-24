@@ -1550,6 +1550,7 @@ func main() {
 	app.SetWalletProvider(provider.NewWalletProvider(cfg, logger))
 	app.SetRewardProvider(provider.NewRewardProvider(cfg, logger))
 	app.SetLogProvider(provider.NewLogProvider(cfg, kafkaProducer, logger))
+	app.SetTenantProvider(provider.NewTenantProvider(cfg, logger, redisClient))
 
 	// 4. Register game module
 	// Load from config directory (merges module-base.yml and {{.GameCodeSnake}}.yaml)
@@ -2128,6 +2129,11 @@ external_services:
   log_service:
     base_url: http://log-api:8388
     timeout: 5s
+  tenant_service:
+    base_url: http://tenant-api:8501
+    timeout: 5s
+    cache_ttl: 300s
+    event_channel: tenant:event:tenant
 `
 
 var moduleBaseConfigTemplate = `# Base module configuration (shared across games)
@@ -2321,6 +2327,8 @@ jobs:
           value: "http://reward-service.fgs-games.svc.cluster.local:80"
         - name: EXTERNAL_SERVICES_LOG_SERVICE_BASE_URL
           value: "http://log-service.fgs-games.svc.cluster.local:80"
+		- name: EXTERNAL_SERVICES_TENANT_SERVICE_BASE_URL
+          value: "http://tenant-service.fgs-games.svc.cluster.local:81"
       resources_config: |
         limits:
           cpu: 500m
@@ -2381,6 +2389,8 @@ jobs:
           value: "http://reward-service.fgs-games.svc.cluster.local:80"
         - name: EXTERNAL_SERVICES_LOG_SERVICE_BASE_URL
           value: "http://log-service.fgs-games.svc.cluster.local:80"
+		- name: EXTERNAL_SERVICES_TENANT_SERVICE_BASE_URL
+          value: "http://tenant-service.fgs-games.svc.cluster.local:81"
       resources_config: |
         limits:
           cpu: 500m
