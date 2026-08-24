@@ -54,15 +54,24 @@ type JWTConfig struct {
 
 // ExternalServicesConfig holds external service configurations
 type ExternalServicesConfig struct {
-	WalletService ServiceConfig `mapstructure:"wallet_service"`
-	RewardService ServiceConfig `mapstructure:"reward_service"`
-	LogService    ServiceConfig `mapstructure:"log_service"`
+	WalletService ServiceConfig       `mapstructure:"wallet_service"`
+	RewardService ServiceConfig       `mapstructure:"reward_service"`
+	LogService    ServiceConfig       `mapstructure:"log_service"`
+	TenantService TenantServiceConfig `mapstructure:"tenant_service"`
 }
 
 // ServiceConfig holds external service configuration
 type ServiceConfig struct {
 	BaseURL string        `mapstructure:"base_url"`
 	Timeout time.Duration `mapstructure:"timeout"`
+}
+
+// TenantServiceConfig holds tenant service configuration
+type TenantServiceConfig struct {
+	ServiceConfig
+
+	CacheTTL     time.Duration `mapstructure:"cache_ttl"`
+	EventChannel string        `mapstructure:"event_channel"`
 }
 
 // Load loads configuration from YAML file using Viper

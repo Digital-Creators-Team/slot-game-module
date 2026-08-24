@@ -26,6 +26,7 @@ const (
 	ErrRedisError          = 1007
 	ErrConfigError         = 1008
 	ErrGameLogicError      = 1009
+	ErrTenantError         = 1010
 )
 
 type StatusCode int

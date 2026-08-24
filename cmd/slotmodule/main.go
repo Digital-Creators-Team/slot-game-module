@@ -1550,6 +1550,7 @@ func main() {
 	app.SetWalletProvider(provider.NewWalletProvider(cfg, logger))
 	app.SetRewardProvider(provider.NewRewardProvider(cfg, logger))
 	app.SetLogProvider(provider.NewLogProvider(cfg, kafkaProducer, logger))
+	app.SetTenantProvider(provider.NewTenantProvider(cfg, logger, redisClient))
 
 	// 4. Register game module
 	// Load from config directory (merges module-base.yml and {{.GameCodeSnake}}.yaml)
