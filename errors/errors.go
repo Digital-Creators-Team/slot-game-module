@@ -12,6 +12,7 @@ const (
 	ErrForbidden           = 403
 	ErrNotFound            = 404
 	ErrConflict            = 409
+	ErrRequestTimeout      = 408
 	ErrInternalServerError = 500
 	ErrServiceUnavailable  = 503
 
@@ -148,6 +149,8 @@ func HTTPStatusFromCode(code int) int {
 		return 404
 	case ErrConflict:
 		return 409
+	case ErrRequestTimeout:
+		return 408
 	case ErrInternalServerError:
 		return 500
 	case ErrServiceUnavailable:

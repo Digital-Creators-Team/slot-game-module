@@ -196,7 +196,7 @@ func (p *WalletProvider) Withdraw(ctx context.Context, userID, currencyID string
 // Withdraw deducts amount from player balance
 func (p *WalletProvider) PlaceBets(ctx context.Context, productId, tenantID, userName, currencyID string, amount decimal.Decimal, roundID string, transactionId string, gameCode string, gameName string) error {
 	url := fmt.Sprintf("%s/placeBets", p.baseURL)
-	fmt.Printf("===> PlaceBets, data check: %s\n", url)
+	fmt.Printf("===> PlaceBets, data check ver1.1: %s\n", url)
 
 	body, _ := json.Marshal(map[string]interface{}{
 		"id":              uuid.New().String(),
@@ -314,6 +314,7 @@ func (p *WalletProvider) SettleBets(ctx context.Context, productId, tenantID, us
 			},
 		},
 	})
+	fmt.Printf("===> SettleBets, data check: %s, betAmount: %f, payoutAmount: %f, username: %s, transactionId: %s\n", url, amount.InexactFloat64(), payoutAmount.InexactFloat64(), username, transactionId)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
@@ -326,6 +327,19 @@ func (p *WalletProvider) SettleBets(ctx context.Context, productId, tenantID, us
 		return fmt.Errorf("failed to deposit: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
+	fmt.Printf("===> SettleBets, resp check: %+v\n", resp)
+	var result struct {
+		ID            string  `json:"id"`
+		StatusCode    int     `json:"statusCode"`
+		ProductId     string  `json:"productId"`
+		BalanceBefore float64 `json:"balanceBefore"` // External service returns float64
+		BalanceAfter  float64 `json:"balanceAfter"`
+	}
+	//var errResp ErrorResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return fmt.Errorf("withdraw failed with status %d", resp.StatusCode)
+	}
+	fmt.Printf("===> SettleBets, result check: %+v\n", result)
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("deposit failed with status %d", resp.StatusCode)

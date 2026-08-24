@@ -11,6 +11,7 @@ import (
 
 	"github.com/Digital-Creators-Team/slot-game-module/auth"
 	"github.com/Digital-Creators-Team/slot-game-module/config"
+	dbredis "github.com/Digital-Creators-Team/slot-game-module/db/redis"
 	"github.com/Digital-Creators-Team/slot-game-module/game"
 	"github.com/Digital-Creators-Team/slot-game-module/middleware"
 	"github.com/Digital-Creators-Team/slot-game-module/pkg/jackpot"
@@ -31,12 +32,14 @@ type App struct {
 	onShutdown         []func()
 	gameHandler        *GameHandler
 	jackpotHandler     *JackpotHandler
+	eventsWSHandler    *EventsWSHandler
 	jackpotService     *jackpot.Service
 	jackpotFeedCancel  context.CancelFunc
 	stateProvider      providers.StateProvider
 	walletProvider     providers.WalletProvider
 	rewardProvider     providers.RewardProvider
 	logProvider        providers.LogProvider
+	wsConnManager      *WSConnManager
 }
 
 // Options holds server configuration options
@@ -99,6 +102,10 @@ func New(opts Options) *App {
 	// Create handlers
 	app.gameHandler = NewGameHandler(app)
 	app.jackpotHandler = NewJackpotHandler(app, app.jackpotService)
+	app.wsConnManager = NewWSConnManager(opts.Logger)
+	redis, _ := dbredis.New(app.config.Redis)
+	app.wsConnManager.SetRedisClient(redis)
+	app.eventsWSHandler = NewEventsWSHandler(app, app.wsConnManager)
 
 	return app
 }
@@ -125,6 +132,15 @@ func (a *App) SetRewardProvider(provider RewardProvider) {
 // SetLogProvider sets the log provider for event logging
 func (a *App) SetLogProvider(provider LogProvider) {
 	a.logProvider = provider
+}
+
+func (a *App) SetRedisClient(client *dbredis.Client) {
+	if a.wsConnManager != nil {
+		a.wsConnManager.SetRedisClient(client)
+		a.OnShutdown(func() {
+			a.wsConnManager.Close()
+		})
+	}
 }
 
 // AttachJackpotUpdateFeed attaches a source of jackpot updates (e.g., Kafka consumer channel).
@@ -292,6 +308,7 @@ func (a *App) RegisterCommonGameRoutes() {
 			gameRoutes.GET("/config", a.gameHandler.GetConfig, a.ModuleContextMiddleware())
 			gameRoutes.GET("/jackpot/updates", a.jackpotHandler.StreamUpdates, a.ModuleContextMiddleware())             // SSE endpoint
 			gameRoutes.GET("/jackpot/updates/ws", a.jackpotHandler.StreamUpdatesWebSocket, a.ModuleContextMiddleware()) // WebSocket endpoint
+			gameRoutes.GET("/events/ws", a.eventsWSHandler.Stream)
 
 			// Protected routes (require JWT authentication)
 			authRoutes := gameRoutes.Group("")
