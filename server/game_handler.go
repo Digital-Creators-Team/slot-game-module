@@ -254,6 +254,7 @@ func (h *GameHandler) Spin(c *gin.Context) {
 		h.app.walletProvider,
 		h.app.rewardProvider,
 		h.app.logProvider,
+		h.app.tenantProvider,
 		h.logger,
 	)
 

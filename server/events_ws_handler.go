@@ -493,6 +493,7 @@ func (h *EventsWSHandler) handleSpin(c *WSConn, claims *auth.Claims, req WSReque
 		h.app.walletProvider,
 		h.app.rewardProvider,
 		h.app.logProvider,
+		h.app.tenantProvider,
 		h.logger,
 	)
 

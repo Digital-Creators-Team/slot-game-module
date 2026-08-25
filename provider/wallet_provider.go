@@ -13,6 +13,7 @@ import (
 
 	"github.com/Digital-Creators-Team/slot-game-module/config"
 	moduleerrors "github.com/Digital-Creators-Team/slot-game-module/errors"
+	"github.com/Digital-Creators-Team/slot-game-module/server"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
@@ -22,9 +23,10 @@ var ErrInsufficientFunds = errors.New("insufficient funds")
 
 // WalletProvider implements server.WalletProvider using HTTP client
 type WalletProvider struct {
-	baseURL    string
-	httpClient *http.Client
-	logger     zerolog.Logger
+	baseURL        string
+	httpClient     *http.Client
+	logger         zerolog.Logger
+	tenantProvider server.TenantProvider
 }
 
 type ErrorResponse struct {
@@ -348,6 +350,28 @@ func (p *WalletProvider) SettleBets(ctx context.Context, productId, tenantID, us
 	return nil
 }
 
-func (p *WalletProvider) GetWalletUrl(ctx context.Context) string {
-	return p.baseURL
+func (p *WalletProvider) GetWalletUrl(ctx context.Context, tenantID string) string {
+	if p.tenantProvider == nil {
+		return p.baseURL
+	}
+
+	tenant, err := p.tenantProvider.Get(ctx, tenantID, false)
+	if err != nil {
+		p.logger.Error().
+			Err(err).
+			Str("tenant_id", tenantID).
+			Msg("failed to get tenant")
+		return p.baseURL
+	}
+
+	return tenant.WalletCallbackURL
+}
+
+func (p *WalletProvider) SetTenantProvider(provider server.TenantProvider) {
+	p.tenantProvider = provider
+	if provider != nil {
+		p.logger.Debug().Msg("TenantProvider set on wallet service")
+	} else {
+		p.logger.Warn().Msg("TenantProvider set to nil on wallet service")
+	}
 }

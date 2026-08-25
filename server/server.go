@@ -56,6 +56,7 @@ type GameServiceFactory func(
 	walletProvider providers.WalletProvider,
 	rewardProvider providers.RewardProvider,
 	logProvider providers.LogProvider,
+	tenantProvider providers.TenantProvider,
 	logger zerolog.Logger,
 ) SpinService
 
@@ -89,9 +90,10 @@ func New(opts Options) *App {
 			walletProvider providers.WalletProvider,
 			rewardProvider providers.RewardProvider,
 			logProvider providers.LogProvider,
+			tenantProvider providers.TenantProvider,
 			logger zerolog.Logger,
 		) SpinService {
-			return NewGameService(gameModule, stateProvider, walletProvider, rewardProvider, logProvider, logger)
+			return NewGameService(gameModule, stateProvider, walletProvider, rewardProvider, logProvider, tenantProvider, logger)
 		},
 	}
 
@@ -138,6 +140,9 @@ func (a *App) SetLogProvider(provider LogProvider) {
 // SetTenantProvider sets the tenant provider for tenant operations
 func (a *App) SetTenantProvider(provider TenantProvider) {
 	a.tenantProvider = provider
+	if a.walletProvider != nil {
+		a.walletProvider.SetTenantProvider(provider)
+	}
 }
 
 func (a *App) SetRedisClient(client *dbredis.Client) {
@@ -190,12 +195,13 @@ func (a *App) newGameService(
 	walletProvider WalletProvider,
 	rewardProvider RewardProvider,
 	logProvider LogProvider,
+	tenantProvider providers.TenantProvider,
 	logger zerolog.Logger,
 ) SpinService {
 	if a.gameServiceFactory != nil {
-		return a.gameServiceFactory(gameModule, stateProvider, walletProvider, rewardProvider, logProvider, logger)
+		return a.gameServiceFactory(gameModule, stateProvider, walletProvider, rewardProvider, logProvider, tenantProvider, logger)
 	}
-	return NewGameService(gameModule, stateProvider, walletProvider, rewardProvider, logProvider, logger)
+	return NewGameService(gameModule, stateProvider, walletProvider, rewardProvider, logProvider, tenantProvider, logger)
 }
 
 // UseCommonMiddlewares adds common middlewares to the application

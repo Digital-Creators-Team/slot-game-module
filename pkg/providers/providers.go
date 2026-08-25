@@ -21,7 +21,8 @@ type WalletProvider interface {
 	PlaceBets(ctx context.Context, productId, tenantID, username, currencyID string, amount decimal.Decimal, roundID string, transactionId string, gameCode string, ameName string) error
 	Deposit(ctx context.Context, userID, currencyID string, amount decimal.Decimal) error
 	SettleBets(ctx context.Context, productId, tenantID, username, currencyID string, amount decimal.Decimal, payoutAmount decimal.Decimal, roundID string, transactionId string, gameCode string, gameName string) error
-	GetWalletUrl(ctx context.Context) string
+	GetWalletUrl(ctx context.Context, tenantID string) string
+	SetTenantProvider(provider TenantProvider)
 }
 
 // ContributeRequest represents a request to contribute to a jackpot pool

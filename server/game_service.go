@@ -47,6 +47,7 @@ type GameService struct {
 	walletProvider providers.WalletProvider
 	rewardProvider providers.RewardProvider
 	logProvider    providers.LogProvider
+	tenantProvider providers.TenantProvider
 	logger         zerolog.Logger
 }
 
@@ -57,6 +58,7 @@ func NewGameService(
 	walletProvider providers.WalletProvider,
 	rewardProvider providers.RewardProvider,
 	logProvider providers.LogProvider,
+	tenantProvider providers.TenantProvider,
 	logger zerolog.Logger,
 ) *GameService {
 	return &GameService{
@@ -65,6 +67,7 @@ func NewGameService(
 		walletProvider: walletProvider,
 		rewardProvider: rewardProvider,
 		logProvider:    logProvider,
+		tenantProvider: tenantProvider,
 		logger:         logger.With().Str("service", "game").Logger(),
 	}
 }
@@ -768,7 +771,7 @@ func (s *GameService) processJackpotWin(
 				GameCode:  gameCode,
 				InitValue: i.InitValue,
 				Agency:    tenantID,
-				WalletUrl: s.walletProvider.GetWalletUrl(ctx),
+				WalletUrl: s.walletProvider.GetWalletUrl(ctx, tenantID),
 			})
 
 			if err != nil {
