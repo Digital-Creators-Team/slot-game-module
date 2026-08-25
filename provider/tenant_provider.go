@@ -65,11 +65,6 @@ func NewTenantProvider(
 		logger:    logger.With().Str("component", "tenant_provider").Logger(),
 	}
 
-	p.logger.Info().
-		Any("tenant_config", tenantConfig).
-		Any("cfg", cfg).
-		Msg("")
-
 	if redisClient != nil && len(tenantConfig.EventChannel) > 0 {
 		go p.subscribeTenantEvent(redisClient, tenantConfig.EventChannel)
 	}
