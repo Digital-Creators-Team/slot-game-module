@@ -68,8 +68,8 @@ type ServiceConfig struct {
 
 // TenantServiceConfig holds tenant service configuration
 type TenantServiceConfig struct {
-	ServiceConfig
-
+	BaseURL      string        `mapstructure:"base_url"`
+	Timeout      time.Duration `mapstructure:"timeout"`
 	CacheTTL     time.Duration `mapstructure:"cache_ttl"`
 	EventChannel string        `mapstructure:"event_channel"`
 }
