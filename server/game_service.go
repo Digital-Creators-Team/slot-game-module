@@ -487,7 +487,10 @@ func (s *GameService) executeNormalSpin(
 	gameName := s.gameModule.GetGameName()
 	productId := s.gameModule.GetProductId()
 	roundID := uuid.New().String()
+	start := time.Now()
 	err := s.walletProvider.PlaceBets(ctx, productId, req.TenantID, req.Username, req.CurrencyID, totalBet, roundID, roundID, gameCode, gameName) // now using roundID for transactionId
+	elapsed := time.Since(start)
+	s.logger.Info().Int64("duration", elapsed.Milliseconds()).Msg("API PlaceBets response")
 	if err != nil {
 		fmt.Println("===> PlaceBets error:", req.Username, req.CurrencyID, totalBet, err)
 		//if err := s.walletProvider.Withdraw(ctx, req.UserID, req.CurrencyID, totalBet); err != nil {
@@ -498,7 +501,10 @@ func (s *GameService) executeNormalSpin(
 	}
 
 	// 2. Execute spin
+	start = time.Now()
 	spinResult, err := s.gameModule.PlayNormalSpin(ctx, req.BetMultiplier, req.CheatPayout)
+	elapsed = time.Since(start)
+	s.logger.Info().Int64("duration", elapsed.Milliseconds()).Msg("API PlayNormalSpin response")
 	if err != nil {
 		// Try to refund the bet (walletProvider is already checked above)
 		if s.walletProvider != nil {
@@ -517,7 +523,8 @@ func (s *GameService) executeNormalSpin(
 	}
 
 	// 5. Deposit winnings to wallet
-	if spinResult.TotalWin.GreaterThan(decimal.Zero) {
+	payout := spinResult.TotalWin
+	/*if spinResult.TotalWin.GreaterThan(decimal.Zero) {
 		if s.walletProvider == nil {
 			return nil, errors.New(errors.ErrInternalServerError, "wallet provider not configured")
 		}
@@ -533,8 +540,21 @@ func (s *GameService) executeNormalSpin(
 		err := s.walletProvider.SettleBets(ctx, productId, req.TenantID, req.Username, req.CurrencyID, decimal.Zero, decimal.Zero, roundID, roundID, gameCode, gameName)
 		if err != nil {
 			fmt.Println("SettleBets error (zero):", err)
-			//return nil, errors.Wrap(err, errors.ErrWalletError, "failed to deposit winnings zero!") // improve later
 		}
+	}*/
+	if s.walletProvider == nil {
+		return nil, errors.New(errors.ErrInternalServerError, "wallet provider not configured")
+	}
+	if spinResult.TotalWin.LessThanOrEqual(decimal.Zero) {
+		payout = decimal.Zero
+	}
+	start = time.Now()
+	err = s.walletProvider.SettleBets(ctx, productId, req.TenantID, req.Username, req.CurrencyID, decimal.Zero, payout, roundID, roundID, gameCode, gameName)
+	elapsed = time.Since(start)
+	s.logger.Info().Int64("duration", elapsed.Milliseconds()).Msg("API PlayNormalSpin response")
+	if err != nil {
+		fmt.Println("SettleBets error:", err)
+		return nil, errors.Wrap(err, errors.ErrWalletError, "failed to SettleBets")
 	}
 
 	// Default state
