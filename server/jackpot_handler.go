@@ -85,6 +85,8 @@ func validatePoolIDMatch(poolID string, betMultiplier float32) bool {
 }
 
 type streamConfig struct {
+	tenantID      string
+	currency      string
 	betMultiplier float32
 	targetPoolIDs []string
 	isTargetPool  func(string) bool
@@ -252,6 +254,11 @@ func (h *JackpotHandler) prepareStreamConfig(c *gin.Context) (*streamConfig, err
 		return nil, err
 	}
 
+	currency := c.Query("currency")
+	if currency == "" {
+		currency = "gold"
+	}
+
 	gameModule := h.app.GetGame()
 	if gameModule == nil {
 		ErrorWithMessage(c, http.StatusInternalServerError, "game module not registered")
@@ -275,6 +282,8 @@ func (h *JackpotHandler) prepareStreamConfig(c *gin.Context) (*streamConfig, err
 	}
 
 	return &streamConfig{
+		tenantID:      tenantID,
+		currency:      currency,
 		betMultiplier: betMultiplier,
 		targetPoolIDs: targetPoolIDs,
 		isTargetPool:  isTargetPool,
@@ -341,7 +350,7 @@ func (h *JackpotHandler) sendInitialPools(config *streamConfig, sender messageSe
 				return handler.GetInitialPoolValue(config.ctx, poolID, config.betMultiplier)
 			}
 		}
-		currentPools, err = h.svc.GetPoolsByIDs(config.ctx, config.targetPoolIDs, initValueGetter)
+		currentPools, err = h.svc.GetPoolsByIDs(config.ctx, config.tenantID, config.currency, config.targetPoolIDs, initValueGetter)
 	} else {
 		currentPools, err = h.svc.GetCurrentPools(config.ctx)
 	}

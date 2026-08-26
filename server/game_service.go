@@ -518,7 +518,7 @@ func (s *GameService) executeNormalSpin(
 
 	// 3. Contribute to jackpot pools (before claiming)
 	// Progressive amount is calculated before spin, so we contribute first
-	if err := s.contributeToJackpot(ctx, req.UserID, gameCode, gameConfig, totalBet, spinResult); err != nil {
+	if err := s.contributeToJackpot(ctx, req.TenantID, req.CurrencyID, req.UserID, gameCode, gameConfig, totalBet, spinResult); err != nil {
 		s.logger.Error().Err(err).Msg("Failed to contribute to jackpot")
 	}
 
@@ -673,7 +673,7 @@ func (s *GameService) executeFreeSpin(
 
 // contributeToJackpot contributes to jackpot pools
 // Uses custom JackpotHandler if implemented by game module, otherwise uses default logic
-func (s *GameService) contributeToJackpot(ctx context.Context, userID, gameCode string, gameConfig *game.Config, totalBet decimal.Decimal, spinResult *game.SpinResult) error {
+func (s *GameService) contributeToJackpot(ctx context.Context, tenantID, currency, userID, gameCode string, gameConfig *game.Config, totalBet decimal.Decimal, spinResult *game.SpinResult) error {
 	if s.rewardProvider == nil {
 		return nil
 	}
@@ -698,9 +698,10 @@ func (s *GameService) contributeToJackpot(ctx context.Context, userID, gameCode 
 		// Process each contribution with the same spin_id and total_pools
 		for _, contrib := range contributions {
 			if err := s.rewardProvider.Contribute(ctx, &providers.ContributeRequest{
-				PoolID:     contrib.PoolID,
 				UserID:     userID,
 				Amount:     contrib.Amount,
+				TenantID:   tenantID,
+				Currency:   currency,
 				GameCode:   gameCode,
 				SpinID:     spinID,
 				TotalPools: totalPools,
@@ -765,6 +766,8 @@ func (s *GameService) processJackpotWin(
 				PoolID:    i.PoolID,
 				UserID:    userID,
 				Username:  username,
+				TenantID:  tenantID,
+				Currency:  currency,
 				GameCode:  gameCode,
 				InitValue: i.InitValue,
 				Agency:    tenantID,

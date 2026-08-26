@@ -332,7 +332,7 @@ func (h *EventsWSHandler) handleMessage(c *WSConn, claims *auth.Claims, req WSRe
 		_ = c.Send(b)
 		return
 	case WSEventJackpotSubscribe:
-		h.handleJackpotSubscribe(c, req)
+		h.handleJackpotSubscribe(c, claims, req)
 		//h.writeReply(c, req, path, okReply(http.StatusOK, map[string]bool{"ok": true}))
 		return
 	}
@@ -641,7 +641,7 @@ func (s *jackpotWSSender) Send(resp *Response) error {
 	return s.conn.Send(payload)
 }
 
-func (h *EventsWSHandler) handleJackpotSubscribe(c *WSConn, req WSRequest) {
+func (h *EventsWSHandler) handleJackpotSubscribe(c *WSConn, claims *auth.Claims, req WSRequest) {
 	var subReq jackpotSubscribeWSRequest
 	if err := json.Unmarshal(req.Data, &subReq); err != nil {
 		return
@@ -655,7 +655,7 @@ func (h *EventsWSHandler) handleJackpotSubscribe(c *WSConn, req WSRequest) {
 		return
 	}
 
-	h.subscribeJackpot(c, betMultiplier)
+	h.subscribeJackpot(c, claims.TenantID, claims.CurrencyID, betMultiplier)
 }
 
 func (h *EventsWSHandler) autoSubscribeJackpot(c *WSConn, claims *auth.Claims) {
@@ -683,10 +683,10 @@ func (h *EventsWSHandler) autoSubscribeJackpot(c *WSConn, claims *auth.Claims) {
 	if betMultiplier <= 0 {
 		return
 	}
-	h.subscribeJackpot(c, betMultiplier)
+	h.subscribeJackpot(c, claims.TenantID, claims.CurrencyID, betMultiplier)
 }
 
-func (h *EventsWSHandler) subscribeJackpot(c *WSConn, betMultiplier float32) {
+func (h *EventsWSHandler) subscribeJackpot(c *WSConn, tenantID string, currency string, betMultiplier float32) {
 	c.StopJackpot()
 
 	base := c.Context()
@@ -715,6 +715,8 @@ func (h *EventsWSHandler) subscribeJackpot(c *WSConn, betMultiplier float32) {
 		return len(targetPoolIDs) == 0 || lo.Contains(targetPoolIDs, poolID)
 	}
 	config := &streamConfig{
+		tenantID:      tenantID,
+		currency:      currency,
 		betMultiplier: betMultiplier,
 		targetPoolIDs: targetPoolIDs,
 		isTargetPool:  isTargetPool,
