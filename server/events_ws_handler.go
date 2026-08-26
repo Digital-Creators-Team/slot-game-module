@@ -424,7 +424,16 @@ func (h *EventsWSHandler) handleAuthorize(c *WSConn, claims *auth.Claims, req WS
 		return &wsReply{status: http.StatusInternalServerError, err: apperrors.New(apperrors.ErrInternalServerError, "Wallet provider not configured")}
 	}
 
-	balance, err := h.app.walletProvider.CheckBalance(ctx, h.app.gameModule.GetProductId(), claims.TenantID, claims.Username, claims.CurrencyID)
+	tenantWalletProvider, err := h.app.walletProvider.WithTenant(ctx, h.app.tenantProvider, claims.TenantID)
+	if err != nil {
+		if errors.Is(err, ErrTenantWalletNotEnabled) {
+			return &wsReply{status: http.StatusBadRequest, err: apperrors.New(apperrors.ErrInvalidRequest, "Tenant wallet not enabled")}
+		}
+
+		return &wsReply{status: http.StatusInternalServerError, err: apperrors.New(apperrors.ErrTenantError, "Failed to get tenant info")}
+	}
+
+	balance, err := tenantWalletProvider.CheckBalance(ctx, h.app.gameModule.GetGameCode(), claims.TenantID, claims.Username, claims.CurrencyID)
 	if err != nil {
 		if r := h.timeoutReplyIfNeeded(ctx, err); r != nil {
 			return r

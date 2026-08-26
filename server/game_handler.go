@@ -137,9 +137,20 @@ func (h *GameHandler) Authorize(c *gin.Context) {
 		return
 	}
 
-	balance, err := h.app.walletProvider.CheckBalance(ctx, "sexy", tenantID, username, currencyID) //TODO, now cheat sexy
+	tenantWalletProvider, err := h.app.walletProvider.WithTenant(ctx, h.app.tenantProvider, tenantID)
 	if err != nil {
-		balance, err = h.app.walletProvider.GetBalance(ctx, userID, currencyID)
+		if goerrors.Is(err, ErrTenantWalletNotEnabled) {
+			InternalError(c, errors.New(errors.ErrInvalidRequest, "Tenant wallet not enabled"))
+			return
+		}
+
+		InternalError(c, errors.New(errors.ErrTenantError, "Failed to get tenant info"))
+		return
+	}
+
+	balance, err := tenantWalletProvider.CheckBalance(ctx, "sexy", tenantID, username, currencyID) //TODO, now cheat sexy
+	if err != nil {
+		balance, err = tenantWalletProvider.GetBalance(ctx, userID, currencyID)
 		if err != nil {
 			h.logger.Error().Err(err).Msg("Failed to get balance")
 			InternalError(c, errors.Wrap(err, errors.ErrWalletError, "Failed to get balance"))

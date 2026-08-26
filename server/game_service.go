@@ -298,11 +298,9 @@ func (s *GameService) ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest
 		return nil, errors.Wrap(err, errors.ErrInternalServerError, "invalid game config type")
 	}
 
-	productId := s.gameModule.GetProductId()
-
-	playerBalance, err := s.walletProvider.CheckBalance(ctx, productId, req.TenantID, req.Username, req.CurrencyID)
+	playerBalance, err := s.walletProvider.CheckBalance(ctx, gameCode, req.TenantID, req.Username, req.CurrencyID)
 	if err != nil {
-		fmt.Println("===> get balance error:", productId, err)
+		fmt.Println("===> get balance error:", gameCode, err)
 		return nil, errors.New(errors.ErrInternalServerError, "get balance error")
 	}
 
@@ -488,10 +486,9 @@ func (s *GameService) executeNormalSpin(
 
 	gameCode := s.gameModule.GetGameCode()
 	gameName := s.gameModule.GetGameName()
-	productId := s.gameModule.GetProductId()
 	roundID := uuid.New().String()
 	start := time.Now()
-	err := s.walletProvider.PlaceBets(ctx, productId, req.TenantID, req.Username, req.CurrencyID, totalBet, roundID, roundID, gameCode, gameName) // now using roundID for transactionId
+	err := s.walletProvider.PlaceBets(ctx, gameCode, req.TenantID, req.Username, req.CurrencyID, totalBet, roundID, roundID, gameCode, gameName) // now using roundID for transactionId
 	elapsed := time.Since(start)
 	s.logger.Info().Int64("duration", elapsed.Milliseconds()).Msg("API PlaceBets response")
 	if err != nil {
@@ -531,7 +528,7 @@ func (s *GameService) executeNormalSpin(
 		if s.walletProvider == nil {
 			return nil, errors.New(errors.ErrInternalServerError, "wallet provider not configured")
 		}
-		err := s.walletProvider.SettleBets(ctx, productId, req.TenantID, req.Username, req.CurrencyID, decimal.Zero, spinResult.TotalWin, roundID, roundID, gameCode, gameName)
+		err := s.walletProvider.SettleBets(ctx, gameCode, req.TenantID, req.Username, req.CurrencyID, decimal.Zero, spinResult.TotalWin, roundID, roundID, gameCode, gameName)
 		if err != nil {
 			fmt.Println("SettleBets error:", err)
 			//err = s.walletProvider.Deposit(ctx, req.UserID, req.CurrencyID, spinResult.TotalWin)
@@ -540,7 +537,7 @@ func (s *GameService) executeNormalSpin(
 			//}
 		}
 	} else {
-		err := s.walletProvider.SettleBets(ctx, productId, req.TenantID, req.Username, req.CurrencyID, decimal.Zero, decimal.Zero, roundID, roundID, gameCode, gameName)
+		err := s.walletProvider.SettleBets(ctx, gameCode, req.TenantID, req.Username, req.CurrencyID, decimal.Zero, decimal.Zero, roundID, roundID, gameCode, gameName)
 		if err != nil {
 			fmt.Println("SettleBets error (zero):", err)
 		}
@@ -552,7 +549,7 @@ func (s *GameService) executeNormalSpin(
 		payout = decimal.Zero
 	}
 	start = time.Now()
-	err = s.walletProvider.SettleBets(ctx, productId, req.TenantID, req.Username, req.CurrencyID, decimal.Zero, payout, roundID, roundID, gameCode, gameName)
+	err = s.walletProvider.SettleBets(ctx, gameCode, req.TenantID, req.Username, req.CurrencyID, decimal.Zero, payout, roundID, roundID, gameCode, gameName)
 	elapsed = time.Since(start)
 	s.logger.Info().Int64("duration", elapsed.Milliseconds()).Msg("API PlayNormalSpin response")
 	if err != nil {
@@ -621,13 +618,12 @@ func (s *GameService) executeFreeSpin(
 		if s.walletProvider == nil {
 			return nil, errors.New(errors.ErrInternalServerError, "wallet provider not configured")
 		}
-		productId := s.gameModule.GetProductId()
 		gameCode := s.gameModule.GetGameCode()
 		gameName := s.gameModule.GetGameName()
 		roundID := uuid.New().String()
-		err := s.walletProvider.PlaceBets(ctx, productId, req.TenantID, req.Username, req.CurrencyID, decimal.Zero, roundID, roundID, gameCode, gameName) // now using roundID for transactionId
+		err := s.walletProvider.PlaceBets(ctx, gameCode, req.TenantID, req.Username, req.CurrencyID, decimal.Zero, roundID, roundID, gameCode, gameName) // now using roundID for transactionId
 		if err == nil {
-			err = s.walletProvider.SettleBets(ctx, productId, req.TenantID, req.Username, req.CurrencyID, decimal.Zero, spinResult.TotalWin, roundID, roundID, gameCode, gameName)
+			err = s.walletProvider.SettleBets(ctx, gameCode, req.TenantID, req.Username, req.CurrencyID, decimal.Zero, spinResult.TotalWin, roundID, roundID, gameCode, gameName)
 			if err != nil {
 				fmt.Println("SettleBets error:", err)
 				//if err := s.walletProvider.Deposit(ctx, req.UserID, req.CurrencyID, spinResult.TotalWin); err != nil {
