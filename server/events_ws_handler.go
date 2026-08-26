@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -195,12 +196,6 @@ func (h *EventsWSHandler) Stream(g *gin.Context) {
 		closed: make(chan struct{}),
 	}
 
-	wsConn.logger = h.logger.With().
-		Str("conn_id", wsConn.ID).
-		Str("tenant_id", claims.TenantID).
-		Str("user_id", claims.UserID).
-		Logger()
-
 	wsConn.baseCtx = h.buildWSBaseContext(g.Request.Context(), claims)
 
 	h.connMgr.Register(wsConn)
@@ -253,6 +248,16 @@ func (h *EventsWSHandler) Stream(g *gin.Context) {
 }
 
 func (h *EventsWSHandler) writePump(c *WSConn) {
+	defer func() {
+		if r := recover(); r != nil {
+			h.logger.Error().
+				Interface("panic", r).
+				Str("stack", string(debug.Stack())).
+				Msg("panic recovered in write pump")
+			c.Close()
+		}
+	}()
+
 	pingTicker := time.NewTicker(25 * time.Second)
 	defer pingTicker.Stop()
 
@@ -304,6 +309,19 @@ func (h *EventsWSHandler) writeReply(c *WSConn, req WSRequest, path string, repl
 }
 
 func (h *EventsWSHandler) handleMessage(c *WSConn, claims *auth.Claims, req WSRequest, path string) {
+	defer func() {
+		if r := recover(); r != nil {
+			h.logger.Error().
+				Interface("panic", r).
+				Str("event_type", string(req.Type)).
+				Str("req_id", req.ID).
+				Str("stack", string(debug.Stack())).
+				Msg("panic recovered in message handler")
+			h.sendError(c, req, path, http.StatusInternalServerError,
+				apperrors.New(apperrors.ErrInternalServerError, "Internal server error"))
+		}
+	}()
+
 	switch req.Type {
 	case WSEventPing:
 		resp := map[string]interface{}{
@@ -391,6 +409,18 @@ func (h *EventsWSHandler) handleAuthorize(c *WSConn, claims *auth.Claims, req WS
 		return &wsReply{status: http.StatusInternalServerError, err: apperrors.New(apperrors.ErrInternalServerError, "Failed to retrieve game configuration")}
 	}
 
+	if h.app.tenantProvider == nil {
+		return &wsReply{status: http.StatusInternalServerError, err: apperrors.New(apperrors.ErrInternalServerError, "Tenant provider not configured")}
+	}
+
+	tenant, err := h.app.tenantProvider.Get(ctx, claims.TenantID, false)
+	if err != nil {
+		if r := h.timeoutReplyIfNeeded(ctx, err); r != nil {
+			return r
+		}
+		return &wsReply{status: http.StatusInternalServerError, err: apperrors.Wrap(err, apperrors.ErrTenantError, "Failed to get tenant info")}
+	}
+
 	if h.app.stateProvider == nil {
 		return &wsReply{status: http.StatusInternalServerError, err: apperrors.New(apperrors.ErrInternalServerError, "State provider not configured")}
 	}
@@ -422,7 +452,7 @@ func (h *EventsWSHandler) handleAuthorize(c *WSConn, claims *auth.Claims, req WS
 
 	response := game.AuthorizeResponse{
 		LastState:  s,
-		GameConfig: buildConfig(cfg),
+		GameConfig: buildConfig(cfg, tenant),
 		Player: game.Player{
 			TenantID: claims.TenantID,
 			UserID:   claims.UserID,
@@ -692,7 +722,17 @@ func (h *EventsWSHandler) subscribeJackpot(c *WSConn, betMultiplier float32) {
 	}
 
 	sender := &jackpotWSSender{conn: c}
-	go h.app.jackpotHandler.streamUpdates(config, sender)
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				c.logger.Error().
+					Interface("panic", r).
+					Str("stack", string(debug.Stack())).
+					Msg("panic recovered in jackpot stream")
+			}
+		}()
+		h.app.jackpotHandler.streamUpdates(config, sender)
+	}()
 }
 
 func parseToken(tokenString string, secret string) (*auth.Claims, error) {

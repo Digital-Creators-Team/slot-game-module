@@ -39,6 +39,7 @@ type App struct {
 	walletProvider     providers.WalletProvider
 	rewardProvider     providers.RewardProvider
 	logProvider        providers.LogProvider
+	tenantProvider     providers.TenantProvider
 	wsConnManager      *WSConnManager
 }
 
@@ -132,6 +133,11 @@ func (a *App) SetRewardProvider(provider RewardProvider) {
 // SetLogProvider sets the log provider for event logging
 func (a *App) SetLogProvider(provider LogProvider) {
 	a.logProvider = provider
+}
+
+// SetTenantProvider sets the tenant provider for tenant operations
+func (a *App) SetTenantProvider(provider TenantProvider) {
+	a.tenantProvider = provider
 }
 
 func (a *App) SetRedisClient(client *dbredis.Client) {

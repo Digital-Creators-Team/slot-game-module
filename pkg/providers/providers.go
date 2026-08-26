@@ -175,3 +175,29 @@ type BetHistoryResponse struct {
 	Total int   `json:"total"`
 	Items []Bet `json:"items"`
 }
+
+// TenantProvider interface for tenant operations
+type TenantProvider interface {
+	Get(ctx context.Context, id string, skipCache bool) (*ResponseTenant, error)
+}
+
+// Tenant cloned from tenant-service
+type Tenant struct {
+	ID                string    `json:"id" bson:"_id"`
+	AuthVersion       int       `json:"auth_version" bson:"auth_version"`
+	Email             string    `json:"email" bson:"email"`
+	LobbyHomeURL      string    `json:"lobby_home_url" bson:"lobby_home_url"`
+	WalletCallbackURL string    `json:"wallet_callback_url" bson:"wallet_callback_url"`
+	WalletVersion     int       `json:"wallet_version" bson:"wallet_version"`
+	Currencies        []string  `json:"currencies,omitempty" bson:"currencies"`
+	WhitelistedIPs    []string  `json:"whitelisted_ips,omitempty" bson:"whitelisted_ips"`
+	Status            string    `json:"status" bson:"status"`
+	CreatedAt         time.Time `json:"created_at" bson:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at" bson:"updated_at"`
+}
+
+type ResponseTenant struct {
+	Tenant
+
+	SecretKey string `json:"secret_key"`
+}
