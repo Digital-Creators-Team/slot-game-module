@@ -487,10 +487,19 @@ func (h *EventsWSHandler) handleSpin(c *WSConn, claims *auth.Claims, req WSReque
 
 	betMul := float32(decimal.NewFromFloat32(spinReq.Tier).Mul(decimal.NewFromFloat32(spinReq.Multiplier)).InexactFloat64())
 
+	tenantWalletProvider, err := h.app.walletProvider.WithTenant(ctx, h.app.tenantProvider, claims.TenantID)
+	if err != nil {
+		if errors.Is(err, ErrTenantWalletNotEnabled) {
+			return &wsReply{status: http.StatusBadRequest, err: apperrors.New(apperrors.ErrInvalidRequest, "Tenant wallet not enabled")}
+		}
+
+		return &wsReply{status: http.StatusInternalServerError, err: apperrors.New(apperrors.ErrTenantError, "Failed to get tenant")}
+	}
+
 	gameService := h.app.newGameService(
 		gameModule,
 		h.app.stateProvider,
-		h.app.walletProvider,
+		tenantWalletProvider,
 		h.app.rewardProvider,
 		h.app.logProvider,
 		h.app.tenantProvider,

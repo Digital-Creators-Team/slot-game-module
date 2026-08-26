@@ -1,6 +1,7 @@
 package server
 
 import (
+	goerrors "errors"
 	"fmt"
 	"strings"
 
@@ -246,12 +247,24 @@ func (h *GameHandler) Spin(c *gin.Context) {
 
 	betMul := float32(decimal.NewFromFloat32(req.Tier).Mul(decimal.NewFromFloat32(req.Multiplier)).InexactFloat64())
 	currencyID := h.extractCurrencyID(c)
+	tenantID := h.extractTenantID(c)
+
+	tenantWalletProvider, err := h.app.walletProvider.WithTenant(ctx, h.app.tenantProvider, tenantID)
+	if err != nil {
+		if goerrors.Is(err, ErrTenantWalletNotEnabled) {
+			InternalError(c, errors.New(errors.ErrInvalidRequest, "Tenant wallet not enabled"))
+			return
+		}
+
+		InternalError(c, errors.New(errors.ErrTenantError, "Failed to get tenant"))
+		return
+	}
 
 	// Create game service with providers
 	gameService := h.app.newGameService(
 		gameModule,
 		h.app.stateProvider,
-		h.app.walletProvider,
+		tenantWalletProvider,
 		h.app.rewardProvider,
 		h.app.logProvider,
 		h.app.tenantProvider,
@@ -270,8 +283,6 @@ func (h *GameHandler) Spin(c *gin.Context) {
 		BadRequest(c, errors.New(errors.ErrInvalidRequest, "Name not found in JWT"))
 		return
 	}
-
-	tenantID := h.extractTenantID(c)
 
 	result, err := gameService.ExecuteSpinV2(ctx, &SpinServiceRequest{
 		TenantID:      tenantID,

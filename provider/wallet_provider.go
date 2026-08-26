@@ -23,10 +23,9 @@ var ErrInsufficientFunds = errors.New("insufficient funds")
 
 // WalletProvider implements server.WalletProvider using HTTP client
 type WalletProvider struct {
-	baseURL        string
-	httpClient     *http.Client
-	logger         zerolog.Logger
-	tenantProvider server.TenantProvider
+	baseURL    string
+	httpClient *http.Client
+	logger     zerolog.Logger
 }
 
 type ErrorResponse struct {
@@ -350,28 +349,38 @@ func (p *WalletProvider) SettleBets(ctx context.Context, productId, tenantID, us
 	return nil
 }
 
-func (p *WalletProvider) GetWalletUrl(ctx context.Context, tenantID string) string {
-	if p.tenantProvider == nil {
-		return p.baseURL
+func (p *WalletProvider) GetWalletUrl(ctx context.Context) string {
+	return p.baseURL
+}
+
+func (p *WalletProvider) WithTenant(ctx context.Context, provider server.TenantProvider, tenantID string) (server.WalletProvider, error) {
+	if provider == nil {
+		p.logger.Warn().
+			Str("tenant_id", tenantID).
+			Msg("Tenant provider is nil")
+		return p, nil
 	}
 
-	tenant, err := p.tenantProvider.Get(ctx, tenantID, false)
+	tenant, err := provider.Get(ctx, tenantID, false)
 	if err != nil {
 		p.logger.Error().
 			Err(err).
 			Str("tenant_id", tenantID).
-			Msg("failed to get tenant")
-		return p.baseURL
+			Msg("Failed to get tenant")
+		return nil, err
 	}
 
-	return tenant.WalletCallbackURL
-}
-
-func (p *WalletProvider) SetTenantProvider(provider server.TenantProvider) {
-	p.tenantProvider = provider
-	if provider != nil {
-		p.logger.Debug().Msg("TenantProvider set on wallet service")
-	} else {
-		p.logger.Warn().Msg("TenantProvider set to nil on wallet service")
+	if !tenant.WalletEnabled() {
+		p.logger.Error().
+			Str("tenant_id", tenantID).
+			Str("status", tenant.Status).
+			Msg("Tenant wallet not enabled")
+		return nil, server.ErrTenantWalletNotEnabled
 	}
+
+	return &WalletProvider{
+		baseURL:    tenant.WalletCallbackURL,
+		httpClient: p.httpClient,
+		logger:     p.logger.With().Str("tenant_id", tenantID).Logger(),
+	}, nil
 }

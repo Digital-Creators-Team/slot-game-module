@@ -26,3 +26,7 @@ const (
 	BetTypeFreeSpin = providers.BetTypeFreeSpin
 	BetTypeJackpot  = providers.BetTypeJackpot
 )
+
+var (
+	ErrTenantWalletNotEnabled = providers.ErrTenantWalletNotEnabled
+)

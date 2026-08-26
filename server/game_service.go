@@ -771,7 +771,7 @@ func (s *GameService) processJackpotWin(
 				GameCode:  gameCode,
 				InitValue: i.InitValue,
 				Agency:    tenantID,
-				WalletUrl: s.walletProvider.GetWalletUrl(ctx, tenantID),
+				WalletUrl: s.walletProvider.GetWalletUrl(ctx),
 			})
 
 			if err != nil {

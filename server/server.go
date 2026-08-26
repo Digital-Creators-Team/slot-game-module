@@ -140,9 +140,6 @@ func (a *App) SetLogProvider(provider LogProvider) {
 // SetTenantProvider sets the tenant provider for tenant operations
 func (a *App) SetTenantProvider(provider TenantProvider) {
 	a.tenantProvider = provider
-	if a.walletProvider != nil {
-		a.walletProvider.SetTenantProvider(provider)
-	}
 }
 
 func (a *App) SetRedisClient(client *dbredis.Client) {
