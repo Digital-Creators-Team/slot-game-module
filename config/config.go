@@ -72,6 +72,8 @@ type TenantServiceConfig struct {
 
 	CacheTTL     time.Duration `mapstructure:"cache_ttl"`
 	EventChannel string        `mapstructure:"event_channel"`
+	Whitelist    []string      `mapstructure:"whitelist"`
+	Blacklist    []string      `mapstructure:"blacklist"`
 }
 
 // Load loads configuration from YAML file using Viper

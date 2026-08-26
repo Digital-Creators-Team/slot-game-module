@@ -366,7 +366,7 @@ func (p *WalletProvider) WithTenant(ctx context.Context, provider server.TenantP
 		p.logger.Error().
 			Err(err).
 			Str("tenant_id", tenantID).
-			Msg("Failed to get tenant")
+			Msg("Failed to get tenant info")
 		return nil, err
 	}
 

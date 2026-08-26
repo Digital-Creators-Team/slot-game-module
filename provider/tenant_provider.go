@@ -3,7 +3,6 @@ package provider
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -18,24 +17,15 @@ import (
 	"github.com/Digital-Creators-Team/slot-game-module/server"
 )
 
-var (
-	ErrTenantNotFound = errors.New("tenant not found")
-)
-
-type TenantConfig struct {
-	BaseURL      string        `mapstructure:"base_url"`
-	Timeout      time.Duration `mapstructure:"timeout"`
-	CacheTTL     time.Duration `mapstructure:"cache_ttl"`
-	EventChannel string        `mapstructure:"event_channel"`
-}
-
 // tenantProvider implements server.TenantProvider using HTTP client
 type tenantProvider struct {
-	baseURL    string
-	httpClient *http.Client
-	cacheTTL   time.Duration
-	tenantMap  cache.Cache[server.ResponseTenant]
-	logger     zerolog.Logger
+	baseURL      string
+	whitelistMap map[string]bool
+	blacklistMap map[string]bool
+	httpClient   *http.Client
+	cacheTTL     time.Duration
+	tenantMap    cache.Cache[server.ResponseTenant]
+	logger       zerolog.Logger
 }
 
 // NewTenantProvider creates a new tenant provider
@@ -65,6 +55,16 @@ func NewTenantProvider(
 		logger:    logger.With().Str("component", "tenant_provider").Logger(),
 	}
 
+	p.whitelistMap = make(map[string]bool, len(tenantConfig.Whitelist))
+	for _, w := range tenantConfig.Whitelist {
+		p.whitelistMap[w] = true
+	}
+
+	p.blacklistMap = make(map[string]bool, len(tenantConfig.Blacklist))
+	for _, b := range tenantConfig.Blacklist {
+		p.blacklistMap[b] = true
+	}
+
 	if redisClient != nil && len(tenantConfig.EventChannel) > 0 {
 		go p.subscribeTenantEvent(redisClient, tenantConfig.EventChannel)
 	}
@@ -73,6 +73,10 @@ func NewTenantProvider(
 }
 
 func (p *tenantProvider) Get(ctx context.Context, id string, skipCache bool) (*server.ResponseTenant, error) {
+	if !p.isAllowed(id) {
+		return nil, server.ErrTenantNotFound
+	}
+
 	if !skipCache {
 		cached, err := p.tenantMap.Get(ctx, id)
 		if err == nil {
@@ -90,7 +94,7 @@ func (p *tenantProvider) Get(ctx context.Context, id string, skipCache bool) (*s
 	}
 
 	if tenant == nil {
-		return nil, ErrTenantNotFound
+		return nil, server.ErrTenantNotFound
 	}
 
 	err = p.tenantMap.Set(ctx, id, *tenant, p.cacheTTL)
@@ -118,6 +122,18 @@ func (p *tenantProvider) get(ctx context.Context, id string) (*server.ResponseTe
 	}
 
 	return &respData.Data, nil
+}
+
+func (p *tenantProvider) isAllowed(tenantID string) bool {
+	if p.blacklistMap[tenantID] {
+		return false
+	}
+
+	if len(p.whitelistMap) > 0 && !p.whitelistMap[tenantID] {
+		return false
+	}
+
+	return true
 }
 
 type tenantEvent struct {

@@ -28,5 +28,6 @@ const (
 )
 
 var (
+	ErrTenantNotFound         = providers.ErrTenantNotFound
 	ErrTenantWalletNotEnabled = providers.ErrTenantWalletNotEnabled
 )

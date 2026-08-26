@@ -493,7 +493,7 @@ func (h *EventsWSHandler) handleSpin(c *WSConn, claims *auth.Claims, req WSReque
 			return &wsReply{status: http.StatusBadRequest, err: apperrors.New(apperrors.ErrInvalidRequest, "Tenant wallet not enabled")}
 		}
 
-		return &wsReply{status: http.StatusInternalServerError, err: apperrors.New(apperrors.ErrTenantError, "Failed to get tenant")}
+		return &wsReply{status: http.StatusInternalServerError, err: apperrors.New(apperrors.ErrTenantError, "Failed to get tenant info")}
 	}
 
 	gameService := h.app.newGameService(

@@ -256,7 +256,7 @@ func (h *GameHandler) Spin(c *gin.Context) {
 			return
 		}
 
-		InternalError(c, errors.New(errors.ErrTenantError, "Failed to get tenant"))
+		InternalError(c, errors.New(errors.ErrTenantError, "Failed to get tenant info"))
 		return
 	}
 

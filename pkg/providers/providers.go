@@ -179,6 +179,7 @@ type BetHistoryResponse struct {
 }
 
 var (
+	ErrTenantNotFound         = errors.New("tenant not found")
 	ErrTenantWalletNotEnabled = errors.New("tenant wallet not enabled")
 )
 
