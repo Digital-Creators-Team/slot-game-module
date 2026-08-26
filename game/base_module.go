@@ -65,16 +65,6 @@ func (b *BaseModule) GetGameCode() string {
 	return b.Config.GetConfig().GameCode
 }
 
-// GetProductId returns the product id for this game
-// Can be overridden if you need custom product id logic
-func (b *BaseModule) GetProductId() string {
-	cfg := b.Config.GetConfig()
-	if cfg == nil || cfg.ProductId == "" {
-		return "fgs"
-	}
-	return cfg.ProductId
-}
-
 // GetGameName
 func (b *BaseModule) GetGameName() string {
 	return b.Config.GetConfig().GameName
