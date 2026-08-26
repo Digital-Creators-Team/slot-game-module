@@ -8,6 +8,7 @@ import (
 
 	apperrors "github.com/Digital-Creators-Team/slot-game-module/errors"
 	"github.com/Digital-Creators-Team/slot-game-module/types"
+	"github.com/shopspring/decimal"
 )
 
 func newTestWSConn() *WSConn {
@@ -152,12 +153,13 @@ func TestEventsWSHandler_HandleMessage_UnknownWithID(t *testing.T) {
 func TestJackpotWSSender_Send_Updated(t *testing.T) {
 	c := newTestWSConn()
 	s := &jackpotWSSender{conn: c}
+	amount := decimal.NewFromFloat(10.5)
 
 	resp := &Response{
 		Type:      EventTypeUpdated,
 		Timestamp: 123,
 		Pools: map[string]PoolUpdate{
-			"pool-1": {Amount: 10.5, Timestamp: 122},
+			"pool-1": {Amount: amount, Timestamp: 122},
 		},
 	}
 
@@ -176,7 +178,7 @@ func TestJackpotWSSender_Send_Updated(t *testing.T) {
 	if out.Timestamp != 123 {
 		t.Fatalf("expected timestamp=123, got %d", out.Timestamp)
 	}
-	if len(out.Pools) != 1 || out.Pools["pool-1"].Amount != 10.5 {
+	if len(out.Pools) != 1 || !out.Pools["pool-1"].Amount.Equal(amount) {
 		t.Fatalf("unexpected pools: %+v", out.Pools)
 	}
 }
