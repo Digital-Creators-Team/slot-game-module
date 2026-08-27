@@ -80,6 +80,24 @@ func (b *BaseModule) GetGameName() string {
 	return b.Config.GetConfig().GameName
 }
 
+func (b *BaseModule) GetTenantID(ctx context.Context) string {
+	cfg := b.Config.GetConfig()
+	if cfg == nil || cfg.DefaultTenantID == "" {
+		return "fgs"
+	}
+
+	return cfg.DefaultTenantID
+}
+
+func (b *BaseModule) GetCurrency(ctx context.Context) string {
+	cfg := b.Config.GetConfig()
+	if cfg == nil || cfg.DefaultCurrency == "" {
+		return "gold"
+	}
+
+	return cfg.DefaultCurrency
+}
+
 // PlayNormalSpin is a placeholder that must be overridden
 // This ensures that game modules implement their own spin logic
 func (b *BaseModule) PlayNormalSpin(ctx context.Context, betMultiplier float32, cheatPayout interface{}) (*SpinResult, error) {

@@ -69,6 +69,10 @@ type Module interface {
 	GetProductId() string
 
 	GetGameName() string
+
+	GetTenantID(ctx context.Context) string
+
+	GetCurrency(ctx context.Context) string
 }
 
 // Other games may feature multiple game modes with varying base bets (pay_line)
