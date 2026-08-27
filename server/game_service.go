@@ -698,6 +698,7 @@ func (s *GameService) contributeToJackpot(ctx context.Context, tenantID, currenc
 		// Process each contribution with the same spin_id and total_pools
 		for _, contrib := range contributions {
 			if err := s.rewardProvider.Contribute(ctx, &providers.ContributeRequest{
+				PoolID:     contrib.PoolID,
 				UserID:     userID,
 				Amount:     contrib.Amount,
 				GameCode:   gameCode,
