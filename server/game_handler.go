@@ -41,7 +41,7 @@ func NewGameHandler(app *App) *GameHandler {
 func (h *GameHandler) extractTenantID(c *gin.Context) string {
 	tenantID, ok := auth.GetTenantID(c)
 	if !ok {
-		return h.app.GetGame().GetTenantID(c)
+		return h.app.GetGame().DefaultTenantID(c)
 	}
 	return tenantID
 }
@@ -59,7 +59,7 @@ func (h *GameHandler) extractUserID(c *gin.Context) (string, error) {
 func (h *GameHandler) extractCurrencyID(c *gin.Context) string {
 	currencyID, ok := auth.GetCurrencyID(c)
 	if !ok {
-		return h.app.GetGame().GetCurrency(c)
+		return h.app.GetGame().DefaultCurrency(c)
 	}
 	return currencyID
 }

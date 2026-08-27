@@ -80,7 +80,7 @@ func (b *BaseModule) GetGameName() string {
 	return b.Config.GetConfig().GameName
 }
 
-func (b *BaseModule) GetTenantID(ctx context.Context) string {
+func (b *BaseModule) DefaultTenantID(ctx context.Context) string {
 	cfg := b.Config.GetConfig()
 	if cfg == nil || cfg.DefaultTenantID == "" {
 		return "fgs"
@@ -89,7 +89,7 @@ func (b *BaseModule) GetTenantID(ctx context.Context) string {
 	return cfg.DefaultTenantID
 }
 
-func (b *BaseModule) GetCurrency(ctx context.Context) string {
+func (b *BaseModule) DefaultCurrency(ctx context.Context) string {
 	cfg := b.Config.GetConfig()
 	if cfg == nil || cfg.DefaultCurrency == "" {
 		return "gold"

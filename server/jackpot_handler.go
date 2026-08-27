@@ -256,12 +256,12 @@ func (h *JackpotHandler) prepareStreamConfig(c *gin.Context) (*streamConfig, err
 
 	tenantID := c.Query("tenant_id")
 	if tenantID == "" {
-		tenantID = h.app.GetGame().GetTenantID(c)
+		tenantID = h.app.GetGame().DefaultTenantID(c)
 	}
 
 	currency := c.Query("currency")
 	if currency == "" {
-		currency = h.app.GetGame().GetCurrency(c)
+		currency = h.app.GetGame().DefaultCurrency(c)
 	}
 
 	gameModule := h.app.GetGame()
