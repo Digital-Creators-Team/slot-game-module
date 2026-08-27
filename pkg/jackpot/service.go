@@ -329,7 +329,7 @@ func (s *Service) GetCurrentPools(ctx context.Context) ([]Update, error) {
 // 3. Reward provider directly (if pool not registered but initValue is provided)
 // If initValueGetter is provided, it will be used to get init values for unregistered pools.
 // initValueGetter signature: func(poolID string) (decimal.Decimal, error)
-func (s *Service) GetPoolsByIDs(ctx context.Context, tenantID string, currency string, poolIDs []string, initValueGetter func(poolID string) (decimal.Decimal, error)) ([]Update, error) {
+func (s *Service) GetPoolsByIDs(ctx context.Context, poolIDs []string, initValueGetter func(poolID string) (decimal.Decimal, error)) ([]Update, error) {
 	s.mu.RLock()
 	latest := make(map[string]Update, len(s.latest))
 	for poolID, update := range s.latest {

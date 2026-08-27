@@ -355,7 +355,7 @@ func (h *JackpotHandler) sendInitialPools(config *streamConfig, sender messageSe
 				return handler.GetInitialPoolValue(config.ctx, poolID, config.betMultiplier)
 			}
 		}
-		currentPools, err = h.svc.GetPoolsByIDs(config.ctx, config.tenantID, config.currency, config.targetPoolIDs, initValueGetter)
+		currentPools, err = h.svc.GetPoolsByIDs(config.ctx, config.targetPoolIDs, initValueGetter)
 	} else {
 		currentPools, err = h.svc.GetCurrentPools(config.ctx)
 	}
