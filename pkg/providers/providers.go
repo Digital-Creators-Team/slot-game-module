@@ -29,8 +29,6 @@ type ContributeRequest struct {
 	PoolID     string          // Pool ID to contribute to
 	UserID     string          // User ID making the contribution
 	Amount     decimal.Decimal // Contribution amount
-	TenantID   string          // Tenant ID
-	Currency   string          // Currency
 	GameCode   string          // Game code
 	SpinID     string          // Optional: spin/round ID to group contributions from the same spin
 	TotalPools int             // Optional: total number of pools for this spin (for flush when complete)
@@ -41,8 +39,6 @@ type ClaimRequest struct {
 	PoolID    string // Pool ID to claim from
 	UserID    string // User ID claiming the jackpot
 	Username  string
-	TenantID  string
-	Currency  string
 	GameCode  string          // Game code
 	InitValue decimal.Decimal // Initial pool value for claim calculation
 	Agency    string

@@ -165,7 +165,7 @@ func (s *Service) Contribute(totalBet decimal.Decimal) []Contribution {
 
 // ContributeAndStore computes contributions and persists them via a RewardStore (e.g., providers.RewardProvider).
 // Note: This method does not generate spin_id. Use ContributeAndStoreWithSpinID if you need spin grouping.
-func (s *Service) ContributeAndStore(ctx context.Context, totalBet decimal.Decimal, tenantID, currency, gameCode, userID string, store RewardProvider) error {
+func (s *Service) ContributeAndStore(ctx context.Context, totalBet decimal.Decimal, gameCode, userID string, store RewardProvider) error {
 	contribs := s.Contribute(totalBet)
 	for _, c := range contribs {
 		// No spin_id for legacy calls - reward service will handle grouping
@@ -173,8 +173,6 @@ func (s *Service) ContributeAndStore(ctx context.Context, totalBet decimal.Decim
 			PoolID:     c.PoolID,
 			UserID:     userID,
 			Amount:     c.Amount,
-			TenantID:   tenantID,
-			Currency:   currency,
 			GameCode:   gameCode,
 			SpinID:     "",
 			TotalPools: 0,
@@ -186,7 +184,7 @@ func (s *Service) ContributeAndStore(ctx context.Context, totalBet decimal.Decim
 }
 
 // ContributeAndStoreWithSpinID computes contributions and persists them with spin_id for proper grouping.
-func (s *Service) ContributeAndStoreWithSpinID(ctx context.Context, totalBet decimal.Decimal, tenantID, currency, gameCode, userID, spinID string, store RewardProvider) error {
+func (s *Service) ContributeAndStoreWithSpinID(ctx context.Context, totalBet decimal.Decimal, gameCode, userID, spinID string, store RewardProvider) error {
 	contribs := s.Contribute(totalBet)
 	totalPools := len(contribs)
 	for _, c := range contribs {
@@ -194,8 +192,6 @@ func (s *Service) ContributeAndStoreWithSpinID(ctx context.Context, totalBet dec
 			PoolID:     c.PoolID,
 			UserID:     userID,
 			Amount:     c.Amount,
-			TenantID:   tenantID,
-			Currency:   currency,
 			GameCode:   gameCode,
 			SpinID:     spinID,
 			TotalPools: totalPools,

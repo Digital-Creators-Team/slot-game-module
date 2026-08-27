@@ -700,8 +700,6 @@ func (s *GameService) contributeToJackpot(ctx context.Context, tenantID, currenc
 			if err := s.rewardProvider.Contribute(ctx, &providers.ContributeRequest{
 				UserID:     userID,
 				Amount:     contrib.Amount,
-				TenantID:   tenantID,
-				Currency:   currency,
 				GameCode:   gameCode,
 				SpinID:     spinID,
 				TotalPools: totalPools,
@@ -766,8 +764,6 @@ func (s *GameService) processJackpotWin(
 				PoolID:    i.PoolID,
 				UserID:    userID,
 				Username:  username,
-				TenantID:  tenantID,
-				Currency:  currency,
 				GameCode:  gameCode,
 				InitValue: i.InitValue,
 				Agency:    tenantID,
