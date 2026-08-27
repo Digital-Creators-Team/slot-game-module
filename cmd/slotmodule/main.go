@@ -2022,7 +2022,7 @@ func (m *{{.GameCodeUpper}}Module) GetWin(ctx context.Context, spinResult *game.
 // ModuleContext is available via game.MustFromContext(ctx) if you need to access other resources
 // Access your module's config directly via m.gameConfig (no need to get from context)
 // 
-// Format: "game-code-betMultiplier" or "game-code-betMultiplier-tier"
+// Format: "tenant-currency-game-code-betMultiplier" or "tenant-currency-game-code-betMultiplier-tier"
 func (m *{{.GameCodeUpper}}Module) GetPoolID(ctx context.Context, tenantID string, currency string, gameCode string, betMultiplier float32) ([]string, error) {
 	// Example: Return pool IDs to stream
 	// Can return multiple pools if your game has multiple jackpot pools
@@ -2032,19 +2032,19 @@ func (m *{{.GameCodeUpper}}Module) GetPoolID(ctx context.Context, tenantID strin
 	// customField := m.gameConfig.CustomField // if you have custom fields
 	
 	// IMPORTANT: Include bet multiplier in pool ID to separate pools by bet level
-	// Format: "game-code-betMultiplier" (e.g., "beach-party-1.5")
+	// Format: "tenant-currency-game-code-betMultiplier" (e.g., "fgs-gold-beach-party-1.5")
 	
 	// Example: Single pool with bet multiplier
-	// return []string{fmt.Sprintf("%s-%g", gameCode, betMultiplier)}, nil
+	// return []string{fmt.Sprintf("%s-%s-%s-%g", tenantID, currency, gameCode, betMultiplier)}, nil
 	
 	// Example: Multiple pools with bet multiplier (e.g., mini, major, grand)
 	// return []string{
-	// 	fmt.Sprintf("%s-%g-mini", gameCode, betMultiplier),
-	// 	fmt.Sprintf("%s-%g-major", gameCode, betMultiplier),
-	// 	fmt.Sprintf("%s-%g-grand", gameCode, betMultiplier),
+	// 	fmt.Sprintf("%s-%s-%s-%g-mini", tenantID, currency, gameCode, betMultiplier),
+	// 	fmt.Sprintf("%s-%s-%s-%g-major", tenantID, currency gameCode, betMultiplier),
+	// 	fmt.Sprintf("%s-%s-%s-%g-grand", tenantID, currency gameCode, betMultiplier),
 	// }, nil
 	
-	return []string{fmt.Sprintf("%s-%g", gameCode, betMultiplier)}, nil
+	return []string{fmt.Sprintf("%s-%s-%s-%g", tenantID, currency, gameCode, betMultiplier)}, nil
 }
 
 // GetInitialPoolValue returns initial pool value for SSE
