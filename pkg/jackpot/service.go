@@ -568,7 +568,23 @@ func (s *Service) CreatePoolFilter() func(poolID string) bool {
 
 		// If game code is set, check if pool_id starts with game code
 		if s.gameCode != "" {
-			return strings.HasPrefix(poolID, s.gameCode)
+			const separator = '-'
+
+			// first part is the tenant id
+			first := strings.IndexByte(poolID, separator)
+			if first < 0 {
+				return false
+			}
+
+			// second part is currency
+			second := strings.IndexByte(poolID[first+1:], separator)
+			if second < 0 {
+				return false
+			}
+
+			start := first + second + 2
+
+			return strings.Contains(poolID[start:], s.gameCode)
 		}
 
 		// If no game code, accept all pools (backward compatibility)
