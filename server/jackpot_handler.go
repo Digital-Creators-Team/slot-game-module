@@ -273,7 +273,7 @@ func (h *JackpotHandler) prepareStreamConfig(c *gin.Context) (*streamConfig, err
 	var targetPoolIDs []string
 	gameCode := gameModule.GetGameCode()
 	if handler, ok := gameModule.(game.JackpotHandler); ok {
-		poolIDs, err := handler.GetPoolID(c.Request.Context(), gameCode, betMultiplier)
+		poolIDs, err := handler.GetPoolID(c.Request.Context(), tenantID, currency, gameCode, betMultiplier)
 		if err != nil {
 			h.logger.Error().Err(err).Msg("Failed to get pool IDs")
 			ErrorWithMessage(c, http.StatusInternalServerError, "failed to get pool IDs")

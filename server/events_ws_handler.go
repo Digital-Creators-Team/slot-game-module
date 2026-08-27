@@ -704,7 +704,7 @@ func (h *EventsWSHandler) subscribeJackpot(c *WSConn, tenantID string, currency 
 	gameCode := gameModule.GetGameCode()
 	var targetPoolIDs []string
 	if handler, ok := gameModule.(game.JackpotHandler); ok {
-		poolIDs, err := handler.GetPoolID(ctx, gameCode, betMultiplier)
+		poolIDs, err := handler.GetPoolID(ctx, tenantID, currency, gameCode, betMultiplier)
 		if err != nil {
 			cancel()
 			return

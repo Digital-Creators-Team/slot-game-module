@@ -2023,7 +2023,7 @@ func (m *{{.GameCodeUpper}}Module) GetWin(ctx context.Context, spinResult *game.
 // Access your module's config directly via m.gameConfig (no need to get from context)
 // 
 // Format: "game-code-betMultiplier" or "game-code-betMultiplier-tier"
-func (m *{{.GameCodeUpper}}Module) GetPoolID(ctx context.Context, gameCode string, betMultiplier float32) ([]string, error) {
+func (m *{{.GameCodeUpper}}Module) GetPoolID(ctx context.Context, tenantID string, currency string, gameCode string, betMultiplier float32) ([]string, error) {
 	// Example: Return pool IDs to stream
 	// Can return multiple pools if your game has multiple jackpot pools
 	

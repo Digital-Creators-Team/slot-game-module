@@ -123,7 +123,7 @@ type JackpotHandler interface {
 	// GetPoolID returns the pool ID for SSE updates
 	// This is used for jackpot SSE streaming
 	// Can return multiple pool IDs if the game has multiple pools to display
-	GetPoolID(ctx context.Context, gameCode string, betMultiplier float32) ([]string, error)
+	GetPoolID(ctx context.Context, tenantID string, currency string, gameCode string, betMultiplier float32) ([]string, error)
 
 	// GetInitialPoolValue returns the initial pool value for a given bet multiplier and pool ID
 	// This is used for jackpot SSE streaming
