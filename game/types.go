@@ -224,6 +224,8 @@ type AuthorizeResponse struct {
 
 // Config holds game configuration
 type Config struct {
+	DefaultTenantID   string            `mapstructure:"default_tenant_id" json:"defaultTenantId"`
+	DefaultCurrency   string            `mapstructure:"default_currency" json:"defaultCurrency"`
 	GameCode          string            `mapstructure:"game_code" json:"gameCode"`
 	GameName          string            `mapstructure:"game_name" json:"gameName"`
 	PayLine           int               `mapstructure:"pay_line" json:"payLine"`

@@ -518,7 +518,7 @@ func (s *GameService) executeNormalSpin(
 
 	// 3. Contribute to jackpot pools (before claiming)
 	// Progressive amount is calculated before spin, so we contribute first
-	if err := s.contributeToJackpot(ctx, req.UserID, gameCode, gameConfig, totalBet, spinResult); err != nil {
+	if err := s.contributeToJackpot(ctx, req.TenantID, req.CurrencyID, req.UserID, gameCode, gameConfig, totalBet, spinResult); err != nil {
 		s.logger.Error().Err(err).Msg("Failed to contribute to jackpot")
 	}
 
@@ -672,7 +672,7 @@ func (s *GameService) executeFreeSpin(
 
 // contributeToJackpot contributes to jackpot pools
 // Uses custom JackpotHandler if implemented by game module, otherwise uses default logic
-func (s *GameService) contributeToJackpot(ctx context.Context, userID, gameCode string, gameConfig *game.Config, totalBet decimal.Decimal, spinResult *game.SpinResult) error {
+func (s *GameService) contributeToJackpot(ctx context.Context, tenantID, currency, userID, gameCode string, gameConfig *game.Config, totalBet decimal.Decimal, spinResult *game.SpinResult) error {
 	if s.rewardProvider == nil {
 		return nil
 	}
@@ -680,7 +680,7 @@ func (s *GameService) contributeToJackpot(ctx context.Context, userID, gameCode 
 	// Check if game module implements custom jackpot handler
 	if handler, ok := s.gameModule.(game.JackpotHandler); ok {
 		// Use custom jackpot handler
-		contributions, err := handler.GetContributions(ctx, spinResult, totalBet)
+		contributions, err := handler.GetContributions(ctx, tenantID, currency, spinResult, totalBet)
 		if err != nil {
 			return fmt.Errorf("failed to get jackpot contributions: %w", err)
 		}
@@ -734,7 +734,7 @@ func (s *GameService) processJackpotWin(
 	switch handler := s.gameModule.(type) {
 	case game.SingleJackpotWinHandler:
 		// Use custom single jackpot handler
-		jp, err := handler.GetWin(ctx, spinResult, totalBet)
+		jp, err := handler.GetWin(ctx, tenantID, currency, spinResult, totalBet)
 		if err != nil {
 			return fmt.Errorf("failed to get jackpot win: %w", err)
 		}
@@ -742,7 +742,7 @@ func (s *GameService) processJackpotWin(
 
 	case game.MultipleJackpotWinHandler:
 		// Use custom multiple jackpot handler
-		jps, err := handler.GetWins(ctx, spinResult, totalBet)
+		jps, err := handler.GetWins(ctx, tenantID, currency, spinResult, totalBet)
 		if err != nil {
 			return fmt.Errorf("failed to get jackpot win: %w", err)
 		}
