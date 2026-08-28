@@ -6,8 +6,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Digital-Creators-Team/slot-game-module/auth"
 	apperrors "github.com/Digital-Creators-Team/slot-game-module/errors"
 	"github.com/Digital-Creators-Team/slot-game-module/types"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 func newTestWSConn() *WSConn {
@@ -127,7 +129,14 @@ func TestEventsWSHandler_HandleMessage_UnknownWithID(t *testing.T) {
 	h := &EventsWSHandler{}
 	c := newTestWSConn()
 
-	h.handleMessage(c, nil, WSRequest{ID: "1", Type: WSEventType("unknown")}, "/ws")
+	claims := &auth.Claims{
+		UserID: "u1",
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
+		},
+	}
+
+	h.handleMessage(c, claims, WSRequest{ID: "1", Type: WSEventType("unknown")}, "/ws")
 	b := recvPayload(t, c)
 
 	var resp WSResponse
@@ -146,6 +155,44 @@ func TestEventsWSHandler_HandleMessage_UnknownWithID(t *testing.T) {
 	}
 	if wrapped.Error.ErrorCode != apperrors.ErrInvalidRequest {
 		t.Fatalf("expected error_code=%d, got %d", apperrors.ErrInvalidRequest, wrapped.Error.ErrorCode)
+	}
+}
+
+func TestEventsWSHandler_Dispatch_ExpiredToken(t *testing.T) {
+	h := &EventsWSHandler{}
+	c := newTestWSConn()
+
+	claims := &auth.Claims{
+		UserID: "u1",
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(-time.Minute)),
+		},
+	}
+
+	h.handleMessage(c, claims, WSRequest{ID: "1", Type: WSEventGetPlayerState}, "/ws")
+	b := recvPayload(t, c)
+
+	var resp WSResponse
+	if err := json.Unmarshal(b, &resp); err != nil {
+		t.Fatalf("unmarshal WSResponse: %v", err)
+	}
+	if resp.ID != "1" {
+		t.Fatalf("expected id=1, got %q", resp.ID)
+	}
+
+	var wrapped types.ErrorResponse
+	if err := json.Unmarshal(resp.Data, &wrapped); err != nil {
+		t.Fatalf("unmarshal error wrapper: %v", err)
+	}
+	if wrapped.IsSuccess != false {
+		t.Fatalf("expected is_success=false, got %v", wrapped.IsSuccess)
+	}
+	// Client maps error_code 401 (and status_code 401) to InvalidToken.
+	if wrapped.Error.ErrorCode != apperrors.ErrUnauthorized {
+		t.Fatalf("expected error_code=%d, got %d", apperrors.ErrUnauthorized, wrapped.Error.ErrorCode)
+	}
+	if wrapped.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("expected status_code=%d, got %d", http.StatusUnauthorized, wrapped.StatusCode)
 	}
 }
 

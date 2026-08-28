@@ -151,18 +151,18 @@ func (h *EventsWSHandler) Stream(g *gin.Context) {
 
 	tokenString := g.Query("token")
 	if tokenString == "" {
-		ErrorWithMessage(g, http.StatusUnauthorized, "missing token")
+		ErrorWithMessage(g, http.StatusUnauthorized, "missing token", apperrors.ErrUnauthorized)
 		return
 	}
 
 	claims, err := parseToken(tokenString, h.app.config.JWT.Secret)
 	if err != nil {
-		ErrorWithMessage(g, http.StatusUnauthorized, "invalid or expired token")
+		ErrorWithMessage(g, http.StatusUnauthorized, "invalid or expired token", apperrors.ErrUnauthorized)
 		return
 	}
 
 	if claims.UserID == "" {
-		ErrorWithMessage(g, http.StatusUnauthorized, "invalid token claims")
+		ErrorWithMessage(g, http.StatusUnauthorized, "invalid token claims", apperrors.ErrUnauthorized)
 		return
 	}
 
@@ -341,6 +341,14 @@ func (h *EventsWSHandler) handleMessage(c *WSConn, claims *auth.Claims, req WSRe
 }
 
 func (h *EventsWSHandler) dispatch(c *WSConn, claims *auth.Claims, req WSRequest) *wsReply {
+	// Block mid-session token expiry: the token is validated once at connection
+	// time, but it can expire afterwards. Re-check it before using the claims so
+	// an expired session cannot keep spinning / reading state, and surface it
+	// with a code the client recognises (401 / ErrUnauthorized).
+	if err := validateTokenExpiry(claims); err != nil {
+		return errReply(http.StatusUnauthorized, err)
+	}
+
 	switch req.Type {
 	case WSEventAuthorizeGame:
 		return h.handleAuthorize(c, claims, req)
@@ -735,8 +743,27 @@ func (h *EventsWSHandler) subscribeJackpot(c *WSConn, betMultiplier float32) {
 	}()
 }
 
+// validateTokenExpiry returns an AppError with code ErrUnauthorized (401) if the
+// claims' token has already expired, so that the reply carries both
+// status_code=401 and error_code=401 which the client can interpret as an
+// InvalidToken and trigger its refresh flow.
+func validateTokenExpiry(claims *auth.Claims) error {
+	if claims == nil || claims.ExpiresAt == nil {
+		return apperrors.New(apperrors.ErrUnauthorized, "invalid token")
+	}
+	if time.Now().After(claims.ExpiresAt.Time) {
+		return apperrors.New(apperrors.ErrUnauthorized, "token expired")
+	}
+	return nil
+}
+
 func parseToken(tokenString string, secret string) (*auth.Claims, error) {
-	token, err := jwt.ParseWithClaims(tokenString, &auth.Claims{}, func(token *jwt.Token) (interface{}, error) {
+	// The WebSocket is upgraded regardless of whether the token is already
+	// expired: we still require a valid signature (so forged tokens are
+	// rejected), but defer the expiry decision to dispatch/validateTokenExpiry
+	// so the client can open the connection and then receive the 401 reply.
+	parser := jwt.NewParser(jwt.WithoutClaimsValidation())
+	token, err := parser.ParseWithClaims(tokenString, &auth.Claims{}, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, errors.New("unexpected signing method")
 		}
