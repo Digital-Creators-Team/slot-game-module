@@ -509,7 +509,7 @@ func (s *Service) GetLatestPoolsByIDs(ctx context.Context, poolIDs []string, ini
 func (s *Service) HandleKafkaUpdate(update Update) {
 	s.mu.Lock()
 	// Check if pool belongs to this game (starts with game code)
-	if s.gameCode != "" && !strings.HasPrefix(update.PoolID, s.gameCode) {
+	if s.gameCode != "" && !isGamePoolID(update.PoolID, s.gameCode) {
 		// Pool doesn't belong to this game, ignore
 		s.mu.Unlock()
 		return
@@ -568,7 +568,7 @@ func (s *Service) CreatePoolFilter() func(poolID string) bool {
 
 		// If game code is set, check if pool_id starts with game code
 		if s.gameCode != "" {
-			return strings.HasPrefix(poolID, s.gameCode)
+			return isGamePoolID(poolID, s.gameCode)
 		}
 
 		// If no game code, accept all pools (backward compatibility)
@@ -735,4 +735,24 @@ func (s *Service) refreshPoolsFromProvider(ctx context.Context) {
 	if refreshedCount > 0 {
 		s.logger.Debug().Int("count", refreshedCount).Msg("refreshed pools from provider")
 	}
+}
+
+func isGamePoolID(poolID, gameCode string) bool {
+	const separator = '-'
+
+	// first part is the tenant id
+	skipFirst := strings.IndexByte(poolID, separator)
+	if skipFirst < 0 {
+		return false
+	}
+
+	// second part is currency
+	skipSecond := strings.IndexByte(poolID[skipFirst+1:], separator)
+	if skipSecond < 0 {
+		return false
+	}
+
+	start := skipFirst + skipSecond + 2
+
+	return strings.HasPrefix(poolID[start:], gameCode)
 }
