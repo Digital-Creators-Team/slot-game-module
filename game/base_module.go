@@ -65,19 +65,27 @@ func (b *BaseModule) GetGameCode() string {
 	return b.Config.GetConfig().GameCode
 }
 
-// GetProductId returns the product id for this game
-// Can be overridden if you need custom product id logic
-func (b *BaseModule) GetProductId() string {
-	cfg := b.Config.GetConfig()
-	if cfg == nil || cfg.ProductId == "" {
-		return "fgs"
-	}
-	return cfg.ProductId
-}
-
 // GetGameName
 func (b *BaseModule) GetGameName() string {
 	return b.Config.GetConfig().GameName
+}
+
+func (b *BaseModule) DefaultTenantID(ctx context.Context) string {
+	cfg := b.Config.GetConfig()
+	if cfg == nil || cfg.DefaultTenantID == "" {
+		return "fgs"
+	}
+
+	return cfg.DefaultTenantID
+}
+
+func (b *BaseModule) DefaultCurrency(ctx context.Context) string {
+	cfg := b.Config.GetConfig()
+	if cfg == nil || cfg.DefaultCurrency == "" {
+		return "gold"
+	}
+
+	return cfg.DefaultCurrency
 }
 
 // PlayNormalSpin is a placeholder that must be overridden

@@ -68,10 +68,12 @@ type ServiceConfig struct {
 
 // TenantServiceConfig holds tenant service configuration
 type TenantServiceConfig struct {
-	BaseURL      string        `mapstructure:"base_url"`
-	Timeout      time.Duration `mapstructure:"timeout"`
+	ServiceConfig `mapstructure:",squash"`
+
 	CacheTTL     time.Duration `mapstructure:"cache_ttl"`
 	EventChannel string        `mapstructure:"event_channel"`
+	Whitelist    []string      `mapstructure:"whitelist"`
+	Blacklist    []string      `mapstructure:"blacklist"`
 }
 
 // Load loads configuration from YAML file using Viper

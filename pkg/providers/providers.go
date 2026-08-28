@@ -2,6 +2,7 @@ package providers
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/shopspring/decimal"
@@ -22,6 +23,7 @@ type WalletProvider interface {
 	Deposit(ctx context.Context, userID, currencyID string, amount decimal.Decimal) error
 	SettleBets(ctx context.Context, productId, tenantID, username, currencyID string, amount decimal.Decimal, payoutAmount decimal.Decimal, roundID string, transactionId string, gameCode string, gameName string) error
 	GetWalletUrl(ctx context.Context) string
+	WithTenant(ctx context.Context, provider TenantProvider, tenantID string) (WalletProvider, error)
 }
 
 // ContributeRequest represents a request to contribute to a jackpot pool
@@ -176,6 +178,11 @@ type BetHistoryResponse struct {
 	Items []Bet `json:"items"`
 }
 
+var (
+	ErrTenantNotFound         = errors.New("tenant not found")
+	ErrTenantWalletNotEnabled = errors.New("tenant wallet not enabled")
+)
+
 // TenantProvider interface for tenant operations
 type TenantProvider interface {
 	Get(ctx context.Context, id string, skipCache bool) (*ResponseTenant, error)
@@ -194,6 +201,10 @@ type Tenant struct {
 	Status            string    `json:"status" bson:"status"`
 	CreatedAt         time.Time `json:"created_at" bson:"created_at"`
 	UpdatedAt         time.Time `json:"updated_at" bson:"updated_at"`
+}
+
+func (t *Tenant) WalletEnabled() bool {
+	return t.Status == "active"
 }
 
 type ResponseTenant struct {

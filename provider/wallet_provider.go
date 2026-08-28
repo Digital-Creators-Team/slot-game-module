@@ -13,6 +13,7 @@ import (
 
 	"github.com/Digital-Creators-Team/slot-game-module/config"
 	moduleerrors "github.com/Digital-Creators-Team/slot-game-module/errors"
+	"github.com/Digital-Creators-Team/slot-game-module/server"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
@@ -350,4 +351,36 @@ func (p *WalletProvider) SettleBets(ctx context.Context, productId, tenantID, us
 
 func (p *WalletProvider) GetWalletUrl(ctx context.Context) string {
 	return p.baseURL
+}
+
+func (p *WalletProvider) WithTenant(ctx context.Context, provider server.TenantProvider, tenantID string) (server.WalletProvider, error) {
+	if provider == nil {
+		p.logger.Warn().
+			Str("tenant_id", tenantID).
+			Msg("Tenant provider is nil")
+		return p, nil
+	}
+
+	tenant, err := provider.Get(ctx, tenantID, false)
+	if err != nil {
+		p.logger.Error().
+			Err(err).
+			Str("tenant_id", tenantID).
+			Msg("Failed to get tenant info")
+		return nil, err
+	}
+
+	if !tenant.WalletEnabled() {
+		p.logger.Error().
+			Str("tenant_id", tenantID).
+			Str("status", tenant.Status).
+			Msg("Tenant wallet not enabled")
+		return nil, server.ErrTenantWalletNotEnabled
+	}
+
+	return &WalletProvider{
+		baseURL:    tenant.WalletCallbackURL,
+		httpClient: p.httpClient,
+		logger:     p.logger.With().Str("tenant_id", tenantID).Logger(),
+	}, nil
 }
