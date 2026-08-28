@@ -741,18 +741,18 @@ func isGamePoolID(poolID, gameCode string) bool {
 	const separator = '-'
 
 	// first part is the tenant id
-	first := strings.IndexByte(poolID, separator)
-	if first < 0 {
+	skipFirst := strings.IndexByte(poolID, separator)
+	if skipFirst < 0 {
 		return false
 	}
 
 	// second part is currency
-	second := strings.IndexByte(poolID[first+1:], separator)
-	if second < 0 {
+	skipSecond := strings.IndexByte(poolID[skipFirst+1:], separator)
+	if skipSecond < 0 {
 		return false
 	}
 
-	start := first + second + 2
+	start := skipFirst + skipSecond + 2
 
 	return strings.HasPrefix(poolID[start:], gameCode)
 }
