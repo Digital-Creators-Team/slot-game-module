@@ -168,7 +168,7 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 	var spinResult *game.SpinResult
 	if playerState.IsFreeSpin && playerState.RemainingFreeSpin > 0 {
 		// Execute free spin
-		spinResult, err = s.executeFreeSpin(ctx, req, playerState, gameConfig, totalBet)
+		spinResult, err = s.executeFreeSpin(ctx, req, playerState, playerState.BetMultiplier)
 		if err != nil {
 			return nil, err
 		}
@@ -181,16 +181,29 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 		}
 	}
 
+	// 6. Process jackpot win (if any)
+	if spinResult.IsGetJackpot != nil && *spinResult.IsGetJackpot {
+		// Claim jackpot
+		if err := s.processJackpotWin(ctx, spinResult, req.TenantID, req.UserID, req.Username, gameCode, req.CurrencyID, gameConfig, totalBet); err != nil {
+			s.logger.Error().Err(err).Msg("Failed to process jackpot win")
+		}
+		if playerState.TotalWinFreeSpin != nil {
+			playerState.TotalWinFreeSpin = lo.ToPtr(playerState.TotalWinFreeSpin.Add(spinResult.TotalWinJackpot))
+			spinResult.TotalWinFreeSpin = *playerState.TotalWinFreeSpin
+
+		}
+	}
+
 	// Update timestamp before saving
 	// Note: Since playerState is a pointer, any modifications by endusers in PlayNormalSpin/PlayFreeSpin
 	// are automatically reflected here - no need to get state from ModuleContext again
 	t := time.Now()
 	playerState.UpdatedAt = &t
 
-	// 6. Get ending balance
+	// 7. Get ending balance
 	spinResult.EndingBalance = playerBalance.Add(spinResult.TotalWin)
 
-	// 7. Log spin
+	// 8. Log spin
 	if s.logProvider != nil {
 
 		timestamp := time.Now().UTC()
@@ -328,7 +341,7 @@ func (s *GameService) ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest
 	var spinResult *game.SpinResult
 	if playerState.IsFreeSpin && playerState.RemainingFreeSpin > 0 {
 		// Execute free spin
-		spinResult, err = s.executeFreeSpin(ctx, req, playerState, gameConfig, totalBet)
+		spinResult, err = s.executeFreeSpin(ctx, req, playerState, playerState.BetMultiplier)
 		if err != nil {
 			return nil, err
 		}
@@ -338,6 +351,19 @@ func (s *GameService) ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest
 		spinResult, err = s.executeNormalSpin(ctx, req, playerState, gameConfig, totalBet)
 		if err != nil {
 			return nil, err
+		}
+	}
+
+	// 6. Process jackpot win (if any)
+	if spinResult.IsGetJackpot != nil && *spinResult.IsGetJackpot {
+		// Claim jackpot
+		if err := s.processJackpotWin(ctx, spinResult, req.TenantID, req.UserID, req.Username, gameCode, req.CurrencyID, gameConfig, totalBet); err != nil {
+			s.logger.Error().Err(err).Msg("Failed to process jackpot win")
+		}
+		if playerState.TotalWinFreeSpin != nil {
+			playerState.TotalWinFreeSpin = lo.ToPtr(playerState.TotalWinFreeSpin.Add(spinResult.TotalWinJackpot))
+			spinResult.TotalWinFreeSpin = *playerState.TotalWinFreeSpin
+
 		}
 	}
 
@@ -496,14 +522,6 @@ func (s *GameService) executeNormalSpin(
 		s.logger.Error().Err(err).Msg("Failed to contribute to jackpot")
 	}
 
-	// 4. Process jackpot win (if any)
-	if spinResult.IsGetJackpot != nil && *spinResult.IsGetJackpot {
-		// Claim jackpot
-		if err := s.processJackpotWin(ctx, spinResult, req.TenantID, req.UserID, req.Username, gameCode, req.CurrencyID, gameConfig, totalBet); err != nil {
-			s.logger.Error().Err(err).Msg("Failed to process jackpot win")
-		}
-	}
-
 	// 5. Deposit winnings to wallet
 	payout := spinResult.TotalWin
 	/*if spinResult.TotalWin.GreaterThan(decimal.Zero) {
@@ -575,8 +593,7 @@ func (s *GameService) executeFreeSpin(
 	ctx context.Context,
 	req *SpinServiceRequest,
 	playerState *game.PlayerState,
-	gameConfig *game.Config,
-	totalBet decimal.Decimal,
+	betMultiplier float32,
 ) (*game.SpinResult, error) {
 	// Get the next pre-generated free spin result
 	// Note: playerState is a pointer, so modifications by endusers are automatically reflected
@@ -595,16 +612,6 @@ func (s *GameService) executeFreeSpin(
 	// Retrigger in free game
 	if spinResult.IsGetFreeSpin != nil && *spinResult.IsGetFreeSpin && spinResult.ResultFreeSpin != nil && *spinResult.ResultFreeSpin > 0 {
 		playerState.RemainingFreeSpin += *spinResult.ResultFreeSpin
-	}
-
-	// Process jackpot win (if any)
-	if spinResult.IsGetJackpot != nil && *spinResult.IsGetJackpot {
-		gameCode := s.gameModule.GetGameCode()
-
-		// Claim jackpot
-		if err := s.processJackpotWin(ctx, spinResult, req.TenantID, req.UserID, req.Username, gameCode, req.CurrencyID, gameConfig, totalBet); err != nil {
-			s.logger.Error().Err(err).Msg("Failed to process jackpot win")
-		}
 	}
 
 	if spinResult.TotalWin.GreaterThan(decimal.Zero) {
@@ -694,8 +701,8 @@ func (s *GameService) contributeToJackpot(ctx context.Context, tenantID, currenc
 				UserID:     userID,
 				Amount:     contrib.Amount,
 				GameCode:   gameCode,
-				SpinID:     &spinID,
-				TotalPools: &totalPools,
+				SpinID:     spinID,
+				TotalPools: totalPools,
 			}); err != nil {
 				s.logger.Error().Err(err).Str("pool", contrib.PoolID).Msg("Failed to contribute to jackpot pool")
 			}
@@ -754,13 +761,13 @@ func (s *GameService) processJackpotWin(
 		for _, i := range jackpotWin {
 			// Claim jackpot
 			claim, err := s.rewardProvider.Claim(ctx, &providers.ClaimRequest{
-				PoolID:     i.PoolID,
-				TenantID:   tenantID,
-				CurrencyID: currency,
-				UserID:     userID,
-				Username:   username,
-				GameCode:   gameCode,
-				InitValue:  i.InitValue,
+				PoolID:    i.PoolID,
+				UserID:    userID,
+				Username:  username,
+				GameCode:  gameCode,
+				InitValue: i.InitValue,
+				Agency:    tenantID,
+				WalletUrl: s.walletProvider.GetWalletUrl(ctx),
 			})
 
 			if err != nil {

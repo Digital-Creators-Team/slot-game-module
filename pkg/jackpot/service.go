@@ -170,10 +170,12 @@ func (s *Service) ContributeAndStore(ctx context.Context, totalBet decimal.Decim
 	for _, c := range contribs {
 		// No spin_id for legacy calls - reward service will handle grouping
 		if err := store.Contribute(ctx, &providers.ContributeRequest{
-			PoolID:   c.PoolID,
-			UserID:   userID,
-			Amount:   c.Amount,
-			GameCode: gameCode,
+			PoolID:     c.PoolID,
+			UserID:     userID,
+			Amount:     c.Amount,
+			GameCode:   gameCode,
+			SpinID:     "",
+			TotalPools: 0,
 		}); err != nil {
 			return err
 		}
@@ -191,8 +193,8 @@ func (s *Service) ContributeAndStoreWithSpinID(ctx context.Context, totalBet dec
 			UserID:     userID,
 			Amount:     c.Amount,
 			GameCode:   gameCode,
-			SpinID:     &spinID,
-			TotalPools: &totalPools,
+			SpinID:     spinID,
+			TotalPools: totalPools,
 		}); err != nil {
 			return err
 		}
@@ -215,10 +217,12 @@ func (s *Service) ContributeAndApply(ctx context.Context, totalBet decimal.Decim
 	for _, c := range contribs {
 		// No spin_id for legacy calls - reward service will handle grouping
 		if err := store.Contribute(ctx, &providers.ContributeRequest{
-			PoolID:   c.PoolID,
-			UserID:   userID,
-			Amount:   c.Amount,
-			GameCode: gameCode,
+			PoolID:     c.PoolID,
+			UserID:     userID,
+			Amount:     c.Amount,
+			GameCode:   gameCode,
+			SpinID:     "",
+			TotalPools: 0,
 		}); err != nil {
 			return contribs, err
 		}
@@ -243,8 +247,8 @@ func (s *Service) ContributeAndApplyWithSpinID(ctx context.Context, totalBet dec
 			UserID:     userID,
 			Amount:     c.Amount,
 			GameCode:   gameCode,
-			SpinID:     &spinID,
-			TotalPools: &totalPools,
+			SpinID:     spinID,
+			TotalPools: totalPools,
 		}); err != nil {
 			return contribs, err
 		}
