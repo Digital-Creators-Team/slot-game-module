@@ -28,23 +28,25 @@ type WalletProvider interface {
 
 // ContributeRequest represents a request to contribute to a jackpot pool
 type ContributeRequest struct {
-	PoolID     string          // Pool ID to contribute to
-	UserID     string          // User ID making the contribution
-	Amount     decimal.Decimal // Contribution amount
-	GameCode   string          // Game code
-	SpinID     string          // Optional: spin/round ID to group contributions from the same spin
-	TotalPools int             // Optional: total number of pools for this spin (for flush when complete)
+	PoolID     string          `json:"pool_id"`               // Pool ID to contribute to
+	Amount     decimal.Decimal `json:"amount"`                // Contribution amount
+	TenantID   string          `json:"tenant_id"`             // Tenant ID of the user
+	CurrencyID string          `json:"currency_id"`           // Currency ID of the session
+	GameCode   string          `json:"game_code"`             // Game code
+	UserID     string          `json:"user_id"`               // User ID making the contribution
+	SpinID     *string         `json:"spin_id,omitempty"`     // Optional: spin/round ID to group updates from the same spin
+	TotalPools *int            `json:"total_pools,omitempty"` // Optional: total number of pools for this spin (for flush when complete)
 }
 
 // ClaimRequest represents a request to claim a jackpot pool
 type ClaimRequest struct {
-	PoolID    string // Pool ID to claim from
-	UserID    string // User ID claiming the jackpot
-	Username  string
-	GameCode  string          // Game code
-	InitValue decimal.Decimal // Initial pool value for claim calculation
-	Agency    string
-	WalletUrl string
+	PoolID     string          `json:"pool_id"` // Pool ID to claim from
+	UserID     string          `json:"user_id"` // User ID claiming the jackpot
+	Username   string          `json:"username"`
+	TenantID   string          `json:"tenant_id"`
+	CurrencyID string          `json:"currency_id"`
+	GameCode   string          `json:"game_code"`            // Game code
+	InitValue  decimal.Decimal `json:"init_value,omitempty"` // Initial pool value for claim calculation
 }
 
 // RewardProvider interface for jackpot/reward operations
@@ -65,10 +67,11 @@ type JackpotPool struct {
 type JackpotClaim struct {
 	ClaimID    string          `json:"claim_id"`
 	PoolID     string          `json:"pool_id"`
+	TenantID   string          `json:"tenant_id"`
 	UserID     string          `json:"user_id"`
 	CurrencyID string          `json:"currency_id"`
 	Amount     decimal.Decimal `json:"amount"`
-	GameID     string          `json:"game_id"`
+	GameCode   string          `json:"game_code"`
 	Status     string          `json:"status"`
 	CreatedAt  time.Time       `json:"created_at"`
 	UpdatedAt  time.Time       `json:"updated_at"`
