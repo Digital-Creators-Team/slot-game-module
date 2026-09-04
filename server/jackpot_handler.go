@@ -56,8 +56,8 @@ type Response struct {
 }
 
 type PoolUpdate struct {
-	Amount    float64 `json:"amount"`
-	Timestamp int64   `json:"timestamp"`
+	Amount    decimal.Decimal `json:"amount"`
+	Timestamp int64           `json:"timestamp"`
 }
 
 func extractPoolType(poolID string) string {
@@ -371,7 +371,7 @@ func (h *JackpotHandler) sendInitialPools(config *streamConfig, sender messageSe
 		if config.isTargetPool(pool.PoolID) {
 			poolType := extractPoolType(pool.PoolID)
 			pools[poolType] = PoolUpdate{
-				Amount:    pool.Amount.InexactFloat64(),
+				Amount:    pool.Amount,
 				Timestamp: pool.Timestamp.Unix(),
 			}
 			lastSent[pool.PoolID] = pool
@@ -437,7 +437,7 @@ func (h *JackpotHandler) sendSnapshot(config *streamConfig, sender messageSender
 
 		poolType := extractPoolType(found.PoolID)
 		pools[poolType] = PoolUpdate{
-			Amount:    found.Amount.InexactFloat64(),
+			Amount:    found.Amount,
 			Timestamp: found.Timestamp.Unix(),
 		}
 
