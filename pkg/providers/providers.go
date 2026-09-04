@@ -2,6 +2,7 @@ package providers
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/shopspring/decimal"
@@ -22,27 +23,30 @@ type WalletProvider interface {
 	Deposit(ctx context.Context, userID, currencyID string, amount decimal.Decimal) error
 	SettleBets(ctx context.Context, productId, tenantID, username, currencyID string, amount decimal.Decimal, payoutAmount decimal.Decimal, roundID string, transactionId string, gameCode string, gameName string) error
 	GetWalletUrl(ctx context.Context) string
+	WithTenant(ctx context.Context, provider TenantProvider, tenantID string) (WalletProvider, error)
 }
 
 // ContributeRequest represents a request to contribute to a jackpot pool
 type ContributeRequest struct {
-	PoolID     string          // Pool ID to contribute to
-	UserID     string          // User ID making the contribution
-	Amount     decimal.Decimal // Contribution amount
-	GameCode   string          // Game code
-	SpinID     string          // Optional: spin/round ID to group contributions from the same spin
-	TotalPools int             // Optional: total number of pools for this spin (for flush when complete)
+	PoolID     string          `json:"pool_id"`               // Pool ID to contribute to
+	Amount     decimal.Decimal `json:"amount"`                // Contribution amount
+	TenantID   string          `json:"tenant_id"`             // Tenant ID of the user
+	CurrencyID string          `json:"currency_id"`           // Currency ID of the session
+	GameCode   string          `json:"game_code"`             // Game code
+	UserID     string          `json:"user_id"`               // User ID making the contribution
+	SpinID     *string         `json:"spin_id,omitempty"`     // Optional: spin/round ID to group updates from the same spin
+	TotalPools *int            `json:"total_pools,omitempty"` // Optional: total number of pools for this spin (for flush when complete)
 }
 
 // ClaimRequest represents a request to claim a jackpot pool
 type ClaimRequest struct {
-	PoolID    string // Pool ID to claim from
-	UserID    string // User ID claiming the jackpot
-	Username  string
-	GameCode  string          // Game code
-	InitValue decimal.Decimal // Initial pool value for claim calculation
-	Agency    string
-	WalletUrl string
+	PoolID     string          `json:"pool_id"` // Pool ID to claim from
+	UserID     string          `json:"user_id"` // User ID claiming the jackpot
+	Username   string          `json:"username"`
+	TenantID   string          `json:"tenant_id"`
+	CurrencyID string          `json:"currency_id"`
+	GameCode   string          `json:"game_code"`            // Game code
+	InitValue  decimal.Decimal `json:"init_value,omitempty"` // Initial pool value for claim calculation
 }
 
 // RewardProvider interface for jackpot/reward operations
@@ -63,10 +67,11 @@ type JackpotPool struct {
 type JackpotClaim struct {
 	ClaimID    string          `json:"claim_id"`
 	PoolID     string          `json:"pool_id"`
+	TenantID   string          `json:"tenant_id"`
 	UserID     string          `json:"user_id"`
 	CurrencyID string          `json:"currency_id"`
 	Amount     decimal.Decimal `json:"amount"`
-	GameID     string          `json:"game_id"`
+	GameCode   string          `json:"game_code"`
 	Status     string          `json:"status"`
 	CreatedAt  time.Time       `json:"created_at"`
 	UpdatedAt  time.Time       `json:"updated_at"`
@@ -176,6 +181,11 @@ type BetHistoryResponse struct {
 	Items []Bet `json:"items"`
 }
 
+var (
+	ErrTenantNotFound         = errors.New("tenant not found")
+	ErrTenantWalletNotEnabled = errors.New("tenant wallet not enabled")
+)
+
 // TenantProvider interface for tenant operations
 type TenantProvider interface {
 	Get(ctx context.Context, id string, skipCache bool) (*ResponseTenant, error)
@@ -194,6 +204,10 @@ type Tenant struct {
 	Status            string    `json:"status" bson:"status"`
 	CreatedAt         time.Time `json:"created_at" bson:"created_at"`
 	UpdatedAt         time.Time `json:"updated_at" bson:"updated_at"`
+}
+
+func (t *Tenant) WalletEnabled() bool {
+	return t.Status == "active"
 }
 
 type ResponseTenant struct {

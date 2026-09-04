@@ -65,10 +65,11 @@ type Module interface {
 	// GetGameCode returns the unique identifier for this game
 	GetGameCode() string
 
-	// GetProductId returns the product id for this game
-	GetProductId() string
-
 	GetGameName() string
+
+	DefaultTenantID(ctx context.Context) string
+
+	DefaultCurrency(ctx context.Context) string
 }
 
 // Other games may feature multiple game modes with varying base bets (pay_line)
@@ -114,12 +115,12 @@ type JackpotHandler interface {
 	// GetContributions returns the jackpot contributions for a spin
 	// This is called when IsGetJackpot is false
 	// Returns a list of pool contributions (can be empty if no contribution needed)
-	GetContributions(ctx context.Context, spinResult *SpinResult, totalBet decimal.Decimal) ([]JackpotContribution, error)
+	GetContributions(ctx context.Context, tenantID string, currency string, spinResult *SpinResult, totalBet decimal.Decimal) ([]JackpotContribution, error)
 
 	// GetPoolID returns the pool ID for SSE updates
 	// This is used for jackpot SSE streaming
 	// Can return multiple pool IDs if the game has multiple pools to display
-	GetPoolID(ctx context.Context, gameCode string, betMultiplier float32) ([]string, error)
+	GetPoolID(ctx context.Context, tenantID string, currency string, gameCode string, betMultiplier float32) ([]string, error)
 
 	// GetInitialPoolValue returns the initial pool value for a given bet multiplier and pool ID
 	// This is used for jackpot SSE streaming
@@ -131,7 +132,7 @@ type SingleJackpotWinHandler interface {
 	JackpotHandler
 	// GetWin returns the jackpot win information for a spin
 	// Returns the win information (pool ID, tier, init value) or nil if no win
-	GetWin(ctx context.Context, spinResult *SpinResult, totalBet decimal.Decimal) (*JackpotWin, error)
+	GetWin(ctx context.Context, tenantID string, currency string, spinResult *SpinResult, totalBet decimal.Decimal) (*JackpotWin, error)
 }
 
 // MultipleJackpotWinHandler handles games with multiple jackpot wins
@@ -139,7 +140,7 @@ type MultipleJackpotWinHandler interface {
 	JackpotHandler
 	// GetWins returns multiple jackpot wins for a spin
 	// Returns a list of win information or empty slice if no wins
-	GetWins(ctx context.Context, spinResult *SpinResult, totalBet decimal.Decimal) ([]*JackpotWin, error)
+	GetWins(ctx context.Context, tenantID string, currency string, spinResult *SpinResult, totalBet decimal.Decimal) ([]*JackpotWin, error)
 }
 
 // ModuleFactory is a function that creates a game module from a config

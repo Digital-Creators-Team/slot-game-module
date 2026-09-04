@@ -1,6 +1,7 @@
 package server
 
 import (
+	goerrors "errors"
 	"fmt"
 	"strings"
 
@@ -41,7 +42,7 @@ func NewGameHandler(app *App) *GameHandler {
 func (h *GameHandler) extractTenantID(c *gin.Context) string {
 	tenantID, ok := auth.GetTenantID(c)
 	if !ok {
-		return "fgs"
+		return h.app.GetGame().DefaultTenantID(c)
 	}
 	return tenantID
 }
@@ -59,7 +60,7 @@ func (h *GameHandler) extractUserID(c *gin.Context) (string, error) {
 func (h *GameHandler) extractCurrencyID(c *gin.Context) string {
 	currencyID, ok := auth.GetCurrencyID(c)
 	if !ok {
-		return "gold"
+		return h.app.GetGame().DefaultCurrency(c)
 	}
 	return currencyID
 }
@@ -136,9 +137,20 @@ func (h *GameHandler) Authorize(c *gin.Context) {
 		return
 	}
 
-	balance, err := h.app.walletProvider.CheckBalance(ctx, "sexy", tenantID, username, currencyID) //TODO, now cheat sexy
+	tenantWalletProvider, err := h.app.walletProvider.WithTenant(ctx, h.app.tenantProvider, tenantID)
 	if err != nil {
-		balance, err = h.app.walletProvider.GetBalance(ctx, userID, currencyID)
+		if goerrors.Is(err, ErrTenantWalletNotEnabled) {
+			InternalError(c, errors.New(errors.ErrInvalidRequest, "Tenant wallet not enabled"))
+			return
+		}
+
+		InternalError(c, errors.New(errors.ErrTenantError, "Failed to get tenant info"))
+		return
+	}
+
+	balance, err := tenantWalletProvider.CheckBalance(ctx, "sexy", tenantID, username, currencyID) //TODO, now cheat sexy
+	if err != nil {
+		balance, err = tenantWalletProvider.GetBalance(ctx, userID, currencyID)
 		if err != nil {
 			h.logger.Error().Err(err).Msg("Failed to get balance")
 			InternalError(c, errors.Wrap(err, errors.ErrWalletError, "Failed to get balance"))
@@ -246,14 +258,27 @@ func (h *GameHandler) Spin(c *gin.Context) {
 
 	betMul := float32(decimal.NewFromFloat32(req.Tier).Mul(decimal.NewFromFloat32(req.Multiplier)).InexactFloat64())
 	currencyID := h.extractCurrencyID(c)
+	tenantID := h.extractTenantID(c)
+
+	tenantWalletProvider, err := h.app.walletProvider.WithTenant(ctx, h.app.tenantProvider, tenantID)
+	if err != nil {
+		if goerrors.Is(err, ErrTenantWalletNotEnabled) {
+			InternalError(c, errors.New(errors.ErrInvalidRequest, "Tenant wallet not enabled"))
+			return
+		}
+
+		InternalError(c, errors.New(errors.ErrTenantError, "Failed to get tenant info"))
+		return
+	}
 
 	// Create game service with providers
 	gameService := h.app.newGameService(
 		gameModule,
 		h.app.stateProvider,
-		h.app.walletProvider,
+		tenantWalletProvider,
 		h.app.rewardProvider,
 		h.app.logProvider,
+		h.app.tenantProvider,
 		h.logger,
 	)
 
@@ -269,8 +294,6 @@ func (h *GameHandler) Spin(c *gin.Context) {
 		BadRequest(c, errors.New(errors.ErrInvalidRequest, "Name not found in JWT"))
 		return
 	}
-
-	tenantID := h.extractTenantID(c)
 
 	result, err := gameService.ExecuteSpinV2(ctx, &SpinServiceRequest{
 		TenantID:      tenantID,

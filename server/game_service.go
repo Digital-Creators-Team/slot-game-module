@@ -47,6 +47,7 @@ type GameService struct {
 	walletProvider providers.WalletProvider
 	rewardProvider providers.RewardProvider
 	logProvider    providers.LogProvider
+	tenantProvider providers.TenantProvider
 	logger         zerolog.Logger
 }
 
@@ -57,6 +58,7 @@ func NewGameService(
 	walletProvider providers.WalletProvider,
 	rewardProvider providers.RewardProvider,
 	logProvider providers.LogProvider,
+	tenantProvider providers.TenantProvider,
 	logger zerolog.Logger,
 ) *GameService {
 	return &GameService{
@@ -65,6 +67,7 @@ func NewGameService(
 		walletProvider: walletProvider,
 		rewardProvider: rewardProvider,
 		logProvider:    logProvider,
+		tenantProvider: tenantProvider,
 		logger:         logger.With().Str("service", "game").Logger(),
 	}
 }
@@ -165,7 +168,7 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 	var spinResult *game.SpinResult
 	if playerState.IsFreeSpin && playerState.RemainingFreeSpin > 0 {
 		// Execute free spin
-		spinResult, err = s.executeFreeSpin(ctx, req, playerState, playerState.BetMultiplier)
+		spinResult, err = s.executeFreeSpin(ctx, req, playerState, gameConfig, totalBet)
 		if err != nil {
 			return nil, err
 		}
@@ -178,29 +181,16 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 		}
 	}
 
-	// 6. Process jackpot win (if any)
-	if spinResult.IsGetJackpot != nil && *spinResult.IsGetJackpot {
-		// Claim jackpot
-		if err := s.processJackpotWin(ctx, spinResult, req.TenantID, req.UserID, req.Username, gameCode, req.CurrencyID, gameConfig, totalBet); err != nil {
-			s.logger.Error().Err(err).Msg("Failed to process jackpot win")
-		}
-		if playerState.TotalWinFreeSpin != nil {
-			playerState.TotalWinFreeSpin = lo.ToPtr(playerState.TotalWinFreeSpin.Add(spinResult.TotalWinJackpot))
-			spinResult.TotalWinFreeSpin = *playerState.TotalWinFreeSpin
-
-		}
-	}
-
 	// Update timestamp before saving
 	// Note: Since playerState is a pointer, any modifications by endusers in PlayNormalSpin/PlayFreeSpin
 	// are automatically reflected here - no need to get state from ModuleContext again
 	t := time.Now()
 	playerState.UpdatedAt = &t
 
-	// 7. Get ending balance
+	// 6. Get ending balance
 	spinResult.EndingBalance = playerBalance.Add(spinResult.TotalWin)
 
-	// 8. Log spin
+	// 7. Log spin
 	if s.logProvider != nil {
 
 		timestamp := time.Now().UTC()
@@ -295,11 +285,9 @@ func (s *GameService) ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest
 		return nil, errors.Wrap(err, errors.ErrInternalServerError, "invalid game config type")
 	}
 
-	productId := s.gameModule.GetProductId()
-
-	playerBalance, err := s.walletProvider.CheckBalance(ctx, productId, req.TenantID, req.Username, req.CurrencyID)
+	playerBalance, err := s.walletProvider.CheckBalance(ctx, gameCode, req.TenantID, req.Username, req.CurrencyID)
 	if err != nil {
-		fmt.Println("===> get balance error:", productId, err)
+		fmt.Println("===> get balance error:", gameCode, err)
 		return nil, errors.New(errors.ErrInternalServerError, "get balance error")
 	}
 
@@ -340,7 +328,7 @@ func (s *GameService) ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest
 	var spinResult *game.SpinResult
 	if playerState.IsFreeSpin && playerState.RemainingFreeSpin > 0 {
 		// Execute free spin
-		spinResult, err = s.executeFreeSpin(ctx, req, playerState, playerState.BetMultiplier)
+		spinResult, err = s.executeFreeSpin(ctx, req, playerState, gameConfig, totalBet)
 		if err != nil {
 			return nil, err
 		}
@@ -350,19 +338,6 @@ func (s *GameService) ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest
 		spinResult, err = s.executeNormalSpin(ctx, req, playerState, gameConfig, totalBet)
 		if err != nil {
 			return nil, err
-		}
-	}
-
-	// 6. Process jackpot win (if any)
-	if spinResult.IsGetJackpot != nil && *spinResult.IsGetJackpot {
-		// Claim jackpot
-		if err := s.processJackpotWin(ctx, spinResult, req.TenantID, req.UserID, req.Username, gameCode, req.CurrencyID, gameConfig, totalBet); err != nil {
-			s.logger.Error().Err(err).Msg("Failed to process jackpot win")
-		}
-		if playerState.TotalWinFreeSpin != nil {
-			playerState.TotalWinFreeSpin = lo.ToPtr(playerState.TotalWinFreeSpin.Add(spinResult.TotalWinJackpot))
-			spinResult.TotalWinFreeSpin = *playerState.TotalWinFreeSpin
-
 		}
 	}
 
@@ -485,10 +460,9 @@ func (s *GameService) executeNormalSpin(
 
 	gameCode := s.gameModule.GetGameCode()
 	gameName := s.gameModule.GetGameName()
-	productId := s.gameModule.GetProductId()
 	roundID := uuid.New().String()
 	start := time.Now()
-	err := s.walletProvider.PlaceBets(ctx, productId, req.TenantID, req.Username, req.CurrencyID, totalBet, roundID, roundID, gameCode, gameName) // now using roundID for transactionId
+	err := s.walletProvider.PlaceBets(ctx, gameCode, req.TenantID, req.Username, req.CurrencyID, totalBet, roundID, roundID, gameCode, gameName) // now using roundID for transactionId
 	elapsed := time.Since(start)
 	s.logger.Info().Int64("duration", elapsed.Milliseconds()).Msg("API PlaceBets response")
 	if err != nil {
@@ -518,8 +492,16 @@ func (s *GameService) executeNormalSpin(
 
 	// 3. Contribute to jackpot pools (before claiming)
 	// Progressive amount is calculated before spin, so we contribute first
-	if err := s.contributeToJackpot(ctx, req.UserID, gameCode, gameConfig, totalBet, spinResult); err != nil {
+	if err := s.contributeToJackpot(ctx, req.TenantID, req.CurrencyID, req.UserID, gameCode, gameConfig, totalBet, spinResult); err != nil {
 		s.logger.Error().Err(err).Msg("Failed to contribute to jackpot")
+	}
+
+	// 4. Process jackpot win (if any)
+	if spinResult.IsGetJackpot != nil && *spinResult.IsGetJackpot {
+		// Claim jackpot
+		if err := s.processJackpotWin(ctx, spinResult, req.TenantID, req.UserID, req.Username, gameCode, req.CurrencyID, gameConfig, totalBet); err != nil {
+			s.logger.Error().Err(err).Msg("Failed to process jackpot win")
+		}
 	}
 
 	// 5. Deposit winnings to wallet
@@ -528,7 +510,7 @@ func (s *GameService) executeNormalSpin(
 		if s.walletProvider == nil {
 			return nil, errors.New(errors.ErrInternalServerError, "wallet provider not configured")
 		}
-		err := s.walletProvider.SettleBets(ctx, productId, req.TenantID, req.Username, req.CurrencyID, decimal.Zero, spinResult.TotalWin, roundID, roundID, gameCode, gameName)
+		err := s.walletProvider.SettleBets(ctx, gameCode, req.TenantID, req.Username, req.CurrencyID, decimal.Zero, spinResult.TotalWin, roundID, roundID, gameCode, gameName)
 		if err != nil {
 			fmt.Println("SettleBets error:", err)
 			//err = s.walletProvider.Deposit(ctx, req.UserID, req.CurrencyID, spinResult.TotalWin)
@@ -537,7 +519,7 @@ func (s *GameService) executeNormalSpin(
 			//}
 		}
 	} else {
-		err := s.walletProvider.SettleBets(ctx, productId, req.TenantID, req.Username, req.CurrencyID, decimal.Zero, decimal.Zero, roundID, roundID, gameCode, gameName)
+		err := s.walletProvider.SettleBets(ctx, gameCode, req.TenantID, req.Username, req.CurrencyID, decimal.Zero, decimal.Zero, roundID, roundID, gameCode, gameName)
 		if err != nil {
 			fmt.Println("SettleBets error (zero):", err)
 		}
@@ -549,7 +531,7 @@ func (s *GameService) executeNormalSpin(
 		payout = decimal.Zero
 	}
 	start = time.Now()
-	err = s.walletProvider.SettleBets(ctx, productId, req.TenantID, req.Username, req.CurrencyID, decimal.Zero, payout, roundID, roundID, gameCode, gameName)
+	err = s.walletProvider.SettleBets(ctx, gameCode, req.TenantID, req.Username, req.CurrencyID, decimal.Zero, payout, roundID, roundID, gameCode, gameName)
 	elapsed = time.Since(start)
 	s.logger.Info().Int64("duration", elapsed.Milliseconds()).Msg("API PlayNormalSpin response")
 	if err != nil {
@@ -593,7 +575,8 @@ func (s *GameService) executeFreeSpin(
 	ctx context.Context,
 	req *SpinServiceRequest,
 	playerState *game.PlayerState,
-	betMultiplier float32,
+	gameConfig *game.Config,
+	totalBet decimal.Decimal,
 ) (*game.SpinResult, error) {
 	// Get the next pre-generated free spin result
 	// Note: playerState is a pointer, so modifications by endusers are automatically reflected
@@ -614,17 +597,26 @@ func (s *GameService) executeFreeSpin(
 		playerState.RemainingFreeSpin += *spinResult.ResultFreeSpin
 	}
 
+	// Process jackpot win (if any)
+	if spinResult.IsGetJackpot != nil && *spinResult.IsGetJackpot {
+		gameCode := s.gameModule.GetGameCode()
+
+		// Claim jackpot
+		if err := s.processJackpotWin(ctx, spinResult, req.TenantID, req.UserID, req.Username, gameCode, req.CurrencyID, gameConfig, totalBet); err != nil {
+			s.logger.Error().Err(err).Msg("Failed to process jackpot win")
+		}
+	}
+
 	if spinResult.TotalWin.GreaterThan(decimal.Zero) {
 		if s.walletProvider == nil {
 			return nil, errors.New(errors.ErrInternalServerError, "wallet provider not configured")
 		}
-		productId := s.gameModule.GetProductId()
 		gameCode := s.gameModule.GetGameCode()
 		gameName := s.gameModule.GetGameName()
 		roundID := uuid.New().String()
-		err := s.walletProvider.PlaceBets(ctx, productId, req.TenantID, req.Username, req.CurrencyID, decimal.Zero, roundID, roundID, gameCode, gameName) // now using roundID for transactionId
+		err := s.walletProvider.PlaceBets(ctx, gameCode, req.TenantID, req.Username, req.CurrencyID, decimal.Zero, roundID, roundID, gameCode, gameName) // now using roundID for transactionId
 		if err == nil {
-			err = s.walletProvider.SettleBets(ctx, productId, req.TenantID, req.Username, req.CurrencyID, decimal.Zero, spinResult.TotalWin, roundID, roundID, gameCode, gameName)
+			err = s.walletProvider.SettleBets(ctx, gameCode, req.TenantID, req.Username, req.CurrencyID, decimal.Zero, spinResult.TotalWin, roundID, roundID, gameCode, gameName)
 			if err != nil {
 				fmt.Println("SettleBets error:", err)
 				//if err := s.walletProvider.Deposit(ctx, req.UserID, req.CurrencyID, spinResult.TotalWin); err != nil {
@@ -673,7 +665,7 @@ func (s *GameService) executeFreeSpin(
 
 // contributeToJackpot contributes to jackpot pools
 // Uses custom JackpotHandler if implemented by game module, otherwise uses default logic
-func (s *GameService) contributeToJackpot(ctx context.Context, userID, gameCode string, gameConfig *game.Config, totalBet decimal.Decimal, spinResult *game.SpinResult) error {
+func (s *GameService) contributeToJackpot(ctx context.Context, tenantID, currency, userID, gameCode string, gameConfig *game.Config, totalBet decimal.Decimal, spinResult *game.SpinResult) error {
 	if s.rewardProvider == nil {
 		return nil
 	}
@@ -681,7 +673,7 @@ func (s *GameService) contributeToJackpot(ctx context.Context, userID, gameCode 
 	// Check if game module implements custom jackpot handler
 	if handler, ok := s.gameModule.(game.JackpotHandler); ok {
 		// Use custom jackpot handler
-		contributions, err := handler.GetContributions(ctx, spinResult, totalBet)
+		contributions, err := handler.GetContributions(ctx, tenantID, currency, spinResult, totalBet)
 		if err != nil {
 			return fmt.Errorf("failed to get jackpot contributions: %w", err)
 		}
@@ -702,8 +694,8 @@ func (s *GameService) contributeToJackpot(ctx context.Context, userID, gameCode 
 				UserID:     userID,
 				Amount:     contrib.Amount,
 				GameCode:   gameCode,
-				SpinID:     spinID,
-				TotalPools: totalPools,
+				SpinID:     &spinID,
+				TotalPools: &totalPools,
 			}); err != nil {
 				s.logger.Error().Err(err).Str("pool", contrib.PoolID).Msg("Failed to contribute to jackpot pool")
 			}
@@ -735,7 +727,7 @@ func (s *GameService) processJackpotWin(
 	switch handler := s.gameModule.(type) {
 	case game.SingleJackpotWinHandler:
 		// Use custom single jackpot handler
-		jp, err := handler.GetWin(ctx, spinResult, totalBet)
+		jp, err := handler.GetWin(ctx, tenantID, currency, spinResult, totalBet)
 		if err != nil {
 			return fmt.Errorf("failed to get jackpot win: %w", err)
 		}
@@ -743,7 +735,7 @@ func (s *GameService) processJackpotWin(
 
 	case game.MultipleJackpotWinHandler:
 		// Use custom multiple jackpot handler
-		jps, err := handler.GetWins(ctx, spinResult, totalBet)
+		jps, err := handler.GetWins(ctx, tenantID, currency, spinResult, totalBet)
 		if err != nil {
 			return fmt.Errorf("failed to get jackpot win: %w", err)
 		}
@@ -762,13 +754,13 @@ func (s *GameService) processJackpotWin(
 		for _, i := range jackpotWin {
 			// Claim jackpot
 			claim, err := s.rewardProvider.Claim(ctx, &providers.ClaimRequest{
-				PoolID:    i.PoolID,
-				UserID:    userID,
-				Username:  username,
-				GameCode:  gameCode,
-				InitValue: i.InitValue,
-				Agency:    tenantID,
-				WalletUrl: s.walletProvider.GetWalletUrl(ctx),
+				PoolID:     i.PoolID,
+				TenantID:   tenantID,
+				CurrencyID: currency,
+				UserID:     userID,
+				Username:   username,
+				GameCode:   gameCode,
+				InitValue:  i.InitValue,
 			})
 
 			if err != nil {

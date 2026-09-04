@@ -151,18 +151,18 @@ func (h *EventsWSHandler) Stream(g *gin.Context) {
 
 	tokenString := g.Query("token")
 	if tokenString == "" {
-		ErrorWithMessage(g, http.StatusUnauthorized, "missing token")
+		ErrorWithMessage(g, http.StatusUnauthorized, "missing token", apperrors.ErrUnauthorized)
 		return
 	}
 
 	claims, err := parseToken(tokenString, h.app.config.JWT.Secret)
 	if err != nil {
-		ErrorWithMessage(g, http.StatusUnauthorized, "invalid or expired token")
+		ErrorWithMessage(g, http.StatusUnauthorized, "invalid or expired token", apperrors.ErrUnauthorized)
 		return
 	}
 
 	if claims.UserID == "" {
-		ErrorWithMessage(g, http.StatusUnauthorized, "invalid token claims")
+		ErrorWithMessage(g, http.StatusUnauthorized, "invalid token claims", apperrors.ErrUnauthorized)
 		return
 	}
 
@@ -332,7 +332,7 @@ func (h *EventsWSHandler) handleMessage(c *WSConn, claims *auth.Claims, req WSRe
 		_ = c.Send(b)
 		return
 	case WSEventJackpotSubscribe:
-		h.handleJackpotSubscribe(c, req)
+		h.handleJackpotSubscribe(c, claims, req)
 		//h.writeReply(c, req, path, okReply(http.StatusOK, map[string]bool{"ok": true}))
 		return
 	}
@@ -341,6 +341,14 @@ func (h *EventsWSHandler) handleMessage(c *WSConn, claims *auth.Claims, req WSRe
 }
 
 func (h *EventsWSHandler) dispatch(c *WSConn, claims *auth.Claims, req WSRequest) *wsReply {
+	// Block mid-session token expiry: the token is validated once at connection
+	// time, but it can expire afterwards. Re-check it before using the claims so
+	// an expired session cannot keep spinning / reading state, and surface it
+	// with a code the client recognises (401 / ErrUnauthorized).
+	if err := validateTokenExpiry(claims); err != nil {
+		return errReply(http.StatusUnauthorized, err)
+	}
+
 	switch req.Type {
 	case WSEventAuthorizeGame:
 		return h.handleAuthorize(c, claims, req)
@@ -442,7 +450,16 @@ func (h *EventsWSHandler) handleAuthorize(c *WSConn, claims *auth.Claims, req WS
 		return &wsReply{status: http.StatusInternalServerError, err: apperrors.New(apperrors.ErrInternalServerError, "Wallet provider not configured")}
 	}
 
-	balance, err := h.app.walletProvider.CheckBalance(ctx, h.app.gameModule.GetProductId(), claims.TenantID, claims.Username, claims.CurrencyID)
+	tenantWalletProvider, err := h.app.walletProvider.WithTenant(ctx, h.app.tenantProvider, claims.TenantID)
+	if err != nil {
+		if errors.Is(err, ErrTenantWalletNotEnabled) {
+			return &wsReply{status: http.StatusBadRequest, err: apperrors.New(apperrors.ErrInvalidRequest, "Tenant wallet not enabled")}
+		}
+
+		return &wsReply{status: http.StatusInternalServerError, err: apperrors.New(apperrors.ErrTenantError, "Failed to get tenant info")}
+	}
+
+	balance, err := tenantWalletProvider.CheckBalance(ctx, h.app.gameModule.GetGameCode(), claims.TenantID, claims.Username, claims.CurrencyID)
 	if err != nil {
 		if r := h.timeoutReplyIfNeeded(ctx, err); r != nil {
 			return r
@@ -505,12 +522,22 @@ func (h *EventsWSHandler) handleSpin(c *WSConn, claims *auth.Claims, req WSReque
 
 	betMul := float32(decimal.NewFromFloat32(spinReq.Tier).Mul(decimal.NewFromFloat32(spinReq.Multiplier)).InexactFloat64())
 
+	tenantWalletProvider, err := h.app.walletProvider.WithTenant(ctx, h.app.tenantProvider, claims.TenantID)
+	if err != nil {
+		if errors.Is(err, ErrTenantWalletNotEnabled) {
+			return &wsReply{status: http.StatusBadRequest, err: apperrors.New(apperrors.ErrInvalidRequest, "Tenant wallet not enabled")}
+		}
+
+		return &wsReply{status: http.StatusInternalServerError, err: apperrors.New(apperrors.ErrTenantError, "Failed to get tenant info")}
+	}
+
 	gameService := h.app.newGameService(
 		gameModule,
 		h.app.stateProvider,
-		h.app.walletProvider,
+		tenantWalletProvider,
 		h.app.rewardProvider,
 		h.app.logProvider,
+		h.app.tenantProvider,
 		h.logger,
 	)
 
@@ -641,7 +668,7 @@ func (s *jackpotWSSender) Send(resp *Response) error {
 	return s.conn.Send(payload)
 }
 
-func (h *EventsWSHandler) handleJackpotSubscribe(c *WSConn, req WSRequest) {
+func (h *EventsWSHandler) handleJackpotSubscribe(c *WSConn, claims *auth.Claims, req WSRequest) {
 	var subReq jackpotSubscribeWSRequest
 	if err := json.Unmarshal(req.Data, &subReq); err != nil {
 		return
@@ -655,7 +682,7 @@ func (h *EventsWSHandler) handleJackpotSubscribe(c *WSConn, req WSRequest) {
 		return
 	}
 
-	h.subscribeJackpot(c, betMultiplier)
+	h.subscribeJackpot(c, claims.TenantID, claims.CurrencyID, betMultiplier)
 }
 
 func (h *EventsWSHandler) autoSubscribeJackpot(c *WSConn, claims *auth.Claims) {
@@ -683,10 +710,10 @@ func (h *EventsWSHandler) autoSubscribeJackpot(c *WSConn, claims *auth.Claims) {
 	if betMultiplier <= 0 {
 		return
 	}
-	h.subscribeJackpot(c, betMultiplier)
+	h.subscribeJackpot(c, claims.TenantID, claims.CurrencyID, betMultiplier)
 }
 
-func (h *EventsWSHandler) subscribeJackpot(c *WSConn, betMultiplier float32) {
+func (h *EventsWSHandler) subscribeJackpot(c *WSConn, tenantID string, currency string, betMultiplier float32) {
 	c.StopJackpot()
 
 	base := c.Context()
@@ -704,7 +731,7 @@ func (h *EventsWSHandler) subscribeJackpot(c *WSConn, betMultiplier float32) {
 	gameCode := gameModule.GetGameCode()
 	var targetPoolIDs []string
 	if handler, ok := gameModule.(game.JackpotHandler); ok {
-		poolIDs, err := handler.GetPoolID(ctx, gameCode, betMultiplier)
+		poolIDs, err := handler.GetPoolID(ctx, tenantID, currency, gameCode, betMultiplier)
 		if err != nil {
 			cancel()
 			return
@@ -715,6 +742,8 @@ func (h *EventsWSHandler) subscribeJackpot(c *WSConn, betMultiplier float32) {
 		return len(targetPoolIDs) == 0 || lo.Contains(targetPoolIDs, poolID)
 	}
 	config := &streamConfig{
+		tenantID:      tenantID,
+		currency:      currency,
 		betMultiplier: betMultiplier,
 		targetPoolIDs: targetPoolIDs,
 		isTargetPool:  isTargetPool,
@@ -735,8 +764,27 @@ func (h *EventsWSHandler) subscribeJackpot(c *WSConn, betMultiplier float32) {
 	}()
 }
 
+// validateTokenExpiry returns an AppError with code ErrUnauthorized (401) if the
+// claims' token has already expired, so that the reply carries both
+// status_code=401 and error_code=401 which the client can interpret as an
+// InvalidToken and trigger its refresh flow.
+func validateTokenExpiry(claims *auth.Claims) error {
+	if claims == nil || claims.ExpiresAt == nil {
+		return apperrors.New(apperrors.ErrUnauthorized, "invalid token")
+	}
+	if time.Now().After(claims.ExpiresAt.Time) {
+		return apperrors.New(apperrors.ErrUnauthorized, "token expired")
+	}
+	return nil
+}
+
 func parseToken(tokenString string, secret string) (*auth.Claims, error) {
-	token, err := jwt.ParseWithClaims(tokenString, &auth.Claims{}, func(token *jwt.Token) (interface{}, error) {
+	// The WebSocket is upgraded regardless of whether the token is already
+	// expired: we still require a valid signature (so forged tokens are
+	// rejected), but defer the expiry decision to dispatch/validateTokenExpiry
+	// so the client can open the connection and then receive the 401 reply.
+	parser := jwt.NewParser(jwt.WithoutClaimsValidation())
+	token, err := parser.ParseWithClaims(tokenString, &auth.Claims{}, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, errors.New("unexpected signing method")
 		}

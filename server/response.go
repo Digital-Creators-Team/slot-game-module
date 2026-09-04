@@ -77,8 +77,16 @@ func Error(c *gin.Context, statusCode int, err error) {
 	c.JSON(statusCode, errorResp)
 }
 
-// ErrorWithMessage sends an error response with a custom message
-func ErrorWithMessage(c *gin.Context, statusCode int, message string) {
+// ErrorWithMessage sends an error response with a custom message.
+// errCode is optional: if -1 (default), it falls back to ErrUndefinedErrorCode
+// (the existing behaviour). Passing an explicit code (e.g. ErrUnauthorized)
+// lets HTTP responses carry a meaningful ErrorCode the client can map.
+func ErrorWithMessage(c *gin.Context, statusCode int, message string, errCode ...int) {
+	code := ErrUndefinedErrorCode
+	if len(errCode) > 0 && errCode[0] != -1 {
+		code = errCode[0]
+	}
+
 	errorResp := types.ErrorResponse{
 		StatusCode: statusCode,
 		IsSuccess:  false,
@@ -86,7 +94,7 @@ func ErrorWithMessage(c *gin.Context, statusCode int, message string) {
 			Timestamp:    time.Now().Format(time.RFC3339),
 			Path:         c.Request.URL.Path,
 			ErrorMessage: message,
-			ErrorCode:    ErrUndefinedErrorCode,
+			ErrorCode:    code,
 		},
 	}
 	c.JSON(statusCode, errorResp)

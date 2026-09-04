@@ -42,22 +42,10 @@ func NewRewardProvider(cfg *config.Config, logger zerolog.Logger) *RewardProvide
 func (p *RewardProvider) Contribute(ctx context.Context, req *providers.ContributeRequest) error {
 	url := fmt.Sprintf("%s/jackpot/contribute", p.baseURL)
 
-	bodyMap := map[string]interface{}{
-		"pool_id":   req.PoolID,
-		"amount":    req.Amount.String(),
-		"game_code": req.GameCode,
-		"user_id":   req.UserID,
+	body, err := json.Marshal(req)
+	if err != nil {
+		return fmt.Errorf("failed to marshal request: %w", err)
 	}
-
-	// Add spin_id and total_pools if provided
-	if req.SpinID != "" {
-		bodyMap["spin_id"] = req.SpinID
-	}
-	if req.TotalPools > 0 {
-		bodyMap["total_pools"] = req.TotalPools
-	}
-
-	body, _ := json.Marshal(bodyMap)
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
@@ -82,15 +70,10 @@ func (p *RewardProvider) Contribute(ctx context.Context, req *providers.Contribu
 func (p *RewardProvider) Claim(ctx context.Context, req *providers.ClaimRequest) (*server.JackpotClaim, error) {
 	url := fmt.Sprintf("%s/jackpot/claim", p.baseURL)
 
-	body, _ := json.Marshal(map[string]interface{}{
-		"pool_id":    req.PoolID,
-		"user_id":    req.UserID,
-		"username":   req.Username,
-		"game_code":  req.GameCode,
-		"init_value": req.InitValue.String(),
-		"agency":     req.Agency,
-		"wallet_url": req.WalletUrl,
-	})
+	body, err := json.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
 
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
