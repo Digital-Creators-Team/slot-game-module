@@ -92,6 +92,24 @@ type SpinResult struct {
 	ExtraData          map[string]interface{} `json:"extraData,omitempty"` // Custom data for game-specific use
 }
 
+type SpinStatus string
+
+const (
+	SpinStatusNew       SpinStatus = "new"
+	SpinStatusStale     SpinStatus = "stale"
+	SpinStatusSpinError SpinStatus = "spinError"
+	SpinStatusRefunded  SpinStatus = "refunded"
+	SpinStatusPaying    SpinStatus = "paying"
+	SpinStatusCompleted SpinStatus = "completed"
+)
+
+type SpinState struct {
+	Status     SpinStatus  `json:"status"`
+	RoundID    string      `json:"roundId"`
+	SpinResult *SpinResult `json:"spinResult,omitempty"`
+	Error      *string     `json:"error,omitempty"`
+}
+
 // SpinResponse represents the API response for a spin
 type SpinResponse struct {
 	TotalWin           decimal.Decimal        `json:"totalWin,omitempty"`
@@ -153,6 +171,7 @@ func (sr *SpinResult) ToSpinResponse() *SpinResponse {
 
 // PlayerState represents the current state of a player in a game
 type PlayerState struct {
+	SessionID           string                 `json:"-"` // Transient data so we don't need to store it
 	IsFreeSpin          bool                   `json:"isFreeSpin,omitempty"`
 	RemainingFreeSpin   int                    `json:"remainingFreeSpin,omitempty"`
 	TotalWinFreeSpin    *decimal.Decimal       `json:"totalWinFreeSpin,omitempty"`
@@ -162,6 +181,7 @@ type PlayerState struct {
 	FreeSpins           []*SpinResult          `json:"freeSpins,omitempty"`
 	PlayedFreeSpin      *int                   `json:"playedFreeSpin,omitempty"`
 	IsLastFreeSpin      bool                   `json:"isLastFreeSpin,omitempty"`
+	SpinState           *SpinState             `json:"spinState,omitempty"`
 	SpinResult          *SpinResult            `json:"spinResult,omitempty"`
 	SpinResultTriggerFG *SpinResult            `json:"spinResultTriggerFG,omitempty"`
 	UpdatedAt           *time.Time             `json:"updatedAt,omitempty"`
