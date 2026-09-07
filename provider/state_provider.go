@@ -24,13 +24,13 @@ func NewStateProvider(redisClient *coreredis.Client, logger zerolog.Logger) *Sta
 	}
 }
 
-func (p *StateProvider) stateKey(userID, gameCode string) string {
-	return fmt.Sprintf("game:state:%s:%s", gameCode, userID)
+func (p *StateProvider) stateKey(userID, currencyID, gameCode string) string {
+	return fmt.Sprintf("game:state:%s:%s:%s", gameCode, currencyID, userID)
 }
 
 // GetPlayerState retrieves player state from Redis
-func (p *StateProvider) GetPlayerState(ctx context.Context, userID, gameCode string) (interface{}, error) {
-	key := p.stateKey(userID, gameCode)
+func (p *StateProvider) GetPlayerState(ctx context.Context, userID, currencyID, gameCode string) (interface{}, error) {
+	key := p.stateKey(userID, currencyID, gameCode)
 	data, err := p.redis.Get(ctx, key)
 	if err != nil {
 		// Key not found - return default state
@@ -52,8 +52,8 @@ func (p *StateProvider) GetPlayerState(ctx context.Context, userID, gameCode str
 }
 
 // SavePlayerState saves player state to Redis
-func (p *StateProvider) SavePlayerState(ctx context.Context, userID, gameCode string, state interface{}) error {
-	key := p.stateKey(userID, gameCode)
+func (p *StateProvider) SavePlayerState(ctx context.Context, userID, currencyID, gameCode string, state interface{}) error {
+	key := p.stateKey(userID, currencyID, gameCode)
 	data, err := json.Marshal(state)
 	if err != nil {
 		return fmt.Errorf("failed to marshal state: %w", err)
@@ -67,8 +67,8 @@ func (p *StateProvider) SavePlayerState(ctx context.Context, userID, gameCode st
 }
 
 // DeleteState removes player state from Redis
-func (p *StateProvider) DeleteState(ctx context.Context, userID, gameCode string) error {
-	key := p.stateKey(userID, gameCode)
+func (p *StateProvider) DeleteState(ctx context.Context, userID, currencyID, gameCode string) error {
+	key := p.stateKey(userID, currencyID, gameCode)
 	if err := p.redis.Delete(ctx, key); err != nil {
 		return fmt.Errorf("failed to delete state: %w", err)
 	}

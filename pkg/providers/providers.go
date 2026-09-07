@@ -10,8 +10,8 @@ import (
 
 // StateProvider interface for player state management
 type StateProvider interface {
-	GetPlayerState(ctx context.Context, userID, gameCode string) (interface{}, error)
-	SavePlayerState(ctx context.Context, userID, gameCode string, state interface{}) error
+	GetPlayerState(ctx context.Context, userID, currencyID, gameCode string) (interface{}, error)
+	SavePlayerState(ctx context.Context, userID, currencyID, gameCode string, state interface{}) error
 }
 
 // WalletProvider interface for wallet operations

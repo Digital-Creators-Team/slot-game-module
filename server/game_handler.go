@@ -117,7 +117,7 @@ func (h *GameHandler) Authorize(c *gin.Context) {
 	}
 
 	// Get player state - requires StateProvider
-	playerState, err := h.app.stateProvider.GetPlayerState(ctx, userID, gameModule.GetGameCode())
+	playerState, err := h.app.stateProvider.GetPlayerState(ctx, userID, h.extractCurrencyID(c), gameModule.GetGameCode())
 	if err != nil {
 		h.logger.Error().Err(err).Msg("Failed to get player state")
 		InternalError(c, errors.Wrap(err, errors.ErrPlayerStateError, "Failed to get player state"))
@@ -433,7 +433,7 @@ func (h *GameHandler) GetState(c *gin.Context) {
 	}
 
 	// Get player state - requires StateProvider
-	playerState, err := h.app.stateProvider.GetPlayerState(ctx, userID, gameModule.GetGameCode())
+	playerState, err := h.app.stateProvider.GetPlayerState(ctx, userID, h.extractCurrencyID(c), gameModule.GetGameCode())
 	if err != nil {
 		h.logger.Error().Err(err).Msg("Failed to get player state")
 		InternalError(c, errors.Wrap(err, errors.ErrPlayerStateError, "Failed to get player state"))

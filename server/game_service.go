@@ -127,7 +127,7 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 	}
 
 	// 3. Load player state
-	playerState, err := s.getPlayerState(ctx, req.UserID, gameCode)
+	playerState, err := s.getPlayerState(ctx, req.UserID, req.CurrencyID, gameCode)
 	if err != nil {
 		return nil, err
 	}
@@ -135,7 +135,7 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 	playerState.BetMultiplier = req.BetMultiplier
 	playerState.Tier = req.Tier
 	playerState.Mul = req.Multiplier
-	_ = s.savePlayerState(ctx, req.UserID, gameCode, playerState) //save bet multiplier
+	_ = s.savePlayerState(ctx, req.UserID, req.CurrencyID, gameCode, playerState) //save bet multiplier
 
 	playerBalance, err := s.walletProvider.GetBalance(ctx, req.UserID, req.CurrencyID)
 	if err != nil {
@@ -241,7 +241,7 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 	}
 
 	// 8. Save player state
-	if err := s.savePlayerState(ctx, req.UserID, gameCode, playerState); err != nil {
+	if err := s.savePlayerState(ctx, req.UserID, req.CurrencyID, gameCode, playerState); err != nil {
 		return nil, err
 	}
 
@@ -292,7 +292,7 @@ func (s *GameService) ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest
 	}
 
 	// 3. Load player state
-	playerState, err := s.getPlayerState(ctx, req.UserID, gameCode)
+	playerState, err := s.getPlayerState(ctx, req.UserID, req.CurrencyID, gameCode)
 	if err != nil {
 		return nil, err
 	}
@@ -300,7 +300,7 @@ func (s *GameService) ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest
 	playerState.BetMultiplier = req.BetMultiplier
 	playerState.Tier = req.Tier
 	playerState.Mul = req.Multiplier
-	_ = s.savePlayerState(ctx, req.UserID, gameCode, playerState) //save bet multiplier
+	_ = s.savePlayerState(ctx, req.UserID, req.CurrencyID, gameCode, playerState) //save bet multiplier
 
 	// Set player state in ModuleContext so endusers can access and modify it
 	// Since playerState is a pointer, modifications by endusers are automatically reflected
@@ -395,7 +395,7 @@ func (s *GameService) ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest
 	}
 
 	// 8. Save player state
-	if err := s.savePlayerState(ctx, req.UserID, gameCode, playerState); err != nil {
+	if err := s.savePlayerState(ctx, req.UserID, req.CurrencyID, gameCode, playerState); err != nil {
 		return nil, err
 	}
 
@@ -421,8 +421,8 @@ func (s *GameService) validateSpinRequest(req *SpinServiceRequest) error {
 }
 
 // getPlayerState gets player state from provider
-func (s *GameService) getPlayerState(ctx context.Context, userID, gameCode string) (*game.PlayerState, error) {
-	stateInterface, err := s.stateProvider.GetPlayerState(ctx, userID, gameCode)
+func (s *GameService) getPlayerState(ctx context.Context, userID, currencyID, gameCode string) (*game.PlayerState, error) {
+	stateInterface, err := s.stateProvider.GetPlayerState(ctx, userID, currencyID, gameCode)
 	if err != nil {
 		return nil, errors.Wrap(err, errors.ErrPlayerStateError, "failed to get player state")
 	}
@@ -437,8 +437,8 @@ func (s *GameService) getPlayerState(ctx context.Context, userID, gameCode strin
 }
 
 // savePlayerState saves player state
-func (s *GameService) savePlayerState(ctx context.Context, userID, gameCode string, state *game.PlayerState) error {
-	if err := s.stateProvider.SavePlayerState(ctx, userID, gameCode, state); err != nil {
+func (s *GameService) savePlayerState(ctx context.Context, userID, currencyID, gameCode string, state *game.PlayerState) error {
+	if err := s.stateProvider.SavePlayerState(ctx, userID, currencyID, gameCode, state); err != nil {
 		return errors.Wrap(err, errors.ErrPlayerStateError, "failed to save player state")
 	}
 	return nil
