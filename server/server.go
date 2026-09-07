@@ -283,6 +283,7 @@ func (a *App) healthCheck(c *gin.Context) {
 		"timestamp": time.Now(),
 		"service":   a.config.Environment,
 		"game_code": a.GetGameCode(),
+		"version":   GetVersion(),
 	})
 }
 
