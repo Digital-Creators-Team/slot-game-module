@@ -188,8 +188,10 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 		spinResult, err = s.executeNormalSpin(ctx, req, playerState, spinState, gameConfig, totalBet)
 	}
 	if err != nil {
-		_ = s.logSpinError(ctx, spinState)
-		s.clearSpinStateAsync(ctx, spinState.SessionID, gameCode)
+		logErr := s.logSpinError(ctx, spinState)
+		if logErr == nil {
+			s.clearSpinStateAsync(ctx, spinState.SessionID, gameCode)
+		}
 
 		return nil, err
 	}
@@ -363,8 +365,10 @@ func (s *GameService) ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest
 		spinResult, err = s.executeNormalSpin(ctx, req, playerState, spinState, gameConfig, totalBet)
 	}
 	if err != nil {
-		_ = s.logSpinError(ctx, spinState)
-		s.clearSpinStateAsync(ctx, spinState.SessionID, gameCode)
+		logErr := s.logSpinError(ctx, spinState)
+		if logErr == nil {
+			s.clearSpinStateAsync(ctx, spinState.SessionID, gameCode)
+		}
 
 		return nil, err
 	}
