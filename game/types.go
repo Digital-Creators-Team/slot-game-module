@@ -226,6 +226,7 @@ func (p *PlayerState) Reset() {
 	p.PlayedFreeSpin = nil
 	p.IsLastFreeSpin = false
 	p.SpinResultTriggerFG = nil
+	p.SessionIDTriggerFG = ""
 	// p.ExtraData = make(map[string]interface{})
 	t := time.Now()
 	p.UpdatedAt = &t
