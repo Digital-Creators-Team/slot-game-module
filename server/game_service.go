@@ -132,6 +132,12 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 		return nil, err
 	}
 
+	// Check for stale spin state
+	if playerState.SpinState != nil {
+		_ = s.logSpinError(ctx, req, decimal.Zero, playerState)
+		playerState.SpinState = nil
+	}
+
 	playerState.SessionID = sessionID
 	playerState.BetMultiplier = req.BetMultiplier
 	playerState.Tier = req.Tier
@@ -171,11 +177,6 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 		spinResult *game.SpinResult
 	)
 
-	// Check for stale spin state
-	if playerState.SpinState != nil {
-		_ = s.logAndClearSpinStateError(ctx, req, decimal.Zero, playerState)
-	}
-
 	if isFreeSpin {
 		// Execute free spin
 		spinResult, err = s.executeFreeSpin(ctx, req, playerState, gameConfig, totalBet)
@@ -185,7 +186,7 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 		spinResult, err = s.executeNormalSpin(ctx, req, playerState, gameConfig, totalBet)
 	}
 	if err != nil {
-		_ = s.logAndClearSpinStateError(ctx, req, totalBet, playerState)
+		_ = s.logSpinError(ctx, req, totalBet, playerState)
 
 		return nil, err
 	}
@@ -308,6 +309,12 @@ func (s *GameService) ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest
 		return nil, err
 	}
 
+	// Check for stale spin state
+	if playerState.SpinState != nil {
+		_ = s.logSpinError(ctx, req, decimal.Zero, playerState)
+		playerState.SpinState = nil
+	}
+
 	playerState.BetMultiplier = req.BetMultiplier
 	playerState.Tier = req.Tier
 	playerState.Mul = req.Multiplier
@@ -341,11 +348,6 @@ func (s *GameService) ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest
 		spinResult *game.SpinResult
 	)
 
-	// Check for stale spin state
-	if playerState.SpinState != nil {
-		_ = s.logAndClearSpinStateError(ctx, req, decimal.Zero, playerState)
-	}
-
 	if isFreeSpin {
 		// Execute free spin
 		spinResult, err = s.executeFreeSpin(ctx, req, playerState, gameConfig, totalBet)
@@ -355,7 +357,7 @@ func (s *GameService) ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest
 		spinResult, err = s.executeNormalSpin(ctx, req, playerState, gameConfig, totalBet)
 	}
 	if err != nil {
-		_ = s.logAndClearSpinStateError(ctx, req, totalBet, playerState)
+		_ = s.logSpinError(ctx, req, totalBet, playerState)
 
 		return nil, err
 	}
@@ -904,7 +906,7 @@ func (s *GameService) logJackpot(ctx context.Context, sessionId, tenantID, userI
 	return sessionID, err
 }
 
-func (s *GameService) logAndClearSpinStateError(
+func (s *GameService) logSpinError(
 	ctx context.Context,
 	req *SpinServiceRequest,
 	totalBet decimal.Decimal,
@@ -962,12 +964,6 @@ func (s *GameService) logAndClearSpinStateError(
 	if err != nil {
 		s.logger.Error().Err(err).Msg("Failed to log spin error")
 		return err
-	}
-
-	// Clear spin state
-	playerState.SpinState = nil
-	if err := s.savePlayerState(ctx, req.UserID, req.CurrencyID, gameCode, playerState); err != nil {
-		s.logger.Error().Err(err).Msg("Failed to clear spin state")
 	}
 
 	return nil
