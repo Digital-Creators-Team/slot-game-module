@@ -188,6 +188,7 @@ type PlayerState struct {
 	IsLastFreeSpin      bool                   `json:"isLastFreeSpin,omitempty"`
 	SpinResult          *SpinResult            `json:"spinResult,omitempty"`
 	SpinResultTriggerFG *SpinResult            `json:"spinResultTriggerFG,omitempty"`
+	SessionIDTriggerFG  string                 `json:"sessionIDTriggerFG,omitempty"`
 	UpdatedAt           *time.Time             `json:"updatedAt,omitempty"`
 	ExtraData           map[string]interface{} `json:"extraData,omitempty"` // Custom data for game-specific use
 }

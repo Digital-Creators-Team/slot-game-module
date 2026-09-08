@@ -652,6 +652,7 @@ func (s *GameService) executeNormalSpin(
 			playerState.RemainingFreeSpin = *spinResult.ResultFreeSpin
 			playerState.TotalWinFreeSpin = lo.ToPtr(spinResult.TotalWin)
 			playerState.SpinResultTriggerFG = spinResult
+			playerState.SessionIDTriggerFG = spinState.SessionID
 			playedCount := 0
 			playerState.PlayedFreeSpin = &playedCount
 			playerState.IsLastFreeSpin = false
@@ -708,6 +709,8 @@ func (s *GameService) executeFreeSpin(
 	}
 
 	spinResult := playerState.FreeSpins[playedIndex]
+	// TODO: recheck session id for free spin
+	spinState.SessionID = fmt.Sprintf("%s-FS%d", playerState.SessionIDTriggerFG, playedIndex)
 	spinState.Status = game.SpinStatusPaying
 	spinState.SpinResult = spinResult
 
