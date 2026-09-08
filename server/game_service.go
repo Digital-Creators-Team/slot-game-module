@@ -708,9 +708,9 @@ func (s *GameService) executeFreeSpin(
 		return nil, errors.New(errors.ErrInvalidRequest, "no more free spins available")
 	}
 
+	// TODO: refactor session id for free spin
+	roundID := fmt.Sprintf("%s-FS%d", playerState.SessionIDTriggerFG, playedIndex)
 	spinResult := playerState.FreeSpins[playedIndex]
-	// TODO: recheck session id for free spin
-	spinState.SessionID = fmt.Sprintf("%s-FS%d", playerState.SessionIDTriggerFG, playedIndex)
 	spinState.Status = game.SpinStatusPaying
 	spinState.SpinResult = spinResult
 
@@ -737,7 +737,7 @@ func (s *GameService) executeFreeSpin(
 		}
 	}
 
-	err = s.walletProvider.PlaceBets(ctx, gameCode, req.TenantID, req.Username, req.CurrencyID, decimal.Zero, spinState.SessionID, spinState.SessionID, gameCode, gameName)
+	err = s.walletProvider.PlaceBets(ctx, gameCode, req.TenantID, req.Username, req.CurrencyID, decimal.Zero, roundID, roundID, gameCode, gameName)
 	if err != nil {
 		logger.Error().Err(err).Msg("Failed to place bets")
 
@@ -747,7 +747,7 @@ func (s *GameService) executeFreeSpin(
 		return nil, errors.Wrap(err, errors.ErrWalletError, "failed to deposit winnings")
 	}
 
-	err = s.walletProvider.SettleBets(ctx, gameCode, req.TenantID, req.Username, req.CurrencyID, decimal.Zero, spinResult.TotalWin, spinState.SessionID, spinState.SessionID, gameCode, gameName)
+	err = s.walletProvider.SettleBets(ctx, gameCode, req.TenantID, req.Username, req.CurrencyID, decimal.Zero, spinResult.TotalWin, roundID, roundID, gameCode, gameName)
 	if err != nil {
 		logger.Error().Err(err).Msg("Failed to settle bets")
 
