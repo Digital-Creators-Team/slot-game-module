@@ -25,7 +25,7 @@ func NewStateProvider(redisClient *coreredis.Client, logger zerolog.Logger) *Sta
 }
 
 func (p *StateProvider) stateKey(userID, currencyID, gameCode string) string {
-	return fmt.Sprintf("game:state:%s:%s:%s", gameCode, currencyID, userID)
+	return fmt.Sprintf("game:state:%s:%s:%s", gameCode, userID, currencyID)
 }
 
 // GetPlayerState retrieves player state from Redis
