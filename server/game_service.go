@@ -566,7 +566,7 @@ func (s *GameService) executeNormalSpin(
 		errMsg := spinErr.Error()
 		spinState.Error = &errMsg
 
-		if refundErr := s.walletProvider.Deposit(ctx, req.UserID, req.CurrencyID, totalBet); refundErr != nil {
+		if refundErr := s.walletProvider.SettleBets(ctx, gameCode, req.TenantID, req.Username, req.CurrencyID, decimal.Zero, totalBet, spinState.SessionID, spinState.SessionID, gameCode, gameName); refundErr != nil {
 			logger.Error().Err(refundErr).Msg("Failed to refund bet after spin error")
 			spinState.Status = game.SpinStatusSpinError
 		} else {
@@ -614,7 +614,7 @@ func (s *GameService) executeNormalSpin(
 	}
 
 	start = time.Now()
-	err = s.walletProvider.SettleBets(ctx, gameCode, req.TenantID, req.Username, req.CurrencyID, totalBet, payout, spinState.SessionID, spinState.SessionID, gameCode, gameName)
+	err = s.walletProvider.SettleBets(ctx, gameCode, req.TenantID, req.Username, req.CurrencyID, decimal.Zero, payout, spinState.SessionID, spinState.SessionID, gameCode, gameName)
 	elapsed = time.Since(start)
 	s.logger.Info().Int64("duration", elapsed.Milliseconds()).Msg("API PlayNormalSpin response")
 	if err != nil {
