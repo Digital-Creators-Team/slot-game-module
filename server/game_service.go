@@ -189,6 +189,7 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 	}
 	if err != nil {
 		_ = s.logSpinError(ctx, spinState)
+		s.clearSpinStateAsync(ctx, spinState.SessionID, gameCode)
 
 		return nil, err
 	}
@@ -257,12 +258,7 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 		return nil, err
 	}
 
-	go func(ctx context.Context) {
-		err := s.stateProvider.DeleteSpinState(ctx, sessionID, gameCode)
-		if err != nil {
-			s.logger.Error().Err(err).Msg("Failed to clear spin state")
-		}
-	}(context.WithoutCancel(ctx))
+	s.clearSpinStateAsync(ctx, spinState.SessionID, gameCode)
 
 	return &SpinServiceResponse{
 		SpinResult:    spinResult,
@@ -368,6 +364,7 @@ func (s *GameService) ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest
 	}
 	if err != nil {
 		_ = s.logSpinError(ctx, spinState)
+		s.clearSpinStateAsync(ctx, spinState.SessionID, gameCode)
 
 		return nil, err
 	}
@@ -430,12 +427,7 @@ func (s *GameService) ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest
 		return nil, err
 	}
 
-	go func(ctx context.Context) {
-		err := s.stateProvider.DeleteSpinState(ctx, sessionID, gameCode)
-		if err != nil {
-			s.logger.Error().Err(err).Msg("Failed to clear spin state")
-		}
-	}(context.WithoutCancel(ctx))
+	s.clearSpinStateAsync(ctx, sessionID, gameCode)
 
 	return &SpinServiceResponse{
 		SpinResult:    spinResult,
@@ -697,6 +689,8 @@ func (s *GameService) executeFreeSpin(
 				Logger()
 	)
 
+	spinState.SpinType = 1
+
 	// Get the next pre-generated free spin result
 	// Note: playerState is a pointer, so modifications by endusers are automatically reflected
 	if playerState.PlayedFreeSpin == nil {
@@ -710,7 +704,6 @@ func (s *GameService) executeFreeSpin(
 	}
 
 	spinResult := playerState.FreeSpins[playedIndex]
-	spinState.SpinType = 1
 	spinState.Status = game.SpinStatusPaying
 	spinState.SpinResult = spinResult
 
@@ -942,6 +935,15 @@ func (s *GameService) logJackpot(ctx context.Context, sessionId, tenantID, userI
 	}
 
 	return sessionID, err
+}
+
+func (s *GameService) clearSpinStateAsync(ctx context.Context, sessionID, gameCode string) {
+	go func(ctx context.Context) {
+		err := s.stateProvider.DeleteSpinState(ctx, sessionID, gameCode)
+		if err != nil {
+			s.logger.Error().Err(err).Msg("Failed to clear spin state")
+		}
+	}(context.WithoutCancel(ctx))
 }
 
 func (s *GameService) logSpinError(
