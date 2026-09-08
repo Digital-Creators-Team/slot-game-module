@@ -13,6 +13,7 @@ type (
 	JackpotClaim       = providers.JackpotClaim
 	BetType            = providers.BetType
 	SpinLog            = providers.SpinLog
+	SpinErrorLog       = providers.SpinErrorLog
 	JackpotLog         = providers.JackpotLog
 	BetHistoryQuery    = providers.BetHistoryQuery
 	Bet                = providers.Bet

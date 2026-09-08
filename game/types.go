@@ -105,7 +105,8 @@ const (
 
 type SpinState struct {
 	Status     SpinStatus  `json:"status"`
-	RoundID    string      `json:"roundId"`
+	SessionID  string      `json:"sessionID"`
+	SpinType   int         `json:"spinType"` // 0 = normal, 1 = free spin
 	SpinResult *SpinResult `json:"spinResult,omitempty"`
 	Error      *string     `json:"error,omitempty"`
 }
