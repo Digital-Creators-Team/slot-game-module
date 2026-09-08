@@ -12,6 +12,9 @@ import (
 type StateProvider interface {
 	GetPlayerState(ctx context.Context, userID, currencyID, gameCode string) (interface{}, error)
 	SavePlayerState(ctx context.Context, userID, currencyID, gameCode string, state interface{}) error
+	GetSpinState(ctx context.Context, sessionID, gameCode string) (interface{}, error)
+	SaveSpinState(ctx context.Context, sessionID, gameCode string, state interface{}) error
+	DeleteSpinState(ctx context.Context, sessionID, gameCode string) error
 }
 
 // WalletProvider interface for wallet operations

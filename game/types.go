@@ -104,11 +104,16 @@ const (
 )
 
 type SpinState struct {
-	Status     SpinStatus  `json:"status"`
-	SessionID  string      `json:"sessionID"`
-	SpinType   int         `json:"spinType"` // 0 = normal, 1 = free spin
-	SpinResult *SpinResult `json:"spinResult,omitempty"`
-	Error      *string     `json:"error,omitempty"`
+	SessionID  string          `json:"sessionID"`
+	TenantID   string          `json:"tenantID"`
+	CurrencyID string          `json:"currencyID"`
+	UserID     string          `json:"userID"`
+	Username   string          `json:"username"`
+	Status     SpinStatus      `json:"status"`
+	SpinType   int             `json:"spinType"` // 0 = normal, 1 = free spin
+	TotalBet   decimal.Decimal `json:"totalBet"`
+	SpinResult *SpinResult     `json:"spinResult,omitempty"`
+	Error      *string         `json:"error,omitempty"`
 }
 
 // SpinResponse represents the API response for a spin
@@ -172,7 +177,6 @@ func (sr *SpinResult) ToSpinResponse() *SpinResponse {
 
 // PlayerState represents the current state of a player in a game
 type PlayerState struct {
-	SessionID           string                 `json:"-"` // Transient data so we don't need to store it
 	IsFreeSpin          bool                   `json:"isFreeSpin,omitempty"`
 	RemainingFreeSpin   int                    `json:"remainingFreeSpin,omitempty"`
 	TotalWinFreeSpin    *decimal.Decimal       `json:"totalWinFreeSpin,omitempty"`
@@ -182,7 +186,6 @@ type PlayerState struct {
 	FreeSpins           []*SpinResult          `json:"freeSpins,omitempty"`
 	PlayedFreeSpin      *int                   `json:"playedFreeSpin,omitempty"`
 	IsLastFreeSpin      bool                   `json:"isLastFreeSpin,omitempty"`
-	SpinState           *SpinState             `json:"spinState,omitempty"`
 	SpinResult          *SpinResult            `json:"spinResult,omitempty"`
 	SpinResultTriggerFG *SpinResult            `json:"spinResultTriggerFG,omitempty"`
 	UpdatedAt           *time.Time             `json:"updatedAt,omitempty"`
