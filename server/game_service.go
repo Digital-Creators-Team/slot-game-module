@@ -184,6 +184,7 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 		spinResult, err = s.executeFreeSpin(ctx, req, playerState, spinState, gameConfig, totalBet)
 	} else {
 		// Execute normal spin
+		playerBalance = playerBalance.Sub(totalBet) //fake: pay for this spin.
 		spinResult, err = s.executeNormalSpin(ctx, req, playerState, spinState, gameConfig, totalBet)
 	}
 	if err != nil {
@@ -481,21 +482,22 @@ func (s *GameService) savePlayerState(ctx context.Context, userID, currencyID, g
 	return nil
 }
 
-// getSpinState gets spin state from provider
-func (s *GameService) getSpinState(ctx context.Context, sessionID, gameCode string) (*game.SpinState, error) {
-	stateInterface, err := s.stateProvider.GetSpinState(ctx, sessionID, gameCode)
-	if err != nil {
-		return nil, errors.Wrap(err, errors.ErrPlayerStateError, "failed to get spin state")
-	}
-
-	// Convert interface to PlayerState
-	if ps, ok := stateInterface.(*game.SpinState); ok {
-		return ps, nil
-	}
-
-	err = fmt.Errorf("failed to parse spin state")
-	return nil, errors.Wrap(err, errors.ErrPlayerStateError, "failed to parse spin state")
-}
+// TODO: use for retry
+//// getSpinState gets spin state from provider
+//func (s *GameService) getSpinState(ctx context.Context, sessionID, gameCode string) (*game.SpinState, error) {
+//	stateInterface, err := s.stateProvider.GetSpinState(ctx, sessionID, gameCode)
+//	if err != nil {
+//		return nil, errors.Wrap(err, errors.ErrPlayerStateError, "failed to get spin state")
+//	}
+//
+//	// Convert interface to PlayerState
+//	if ps, ok := stateInterface.(*game.SpinState); ok {
+//		return ps, nil
+//	}
+//
+//	err = fmt.Errorf("failed to parse spin state")
+//	return nil, errors.Wrap(err, errors.ErrPlayerStateError, "failed to parse spin state")
+//}
 
 // saveSpinState saves spin state
 func (s *GameService) saveSpinState(ctx context.Context, sessionID, gameCode string, state *game.SpinState) error {
@@ -526,6 +528,7 @@ func (s *GameService) executeNormalSpin(
 		gameName = s.gameModule.GetGameName()
 		err      error
 		logger   = s.logger.With().
+				Str("session_id", spinState.SessionID).
 				Str("tenant_id", req.TenantID).
 				Str("currency_id", req.CurrencyID).
 				Str("game_code", gameConfig.GameCode).
@@ -685,11 +688,12 @@ func (s *GameService) executeFreeSpin(
 		gameName = s.gameModule.GetGameName()
 		err      error
 		logger   = s.logger.With().
+				Str("session_id", spinState.SessionID).
 				Str("tenant_id", req.TenantID).
 				Str("currency_id", req.CurrencyID).
 				Str("game_code", gameConfig.GameCode).
 				Str("user_id", req.UserID).
-				Str("spin_type", "normal").
+				Str("spin_type", "free").
 				Logger()
 	)
 
