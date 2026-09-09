@@ -21,15 +21,15 @@ import (
 
 // SpinDetails represents spin log details for mapstructure decoding
 type SpinDetails struct {
-	SessionID         string      `mapstructure:"sessionId" json:"sessionId"`
-	Username          string      `mapstructure:"username" json:"username"`
-	GameCode          string      `mapstructure:"gameCode" json:"gameCode"`
-	BetAmount         float64     `mapstructure:"betAmount" json:"betAmount"`
-	WinAmount         float64     `mapstructure:"winAmount" json:"winAmount"`
-	Currency          string      `mapstructure:"currency" json:"currency"`
-	SpinType          int         `mapstructure:"spinType" json:"spinType"`
-	SpinResult        interface{} `mapstructure:"spinResult" json:"spinResult"`
-	SplitRoundHistory bool        `mapstructure:"splitRoundHistory" json:"splitRoundHistory"`
+	SessionID         string          `mapstructure:"sessionId" json:"sessionId"`
+	Username          string          `mapstructure:"username" json:"username"`
+	GameCode          string          `mapstructure:"gameCode" json:"gameCode"`
+	BetAmount         decimal.Decimal `mapstructure:"betAmount" json:"betAmount"`
+	WinAmount         decimal.Decimal `mapstructure:"winAmount" json:"winAmount"`
+	Currency          string          `mapstructure:"currency" json:"currency"`
+	SpinType          int             `mapstructure:"spinType" json:"spinType"`
+	SpinResult        interface{}     `mapstructure:"spinResult" json:"spinResult"`
+	SplitRoundHistory bool            `mapstructure:"splitRoundHistory" json:"splitRoundHistory"`
 }
 
 // SpinErrorDetails represents spin error details for mapstructure decoding
@@ -57,10 +57,10 @@ type RoundDetails struct {
 	SubReel   any    `mapstructure:"subReel" json:"subReel"`
 	Round     any    `mapstructure:"round" json:"round"`
 
-	TotalBet       float64                `mapstructure:"totalBet" json:"totalBet"`
+	TotalBet       decimal.Decimal        `mapstructure:"totalBet" json:"totalBet"`
 	Reels          any                    `mapstructure:"reels" json:"reels"`
 	Winlines       any                    `mapstructure:"winlines" json:"winlines"`
-	TotalWin       float64                `mapstructure:"totalWin" json:"totalWin"`
+	TotalWin       decimal.Decimal        `mapstructure:"totalWin" json:"totalWin"`
 	IsGetFreeSpin  *bool                  `mapstructure:"isGetFreeSpin" json:"isGetFreeSpin"`
 	ResultFreeSpin *int                   `mapstructure:"resultFreeSpin" json:"resultFreeSpin"`
 	IsGetJackpot   *bool                  `mapstructure:"isGetJackpot" json:"isGetJackpot"`
@@ -71,16 +71,16 @@ type RoundDetails struct {
 
 // JackpotDetails represents jackpot log details for mapstructure decoding
 type JackpotDetails struct {
-	SessionID       string  `mapstructure:"sessionId" json:"sessionId"`
-	Username        string  `mapstructure:"username" json:"username"`
-	Name            string  `mapstructure:"name" json:"name"`
-	GameCode        string  `mapstructure:"gameCode" json:"gameCode"`
-	Tier            string  `mapstructure:"tier" json:"tier"`
-	BetAmount       float64 `mapstructure:"betAmount" json:"betAmount"`
-	WinAmount       float64 `mapstructure:"winAmount" json:"winAmount"`
-	TotalWinJackpot float64 `mapstructure:"totalWinJackpot" json:"totalWinJackpot"`
-	Currency        string  `mapstructure:"currency" json:"currency"`
-	SpinType        int     `mapstructure:"spinType" json:"spinType"`
+	SessionID       string          `mapstructure:"sessionId" json:"sessionId"`
+	Username        string          `mapstructure:"username" json:"username"`
+	Name            string          `mapstructure:"name" json:"name"`
+	GameCode        string          `mapstructure:"gameCode" json:"gameCode"`
+	Tier            string          `mapstructure:"tier" json:"tier"`
+	BetAmount       decimal.Decimal `mapstructure:"betAmount" json:"betAmount"`
+	WinAmount       decimal.Decimal `mapstructure:"winAmount" json:"winAmount"`
+	TotalWinJackpot decimal.Decimal `mapstructure:"totalWinJackpot" json:"totalWinJackpot"`
+	Currency        string          `mapstructure:"currency" json:"currency"`
+	SpinType        int             `mapstructure:"spinType" json:"spinType"`
 	//SpinResult      interface{} `mapstructure:"spinResult" json:"spinResult"`
 }
 
