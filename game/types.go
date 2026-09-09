@@ -188,7 +188,6 @@ type PlayerState struct {
 	IsLastFreeSpin      bool                   `json:"isLastFreeSpin,omitempty"`
 	SpinResult          *SpinResult            `json:"spinResult,omitempty"`
 	SpinResultTriggerFG *SpinResult            `json:"spinResultTriggerFG,omitempty"`
-	SessionIDTriggerFG  string                 `json:"sessionIDTriggerFG,omitempty"`
 	UpdatedAt           *time.Time             `json:"updatedAt,omitempty"`
 	ExtraData           map[string]interface{} `json:"extraData,omitempty"` // Custom data for game-specific use
 }
@@ -226,7 +225,6 @@ func (p *PlayerState) Reset() {
 	p.PlayedFreeSpin = nil
 	p.IsLastFreeSpin = false
 	p.SpinResultTriggerFG = nil
-	p.SessionIDTriggerFG = ""
 	// p.ExtraData = make(map[string]interface{})
 	t := time.Now()
 	p.UpdatedAt = &t
