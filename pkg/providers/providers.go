@@ -10,8 +10,11 @@ import (
 
 // StateProvider interface for player state management
 type StateProvider interface {
-	GetPlayerState(ctx context.Context, userID, gameCode string) (interface{}, error)
-	SavePlayerState(ctx context.Context, userID, gameCode string, state interface{}) error
+	GetPlayerState(ctx context.Context, userID, currencyID, gameCode string) (interface{}, error)
+	SavePlayerState(ctx context.Context, userID, currencyID, gameCode string, state interface{}) error
+	GetSpinState(ctx context.Context, sessionID, gameCode string) (interface{}, error)
+	SaveSpinState(ctx context.Context, sessionID, gameCode string, state interface{}) error
+	DeleteSpinState(ctx context.Context, sessionID, gameCode string) error
 }
 
 // WalletProvider interface for wallet operations
@@ -89,6 +92,7 @@ const (
 // LogProvider interface for logging game events
 type LogProvider interface {
 	LogSpin(ctx context.Context, log *SpinLog) (sessionID string, err error)
+	LogSpinError(ctx context.Context, log *SpinErrorLog) (sessionID string, err error)
 	LogJackpot(ctx context.Context, log *JackpotLog) (sessionID string, err error)
 	GetBetHistory(ctx context.Context, query *BetHistoryQuery) (*BetHistoryResponse, error)
 }
@@ -108,6 +112,23 @@ type SpinLog struct {
 	SpinResult        interface{} `json:"spinResult"`
 	SplitRoundHistory bool        `json:"splitRoundHistory"`
 	Timestamp         time.Time   `json:"timestamp"`
+}
+
+// SpinErrorLog represents a spin error log entry to be saved
+type SpinErrorLog struct {
+	SessionID  string          `json:"sessionId"`
+	TenantID   string          `json:"tenantId"`
+	UserID     string          `json:"userId"`
+	Username   string          `json:"username"`
+	GameCode   string          `json:"gameCode"`
+	Currency   string          `json:"currency"` // e.g. "usd", "vnd"
+	BetAmount  decimal.Decimal `json:"betAmount"`
+	WinAmount  decimal.Decimal `json:"winAmount"`
+	SpinType   int             `json:"spinType"` // 0 = normal, 1 = free spin
+	Status     string          `json:"status"`
+	Error      string          `json:"error"`
+	SpinResult interface{}     `json:"spinResult"`
+	Timestamp  time.Time       `json:"timestamp"`
 }
 
 // JackpotLog represents a jackpot log entry to be saved

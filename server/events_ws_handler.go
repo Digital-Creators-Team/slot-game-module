@@ -433,7 +433,7 @@ func (h *EventsWSHandler) handleAuthorize(c *WSConn, claims *auth.Claims, req WS
 		return &wsReply{status: http.StatusInternalServerError, err: apperrors.New(apperrors.ErrInternalServerError, "State provider not configured")}
 	}
 
-	playerState, err := h.app.stateProvider.GetPlayerState(ctx, claims.UserID, gameModule.GetGameCode())
+	playerState, err := h.app.stateProvider.GetPlayerState(ctx, claims.UserID, claims.CurrencyID, gameModule.GetGameCode())
 	if err != nil {
 		if r := h.timeoutReplyIfNeeded(ctx, err); r != nil {
 			return r
@@ -577,7 +577,7 @@ func (h *EventsWSHandler) handleGetState(c *WSConn, claims *auth.Claims, req WSR
 		return &wsReply{status: http.StatusInternalServerError, err: apperrors.New(apperrors.ErrInternalServerError, "State provider not configured")}
 	}
 
-	playerState, err := h.app.stateProvider.GetPlayerState(ctx, claims.UserID, gameModule.GetGameCode())
+	playerState, err := h.app.stateProvider.GetPlayerState(ctx, claims.UserID, claims.CurrencyID, gameModule.GetGameCode())
 	if err != nil {
 		if r := h.timeoutReplyIfNeeded(ctx, err); r != nil {
 			return r
@@ -695,7 +695,7 @@ func (h *EventsWSHandler) autoSubscribeJackpot(c *WSConn, claims *auth.Claims) {
 	}
 	ctx, cancel := c.NewCtxWithTimeout(wsTimeout)
 	defer cancel()
-	state, err := h.app.stateProvider.GetPlayerState(ctx, claims.UserID, gameModule.GetGameCode())
+	state, err := h.app.stateProvider.GetPlayerState(ctx, claims.UserID, claims.CurrencyID, gameModule.GetGameCode())
 	if err != nil {
 		return
 	}

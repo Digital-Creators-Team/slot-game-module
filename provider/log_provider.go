@@ -16,6 +16,7 @@ import (
 	"github.com/Digital-Creators-Team/slot-game-module/types"
 	"github.com/mitchellh/mapstructure"
 	"github.com/rs/zerolog"
+	"github.com/shopspring/decimal"
 )
 
 // SpinDetails represents spin log details for mapstructure decoding
@@ -29,6 +30,20 @@ type SpinDetails struct {
 	SpinType          int         `mapstructure:"spinType" json:"spinType"`
 	SpinResult        interface{} `mapstructure:"spinResult" json:"spinResult"`
 	SplitRoundHistory bool        `mapstructure:"splitRoundHistory" json:"splitRoundHistory"`
+}
+
+// SpinErrorDetails represents spin error details for mapstructure decoding
+type SpinErrorDetails struct {
+	SessionID  string          `mapstructure:"sessionId" json:"sessionId"`
+	Username   string          `mapstructure:"username" json:"username"`
+	GameCode   string          `mapstructure:"gameCode" json:"gameCode"`
+	BetAmount  decimal.Decimal `mapstructure:"betAmount" json:"betAmount"`
+	WinAmount  decimal.Decimal `mapstructure:"winAmount" json:"winAmount"`
+	Currency   string          `mapstructure:"currency" json:"currency"`
+	SpinType   int             `mapstructure:"spinType" json:"spinType"`
+	Status     string          `mapstructure:"status" json:"status"`
+	Error      string          `mapstructure:"error" json:"error"`
+	SpinResult interface{}     `mapstructure:"spinResult" json:"spinResult"`
 }
 
 // RoundDetails represents round log details for mapstructure decoding
@@ -155,6 +170,43 @@ func (p *LogProvider) LogSpin(ctx context.Context, log *server.SpinLog) (string,
 	if err := p.kafkaProducer.SendMessage(p.auditTopic, log.SessionID, event); err != nil {
 		p.logger.Error().Err(err).Msg("Failed to send spin log to Kafka")
 		return "", fmt.Errorf("failed to log spin: %w", err)
+	}
+
+	return log.SessionID, nil
+}
+
+func (p *LogProvider) LogSpinError(ctx context.Context, log *server.SpinErrorLog) (sessionID string, err error) {
+	if p.kafkaProducer == nil {
+		p.logger.Warn().Msg("Kafka producer not configured, skipping spin log")
+		return log.SessionID, nil
+	}
+
+	event := AuditEvent{
+		Timestamp:     log.Timestamp,
+		TenantID:      log.TenantID,
+		UserID:        log.UserID,
+		SessionID:     log.SessionID,
+		SourceService: log.GameCode,
+		Action:        "spin_error",
+		Details: SpinErrorDetails{
+			SessionID:  log.SessionID,
+			Username:   log.Username,
+			GameCode:   log.GameCode,
+			BetAmount:  log.BetAmount,
+			WinAmount:  log.WinAmount,
+			Currency:   log.Currency,
+			SpinType:   log.SpinType,
+			Status:     log.Status,
+			Error:      log.Error,
+			SpinResult: log.SpinResult,
+		},
+		Result:  "success",
+		TraceID: log.SessionID,
+	}
+
+	if err := p.kafkaProducer.SendMessage(p.auditTopic, log.SessionID, event); err != nil {
+		p.logger.Error().Err(err).Msg("Failed to send spin error log to Kafka")
+		return "", fmt.Errorf("failed to log spin error: %w", err)
 	}
 
 	return log.SessionID, nil

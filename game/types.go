@@ -92,6 +92,30 @@ type SpinResult struct {
 	ExtraData          map[string]interface{} `json:"extraData,omitempty"` // Custom data for game-specific use
 }
 
+type SpinStatus string
+
+const (
+	SpinStatusNew       SpinStatus = "new"
+	SpinStatusStale     SpinStatus = "stale"
+	SpinStatusSpinError SpinStatus = "spinError"
+	SpinStatusRefunded  SpinStatus = "refunded"
+	SpinStatusPaying    SpinStatus = "paying"
+	SpinStatusCompleted SpinStatus = "completed"
+)
+
+type SpinState struct {
+	SessionID  string          `json:"sessionID"`
+	TenantID   string          `json:"tenantID"`
+	CurrencyID string          `json:"currencyID"`
+	UserID     string          `json:"userID"`
+	Username   string          `json:"username"`
+	Status     SpinStatus      `json:"status"`
+	SpinType   int             `json:"spinType"` // 0 = normal, 1 = free spin
+	TotalBet   decimal.Decimal `json:"totalBet"`
+	SpinResult *SpinResult     `json:"spinResult,omitempty"`
+	Error      *string         `json:"error,omitempty"`
+}
+
 // SpinResponse represents the API response for a spin
 type SpinResponse struct {
 	TotalWin           decimal.Decimal        `json:"totalWin,omitempty"`
