@@ -114,6 +114,7 @@ type SpinState struct {
 	TotalBet   decimal.Decimal `json:"totalBet"`
 	SpinResult *SpinResult     `json:"spinResult,omitempty"`
 	Error      *string         `json:"error,omitempty"`
+	Timestamp  time.Time       `json:"timestamp"`
 }
 
 // SpinResponse represents the API response for a spin

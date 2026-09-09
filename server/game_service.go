@@ -175,6 +175,7 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 			Username:   req.Username,
 			TotalBet:   totalBet,
 			Status:     game.SpinStatusNew,
+			Timestamp:  time.Now().UTC(),
 		}
 		spinResult *game.SpinResult
 	)
@@ -352,6 +353,7 @@ func (s *GameService) ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest
 			Username:   req.Username,
 			TotalBet:   totalBet,
 			Status:     game.SpinStatusNew,
+			Timestamp:  time.Now().UTC(),
 		}
 		spinResult *game.SpinResult
 	)
