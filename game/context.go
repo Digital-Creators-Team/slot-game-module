@@ -3,8 +3,8 @@ package game
 import (
 	"context"
 
-	"github.com/rs/zerolog"
 	"github.com/Digital-Creators-Team/slot-game-module/pkg/providers"
+	"github.com/rs/zerolog"
 )
 
 // ModuleContext provides access to dependencies and services for game modules
@@ -42,8 +42,8 @@ type ModuleContext struct {
 // This is used internally by the server package
 func NewModuleContext(user *User, logger zerolog.Logger, stateProvider, walletProvider, rewardProvider, logProvider interface{}) *ModuleContext {
 	return &ModuleContext{
-		user:          user,
-		Logger:        logger,
+		user:           user,
+		Logger:         logger,
 		stateProvider:  stateProvider,
 		walletProvider: walletProvider,
 		rewardProvider: rewardProvider,
@@ -54,9 +54,10 @@ func NewModuleContext(user *User, logger zerolog.Logger, stateProvider, walletPr
 // User returns the current user information
 // Returns nil if no auth middleware was used or user not authenticated
 // Always check for nil before using:
-//   if user := mc.User(); user != nil {
-//       userID := user.ID()
-//   }
+//
+//	if user := mc.User(); user != nil {
+//	    userID := user.ID()
+//	}
 func (mc *ModuleContext) User() *User {
 	return mc.user
 }
@@ -167,15 +168,16 @@ func (mc *ModuleContext) GetLogProvider() interface{} {
 // No need to call any update method - just modify the state directly.
 //
 // Example usage in PlayNormalSpin:
-//   mc := game.MustFromContext(ctx)
-//   playerState := mc.GetPlayerState()
-//   if playerState != nil {
-//       // Read current state
-//       isFreeSpin := playerState.IsFreeSpin
-//       // Modify state directly - changes are automatically reflected
-//       playerState.ExtraData["customField"] = "customValue"
-//       playerState.BetMultiplier = 2.0
-//   }
+//
+//	mc := game.MustFromContext(ctx)
+//	playerState := mc.GetPlayerState()
+//	if playerState != nil {
+//	    // Read current state
+//	    isFreeSpin := playerState.IsFreeSpin
+//	    // Modify state directly - changes are automatically reflected
+//	    playerState.ExtraData["customField"] = "customValue"
+//	    playerState.BetMultiplier = 2.0
+//	}
 func (mc *ModuleContext) GetPlayerState() *PlayerState {
 	return mc.playerState
 }
@@ -207,10 +209,11 @@ func (mc *ModuleContext) setSpinRequestExtraData(extraData map[string]interface{
 // Endusers can use this to access custom data sent in the spin request
 //
 // Example usage in PlayNormalSpin:
-//   mc := game.MustFromContext(ctx)
-//   if extraData := mc.GetSpinRequestExtraData(); extraData != nil {
-//       customValue := extraData["customField"]
-//   }
+//
+//	mc := game.MustFromContext(ctx)
+//	if extraData := mc.GetSpinRequestExtraData(); extraData != nil {
+//	    customValue := extraData["customField"]
+//	}
 func (mc *ModuleContext) GetSpinRequestExtraData() map[string]interface{} {
 	return mc.spinRequestExtraData
 }
@@ -236,12 +239,13 @@ func (mc *ModuleContext) setSpinRequestCheatPayout(cheatPayout *CheatPayout) {
 // Endusers can use this to access cheat payout configuration sent in the spin request
 //
 // Example usage in PlayNormalSpin:
-//   mc := game.MustFromContext(ctx)
-//   if cheatPayout := mc.GetSpinRequestCheatPayout(); cheatPayout != nil {
-//       if cheatPayout.TriggerWinMode != nil {
-//           // Use cheat payout configuration
-//       }
-//   }
+//
+//	mc := game.MustFromContext(ctx)
+//	if cheatPayout := mc.GetSpinRequestCheatPayout(); cheatPayout != nil {
+//	    if cheatPayout.TriggerWinMode != nil {
+//	        // Use cheat payout configuration
+//	    }
+//	}
 func (mc *ModuleContext) GetSpinRequestCheatPayout() *CheatPayout {
 	return mc.spinRequestCheatPayout
 }
@@ -257,14 +261,14 @@ func SetSpinRequestCheatPayoutForModule(ctx context.Context, cheatPayout *CheatP
 
 // WithContext attaches ModuleContext to a context
 func WithContext(ctx context.Context, mc *ModuleContext) context.Context {
-	return context.WithValue(ctx, contextKeyModuleContext, mc)
+	return context.WithValue(ctx, ModuleContextKey, mc)
 }
 
 // FromContext extracts ModuleContext from context
 // Returns nil if not found (should not happen in normal game module methods)
 // Use MustFromContext() in game modules for guaranteed access
 func FromContext(ctx context.Context) *ModuleContext {
-	if mc, ok := ctx.Value(contextKeyModuleContext).(*ModuleContext); ok {
+	if mc, ok := ctx.Value(ModuleContextKey).(*ModuleContext); ok {
 		return mc
 	}
 	return nil
@@ -281,6 +285,6 @@ func MustFromContext(ctx context.Context) *ModuleContext {
 	return mc
 }
 
-type contextKey string
+var ModuleContextKey = moduleContextKey{}
 
-const contextKeyModuleContext contextKey = "module_context"
+type moduleContextKey struct{}
