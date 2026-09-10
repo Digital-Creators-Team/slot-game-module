@@ -22,7 +22,7 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-const wsTimeout = 15 * time.Second
+const wsTimeout = 60 * time.Second
 
 type EventsWSHandler struct {
 	app        *App
