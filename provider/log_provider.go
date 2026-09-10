@@ -144,9 +144,8 @@ func (p *LogProvider) LogSpin(ctx context.Context, log *server.SpinLog) (string,
 	}
 
 	var (
-		action            = "normal" // Default action for spin
-		splitRoundHistory = len(log.Rounds) > 1
-		event             = AuditEvent{
+		action = "normal" // Default action for spin
+		event  = AuditEvent{
 			Timestamp:     log.Timestamp,
 			TenantID:      log.TenantID,
 			UserID:        log.UserID,
@@ -161,7 +160,7 @@ func (p *LogProvider) LogSpin(ctx context.Context, log *server.SpinLog) (string,
 				Currency:          log.Currency,
 				SpinType:          log.SpinType,
 				SpinResult:        log.SpinResult,
-				SplitRoundHistory: splitRoundHistory,
+				SplitRoundHistory: log.SplitRoundHistory,
 			},
 			Result:  "success",
 			TraceID: log.SessionID,
@@ -173,7 +172,7 @@ func (p *LogProvider) LogSpin(ctx context.Context, log *server.SpinLog) (string,
 	// 	action = "free_spin"
 	// }
 
-	if splitRoundHistory {
+	if log.SplitRoundHistory && len(log.Rounds) > 1 {
 		eventListDetails := &EventListDetails{
 			ActionList:  make([]string, len(log.Rounds)),
 			DetailsList: make([]interface{}, len(log.Rounds)),
