@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"runtime/debug"
 	"sync"
@@ -58,15 +59,14 @@ func (h *EventsWSHandler) buildWSBaseContext(reqCtx context.Context, claims *aut
 }
 
 func (h *EventsWSHandler) timeoutReplyIfNeeded(ctx context.Context, err error) *wsReply {
-	if err == nil && ctx != nil && ctx.Err() == context.DeadlineExceeded {
-		return errReply(http.StatusRequestTimeout, apperrors.New(apperrors.ErrRequestTimeout, "request timeout"))
+	if errors.Is(err, context.DeadlineExceeded) ||
+		(ctx != nil && errors.Is(ctx.Err(), context.DeadlineExceeded)) {
+		return errReply(
+			http.StatusRequestTimeout,
+			apperrors.New(apperrors.ErrRequestTimeout, fmt.Sprintf("request timeout: %v", err)),
+		)
 	}
-	if err == nil {
-		return nil
-	}
-	if errors.Is(err, context.DeadlineExceeded) || (ctx != nil && ctx.Err() == context.DeadlineExceeded) {
-		return errReply(http.StatusRequestTimeout, apperrors.New(apperrors.ErrRequestTimeout, "request timeout"))
-	}
+
 	return nil
 }
 
