@@ -228,9 +228,9 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 
 		if spinResult.SplitRoundHistory {
 			log.SubReel = spinResult.SubReel
-			log.Rounds = make([]*providers.GameRound, len(spinResult.Rounds))
+			log.Rounds = make([]interface{}, len(spinResult.Rounds))
 			for i, round := range spinResult.Rounds {
-				log.Rounds[i] = s.providerGameRound(round)
+				log.Rounds[i] = round
 			}
 		}
 
@@ -416,9 +416,9 @@ func (s *GameService) ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest
 
 		if spinResult.SplitRoundHistory {
 			log.SubReel = spinResult.SubReel
-			log.Rounds = make([]*providers.GameRound, len(spinResult.Rounds))
+			log.Rounds = make([]interface{}, len(spinResult.Rounds))
 			for i, round := range spinResult.Rounds {
-				log.Rounds[i] = s.providerGameRound(round)
+				log.Rounds[i] = round
 			}
 		}
 
@@ -1029,19 +1029,4 @@ func (s *GameService) logSpinError(
 	}
 
 	return nil
-}
-
-func (s *GameService) providerGameRound(round *game.GameRound) *providers.GameRound {
-	return &providers.GameRound{
-		TotalBet:       round.TotalBet.InexactFloat64(),
-		Reels:          round.Reels,
-		Winlines:       round.Winlines,
-		TotalWin:       round.TotalWin.InexactFloat64(),
-		IsGetFreeSpin:  round.IsGetFreeSpin,
-		ResultFreeSpin: round.ResultFreeSpin,
-		IsGetJackpot:   round.IsGetJackpot,
-		JackpotTypes:   round.JackpotTypes,
-		JackpotPrize:   round.JackpotPrize,
-		ExtraData:      round.ExtraData,
-	}
 }

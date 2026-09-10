@@ -41,18 +41,9 @@ type RoundDetails struct {
 	Currency  string `mapstructure:"currency" json:"currency"`
 	SpinType  int    `mapstructure:"spinType" json:"spinType"`
 	SubReel   any    `mapstructure:"subReel" json:"subReel,omitempty"`
-	Round     any    `mapstructure:"round" json:"round"`
 
-	TotalBet       float64                `mapstructure:"totalBet" json:"totalBet"`
-	Reels          any                    `mapstructure:"reels" json:"reels"`
-	Winlines       any                    `mapstructure:"winlines" json:"winlines,omitempty"`
-	TotalWin       float64                `mapstructure:"totalWin" json:"totalWin"`
-	IsGetFreeSpin  *bool                  `mapstructure:"isGetFreeSpin" json:"isGetFreeSpin,omitempty"`
-	ResultFreeSpin *int                   `mapstructure:"resultFreeSpin" json:"resultFreeSpin,omitempty"`
-	IsGetJackpot   *bool                  `mapstructure:"isGetJackpot" json:"isGetJackpot,omitempty"`
-	JackpotTypes   []*string              `mapstructure:"jackpotTypes" json:"jackpotTypes,omitempty"`
-	JackpotPrize   any                    `mapstructure:"jackpotPrize" json:"jackpotPrize,omitempty"`
-	ExtraData      map[string]interface{} `mapstructure:"extraData" json:"extraData,omitempty"`
+	RoundIndex  int `mapstructure:"roundIndex" json:"roundIndex"`
+	RoundResult any `mapstructure:"roundResult" json:"roundResult"`
 }
 
 // SpinErrorDetails represents spin error details for mapstructure decoding
@@ -190,23 +181,14 @@ func (p *LogProvider) LogSpin(ctx context.Context, log *server.SpinLog) (string,
 
 			eventListDetails.ActionList[i] = action + "_round"
 			eventListDetails.DetailsList[i] = &RoundDetails{
-				SessionID:      log.SessionID,
-				Username:       log.Username,
-				GameCode:       log.GameCode,
-				Currency:       log.Currency,
-				SpinType:       log.SpinType,
-				SubReel:        log.SubReel,
-				Round:          i,
-				TotalBet:       round.TotalBet,
-				Reels:          round.Reels,
-				Winlines:       round.Winlines,
-				TotalWin:       round.TotalWin,
-				IsGetFreeSpin:  round.IsGetFreeSpin,
-				ResultFreeSpin: round.ResultFreeSpin,
-				IsGetJackpot:   round.IsGetJackpot,
-				JackpotTypes:   round.JackpotTypes,
-				JackpotPrize:   round.JackpotPrize,
-				ExtraData:      round.ExtraData,
+				SessionID:   log.SessionID,
+				Username:    log.Username,
+				GameCode:    log.GameCode,
+				Currency:    log.Currency,
+				SpinType:    log.SpinType,
+				SubReel:     log.SubReel,
+				RoundIndex:  i,
+				RoundResult: round,
 			}
 		}
 
@@ -431,26 +413,32 @@ func (p *LogProvider) convertToBet(entry LogEntry, betType server.BetType) *serv
 
 	switch betType {
 	case server.BetTypeNormal, server.BetTypeFreeSpin:
+		var resultMap map[string]interface{}
+
 		if strings.HasSuffix(entry.Action, "_round") {
 			var details RoundDetails
 			if err := mapstructure.Decode(entry.Details, &details); err != nil {
 				p.logger.Warn().Err(err).Msg("Failed to decode round details")
 				return nil
 			}
-			bet.Round = details.Round
-			bet.TotalBet = details.TotalBet
-			bet.TotalWin = details.TotalWin
+
+			bet.Round = details.RoundIndex
 			bet.IsFreeSpin = details.SpinType == 1
 			bet.SpinType = details.SpinType
 			bet.Currency = details.Currency
-			bet.Reels = details.Reels
-			bet.WinLines = details.Winlines
 			bet.SubReel = details.SubReel
-			bet.ExtraData = details.ExtraData
 
-			bet.IsJackpot = false
-			if details.IsGetJackpot != nil {
-				bet.IsJackpot = *details.IsGetJackpot
+			// Extract reels and winLines from roundResult if available
+			if details.RoundResult != nil {
+				var ok bool
+				resultMap, ok = details.RoundResult.(map[string]interface{})
+				if !ok {
+					p.logger.Error().Msg("Failed to decode round result map")
+					resultMap = nil
+				} else {
+					bet.TotalBet, _ = resultMap["totalBet"].(float64)
+					bet.TotalWin, _ = resultMap["totalWin"].(float64)
+				}
 			}
 		} else {
 			var details SpinDetails
@@ -458,6 +446,7 @@ func (p *LogProvider) convertToBet(entry LogEntry, betType server.BetType) *serv
 				p.logger.Warn().Err(err).Msg("Failed to decode spin details")
 				return nil
 			}
+
 			bet.TotalBet = details.BetAmount
 			bet.TotalWin = details.WinAmount
 			bet.IsFreeSpin = details.SpinType == 1
@@ -467,36 +456,43 @@ func (p *LogProvider) convertToBet(entry LogEntry, betType server.BetType) *serv
 
 			// Extract reels and winLines from spinResult if available
 			if details.SpinResult != nil {
-				if resultMap, ok := details.SpinResult.(map[string]interface{}); ok {
-					if reels, ok := resultMap["reels"]; ok {
-						bet.Reels = reels
-					}
+				var ok bool
+				resultMap, ok = details.SpinResult.(map[string]interface{})
+				if !ok {
+					p.logger.Error().Msg("Failed to decode round result map")
+					resultMap = nil
+				}
+			}
+		}
 
-					if winLines, ok := resultMap["winlines"]; ok {
-						bet.WinLines = winLines
-					}
+		if resultMap != nil {
+			if reels, ok := resultMap["reels"]; ok {
+				bet.Reels = reels
+			}
 
-					if subReel, ok := resultMap["subReel"]; ok {
-						bet.SubReel = subReel
-					}
+			if winLines, ok := resultMap["winlines"]; ok {
+				bet.WinLines = winLines
+			}
 
-					bet.IsJackpot = false
-					if isJackpot, ok := resultMap["isGetJackpot"]; ok {
-						bet.IsJackpot, _ = isJackpot.(bool)
-					}
+			if subReel, ok := resultMap["subReel"]; ok {
+				bet.SubReel = subReel
+			}
 
-					if extra, ok := resultMap["extraData"]; ok {
-						bet.ExtraData = extra
-					}
+			bet.IsJackpot = false
+			if isJackpot, ok := resultMap["isGetJackpot"]; ok {
+				bet.IsJackpot, _ = isJackpot.(bool)
+			}
 
-					if rounds, ok := resultMap["rounds"]; ok {
-						bytes, err := json.Marshal(rounds)
-						if err == nil {
-							var r []server.GameRound
-							if err := json.Unmarshal(bytes, &r); err == nil {
-								bet.Rounds = r
-							}
-						}
+			if extra, ok := resultMap["extraData"]; ok {
+				bet.ExtraData = extra
+			}
+
+			if rounds, ok := resultMap["rounds"]; ok {
+				bytes, err := json.Marshal(rounds)
+				if err == nil {
+					var r []server.GameRound
+					if err := json.Unmarshal(bytes, &r); err == nil {
+						bet.Rounds = r
 					}
 				}
 			}
