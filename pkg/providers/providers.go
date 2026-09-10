@@ -99,19 +99,21 @@ type LogProvider interface {
 
 // SpinLog represents a spin log entry to be saved
 type SpinLog struct {
-	SessionID         string      `json:"sessionId"`
-	TenantID          string      `json:"tenantId"`
-	UserID            string      `json:"userId"`
-	Username          string      `json:"username"`
-	GameCode          string      `json:"gameCode"`
-	BetAmount         float64     `json:"betAmount"`
-	Currency          string      `json:"currency"` // e.g. "USD", "VND"
-	WinAmount         float64     `json:"winAmount"`
-	SpinType          int         `json:"spinType"` // 0 = normal, 1 = free spin
-	IsGetJackpot      *bool       `json:"isGetJackpot"`
-	SpinResult        interface{} `json:"spinResult"`
-	SplitRoundHistory bool        `json:"splitRoundHistory"`
-	Timestamp         time.Time   `json:"timestamp"`
+	SessionID         string        `json:"sessionId"`
+	TenantID          string        `json:"tenantId"`
+	UserID            string        `json:"userId"`
+	Username          string        `json:"username"`
+	GameCode          string        `json:"gameCode"`
+	BetAmount         float64       `json:"betAmount"`
+	Currency          string        `json:"currency"` // e.g. "USD", "VND"
+	WinAmount         float64       `json:"winAmount"`
+	SpinType          int           `json:"spinType"` // 0 = normal, 1 = free spin
+	IsGetJackpot      *bool         `json:"isGetJackpot"`
+	SpinResult        interface{}   `json:"spinResult"`
+	SplitRoundHistory bool          `json:"splitRoundHistory"`
+	SubReel           interface{}   `json:"subReel"`
+	Rounds            []interface{} `json:"rounds"`
+	Timestamp         time.Time     `json:"timestamp"`
 }
 
 // SpinErrorLog represents a spin error log entry to be saved
