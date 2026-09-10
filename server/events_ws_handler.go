@@ -86,6 +86,7 @@ type WSConn struct {
 
 	jackpotMu     sync.Mutex
 	jackpotCancel context.CancelFunc
+	spinMu        sync.Mutex
 
 	baseCtx context.Context
 }
@@ -243,7 +244,7 @@ func (h *EventsWSHandler) Stream(g *gin.Context) {
 		if err := json.Unmarshal(msg, &req); err != nil {
 			continue
 		}
-		h.handleMessage(wsConn, claims, req, g.Request.URL.Path)
+		go h.handleMessage(wsConn, claims, req, g.Request.URL.Path)
 	}
 }
 
@@ -321,6 +322,11 @@ func (h *EventsWSHandler) handleMessage(c *WSConn, claims *auth.Claims, req WSRe
 				apperrors.New(apperrors.ErrInternalServerError, "Internal server error"))
 		}
 	}()
+
+	if req.Type == WSEventSpin {
+		c.spinMu.Lock()
+		defer c.spinMu.Unlock()
+	}
 
 	switch req.Type {
 	case WSEventPing:
