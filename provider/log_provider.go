@@ -51,7 +51,7 @@ type RoundDetails struct {
 	ResultFreeSpin *int                   `mapstructure:"resultFreeSpin" json:"resultFreeSpin,omitempty"`
 	IsGetJackpot   *bool                  `mapstructure:"isGetJackpot" json:"isGetJackpot,omitempty"`
 	JackpotTypes   []*string              `mapstructure:"jackpotTypes" json:"jackpotTypes,omitempty"`
-	JackpotPrize   any                    `mapstructure:"jackpotPrize" json:"jackpotPrize,string"`
+	JackpotPrize   any                    `mapstructure:"jackpotPrize" json:"jackpotPrize,omitempty"`
 	ExtraData      map[string]interface{} `mapstructure:"extraData" json:"extraData,omitempty"`
 }
 
