@@ -310,9 +310,7 @@ func (h *EventsWSHandler) writeReply(c *WSConn, req WSRequest, path string, repl
 }
 
 func (h *EventsWSHandler) handleMessage(c *WSConn, claims *auth.Claims, req WSRequest, path string) {
-	start := time.Now()
 	defer func() {
-		h.logger.Debug().Dur("duration", time.Since(start)).Msg("handleMessage in")
 		if r := recover(); r != nil {
 			h.logger.Error().
 				Interface("panic", r).
@@ -491,6 +489,8 @@ func (h *EventsWSHandler) handleAuthorize(c *WSConn, claims *auth.Claims, req WS
 }
 
 func (h *EventsWSHandler) handleSpin(c *WSConn, claims *auth.Claims, req WSRequest) *wsReply {
+	defer h.timeTrace("handleSpin in", time.Now())
+
 	ctx, cancel := c.NewCtxWithTimeout(wsTimeout)
 	defer cancel()
 
@@ -806,4 +806,8 @@ func parseToken(tokenString string, secret string) (*auth.Claims, error) {
 		return nil, errors.New("invalid token claims")
 	}
 	return claims, nil
+}
+
+func (h *EventsWSHandler) timeTrace(msg string, start time.Time) {
+	h.logger.Debug().Dur("duration", time.Since(start)).Msg(msg)
 }
