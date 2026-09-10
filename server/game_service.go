@@ -208,23 +208,32 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 
 	// 7. Log spin
 	if s.logProvider != nil {
+		var (
+			timestamp = time.Now().UTC()
+			log       = &SpinLog{
+				SessionID:  sessionID,
+				TenantID:   req.TenantID,
+				UserID:     req.UserID,
+				Username:   req.Username,
+				GameCode:   gameCode,
+				BetAmount:  spinResult.TotalBet.InexactFloat64(),
+				WinAmount:  spinResult.TotalWin.InexactFloat64(),
+				Currency:   req.CurrencyID,
+				SpinType:   spinResult.SpinType,
+				SpinResult: spinResult,
+				Timestamp:  timestamp,
+			}
+		)
 
-		timestamp := time.Now().UTC()
+		if spinResult.SplitRoundHistory {
+			log.SubReel = spinResult.SubReel
+			log.Rounds = make([]*providers.GameRound, len(spinResult.Rounds))
+			for i, round := range spinResult.Rounds {
+				log.Rounds[i] = s.providerGameRound(round)
+			}
+		}
 
-		sessionID, err = s.logProvider.LogSpin(ctx, &SpinLog{
-			SessionID:         sessionID,
-			TenantID:          req.TenantID,
-			UserID:            req.UserID,
-			Username:          req.Username,
-			GameCode:          gameCode,
-			BetAmount:         spinResult.TotalBet.InexactFloat64(),
-			WinAmount:         spinResult.TotalWin.InexactFloat64(),
-			Currency:          req.CurrencyID,
-			SpinType:          spinResult.SpinType,
-			SpinResult:        spinResult,
-			SplitRoundHistory: spinResult.SplitRoundHistory,
-			Timestamp:         timestamp,
-		})
+		sessionID, err = s.logProvider.LogSpin(ctx, log)
 		if err != nil {
 			s.logger.Error().Err(err).Msg("Failed to log spin")
 		}
@@ -386,21 +395,32 @@ func (s *GameService) ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest
 
 	// 8. Log spin
 	if s.logProvider != nil {
-		timestamp := time.Now().UTC()
-		sessionID, err = s.logProvider.LogSpin(ctx, &SpinLog{
-			SessionID:         sessionID,
-			TenantID:          req.TenantID,
-			UserID:            req.UserID,
-			Username:          req.Username,
-			GameCode:          gameCode,
-			BetAmount:         spinResult.TotalBet.InexactFloat64(),
-			WinAmount:         spinResult.TotalWin.InexactFloat64(),
-			Currency:          req.CurrencyID,
-			SpinType:          spinResult.SpinType,
-			SpinResult:        spinResult,
-			SplitRoundHistory: spinResult.SplitRoundHistory,
-			Timestamp:         timestamp,
-		})
+		var (
+			timestamp = time.Now().UTC()
+			log       = &SpinLog{
+				SessionID:  sessionID,
+				TenantID:   req.TenantID,
+				UserID:     req.UserID,
+				Username:   req.Username,
+				GameCode:   gameCode,
+				BetAmount:  spinResult.TotalBet.InexactFloat64(),
+				WinAmount:  spinResult.TotalWin.InexactFloat64(),
+				Currency:   req.CurrencyID,
+				SpinType:   spinResult.SpinType,
+				SpinResult: spinResult,
+				Timestamp:  timestamp,
+			}
+		)
+
+		if spinResult.SplitRoundHistory {
+			log.SubReel = spinResult.SubReel
+			log.Rounds = make([]*providers.GameRound, len(spinResult.Rounds))
+			for i, round := range spinResult.Rounds {
+				log.Rounds[i] = s.providerGameRound(round)
+			}
+		}
+
+		sessionID, err = s.logProvider.LogSpin(ctx, log)
 		if err != nil {
 			s.logger.Error().Err(err).Msg("Failed to log spin")
 		}
@@ -1007,4 +1027,19 @@ func (s *GameService) logSpinError(
 	}
 
 	return nil
+}
+
+func (s *GameService) providerGameRound(round *game.GameRound) *providers.GameRound {
+	return &providers.GameRound{
+		TotalBet:       round.TotalBet.InexactFloat64(),
+		Reels:          round.Reels,
+		Winlines:       round.Winlines,
+		TotalWin:       round.TotalWin.InexactFloat64(),
+		IsGetFreeSpin:  round.IsGetFreeSpin,
+		ResultFreeSpin: round.ResultFreeSpin,
+		IsGetJackpot:   round.IsGetJackpot,
+		JackpotTypes:   round.JackpotTypes,
+		JackpotPrize:   round.JackpotPrize,
+		ExtraData:      round.ExtraData,
+	}
 }
