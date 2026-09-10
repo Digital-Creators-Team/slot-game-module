@@ -310,7 +310,9 @@ func (h *EventsWSHandler) writeReply(c *WSConn, req WSRequest, path string, repl
 }
 
 func (h *EventsWSHandler) handleMessage(c *WSConn, claims *auth.Claims, req WSRequest, path string) {
+	start := time.Now()
 	defer func() {
+		h.logger.Debug().Dur("duration", time.Since(start)).Msg("handleMessage in")
 		if r := recover(); r != nil {
 			h.logger.Error().
 				Interface("panic", r).
