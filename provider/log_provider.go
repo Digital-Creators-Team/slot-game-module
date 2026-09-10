@@ -40,19 +40,19 @@ type RoundDetails struct {
 	GameCode  string `mapstructure:"gameCode" json:"gameCode"`
 	Currency  string `mapstructure:"currency" json:"currency"`
 	SpinType  int    `mapstructure:"spinType" json:"spinType"`
-	SubReel   any    `mapstructure:"subReel" json:"subReel"`
+	SubReel   any    `mapstructure:"subReel" json:"subReel,omitempty"`
 	Round     any    `mapstructure:"round" json:"round"`
 
 	TotalBet       float64                `mapstructure:"totalBet" json:"totalBet"`
 	Reels          any                    `mapstructure:"reels" json:"reels"`
-	Winlines       any                    `mapstructure:"winlines" json:"winlines"`
+	Winlines       any                    `mapstructure:"winlines" json:"winlines,omitempty"`
 	TotalWin       float64                `mapstructure:"totalWin" json:"totalWin"`
-	IsGetFreeSpin  *bool                  `mapstructure:"isGetFreeSpin" json:"isGetFreeSpin"`
-	ResultFreeSpin *int                   `mapstructure:"resultFreeSpin" json:"resultFreeSpin"`
-	IsGetJackpot   *bool                  `mapstructure:"isGetJackpot" json:"isGetJackpot"`
-	JackpotTypes   []*string              `mapstructure:"jackpotTypes" json:"jackpotTypes"`
-	JackpotPrize   any                    `mapstructure:"jackpotPrize" json:"jackpotPrize"`
-	ExtraData      map[string]interface{} `mapstructure:"extraData" json:"extraData"`
+	IsGetFreeSpin  *bool                  `mapstructure:"isGetFreeSpin" json:"isGetFreeSpin,omitempty"`
+	ResultFreeSpin *int                   `mapstructure:"resultFreeSpin" json:"resultFreeSpin,omitempty"`
+	IsGetJackpot   *bool                  `mapstructure:"isGetJackpot" json:"isGetJackpot,omitempty"`
+	JackpotTypes   []*string              `mapstructure:"jackpotTypes" json:"jackpotTypes,omitempty"`
+	JackpotPrize   any                    `mapstructure:"jackpotPrize" json:"jackpotPrize,string"`
+	ExtraData      map[string]interface{} `mapstructure:"extraData" json:"extraData,omitempty"`
 }
 
 // SpinErrorDetails represents spin error details for mapstructure decoding
