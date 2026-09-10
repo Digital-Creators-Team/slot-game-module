@@ -211,17 +211,18 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 		var (
 			timestamp = time.Now().UTC()
 			log       = &SpinLog{
-				SessionID:  sessionID,
-				TenantID:   req.TenantID,
-				UserID:     req.UserID,
-				Username:   req.Username,
-				GameCode:   gameCode,
-				BetAmount:  spinResult.TotalBet.InexactFloat64(),
-				WinAmount:  spinResult.TotalWin.InexactFloat64(),
-				Currency:   req.CurrencyID,
-				SpinType:   spinResult.SpinType,
-				SpinResult: spinResult,
-				Timestamp:  timestamp,
+				SessionID:         sessionID,
+				TenantID:          req.TenantID,
+				UserID:            req.UserID,
+				Username:          req.Username,
+				GameCode:          gameCode,
+				BetAmount:         spinResult.TotalBet.InexactFloat64(),
+				WinAmount:         spinResult.TotalWin.InexactFloat64(),
+				Currency:          req.CurrencyID,
+				SpinType:          spinResult.SpinType,
+				SpinResult:        spinResult,
+				SplitRoundHistory: spinResult.SplitRoundHistory,
+				Timestamp:         timestamp,
 			}
 		)
 
@@ -398,17 +399,18 @@ func (s *GameService) ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest
 		var (
 			timestamp = time.Now().UTC()
 			log       = &SpinLog{
-				SessionID:  sessionID,
-				TenantID:   req.TenantID,
-				UserID:     req.UserID,
-				Username:   req.Username,
-				GameCode:   gameCode,
-				BetAmount:  spinResult.TotalBet.InexactFloat64(),
-				WinAmount:  spinResult.TotalWin.InexactFloat64(),
-				Currency:   req.CurrencyID,
-				SpinType:   spinResult.SpinType,
-				SpinResult: spinResult,
-				Timestamp:  timestamp,
+				SessionID:         sessionID,
+				TenantID:          req.TenantID,
+				UserID:            req.UserID,
+				Username:          req.Username,
+				GameCode:          gameCode,
+				BetAmount:         spinResult.TotalBet.InexactFloat64(),
+				WinAmount:         spinResult.TotalWin.InexactFloat64(),
+				Currency:          req.CurrencyID,
+				SpinType:          spinResult.SpinType,
+				SpinResult:        spinResult,
+				SplitRoundHistory: spinResult.SplitRoundHistory,
+				Timestamp:         timestamp,
 			}
 		)
 
