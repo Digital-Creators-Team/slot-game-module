@@ -174,6 +174,10 @@ func (h *EventsWSHandler) Stream(g *gin.Context) {
 		claims.CurrencyID = "gold"
 	}
 
+	if !h.validateTenant(g, claims) {
+		return
+	}
+
 	connID := uuid.NewString()
 
 	conn, err := h.upgrader.Upgrade(g.Writer, g.Request, nil)
@@ -787,11 +791,7 @@ func validateTokenExpiry(claims *auth.Claims) error {
 }
 
 func parseToken(tokenString string, secret string) (*auth.Claims, error) {
-	// The WebSocket is upgraded regardless of whether the token is already
-	// expired: we still require a valid signature (so forged tokens are
-	// rejected), but defer the expiry decision to dispatch/validateTokenExpiry
-	// so the client can open the connection and then receive the 401 reply.
-	parser := jwt.NewParser(jwt.WithoutClaimsValidation())
+	parser := jwt.NewParser()
 	token, err := parser.ParseWithClaims(tokenString, &auth.Claims{}, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, errors.New("unexpected signing method")
@@ -810,4 +810,24 @@ func parseToken(tokenString string, secret string) (*auth.Claims, error) {
 
 func (h *EventsWSHandler) timeTrace(msg string, start time.Time) {
 	h.logger.Debug().Dur("duration", time.Since(start)).Msg(msg)
+}
+
+func (h *EventsWSHandler) validateTenant(g *gin.Context, claims *auth.Claims) bool {
+	tenant, err := h.app.tenantProvider.Get(g.Request.Context(), claims.TenantID, false)
+	if err != nil {
+		if errors.Is(err, ErrTenantNotFound) {
+			ErrorWithMessage(g, http.StatusUnauthorized, "invalid tenant", apperrors.ErrUnauthorized)
+			return false
+		}
+
+		h.logger.Warn().Err(err).Msg("failed to get tenant")
+		ErrorWithMessage(g, http.StatusInternalServerError, "failed to get tenant", apperrors.ErrInternalServerError)
+		return false
+	}
+
+	if !tenant.WalletEnabled() {
+		ErrorWithMessage(g, http.StatusUnauthorized, "invalid tenant", apperrors.ErrUnauthorized)
+		return false
+	}
+	return true
 }
