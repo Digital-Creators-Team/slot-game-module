@@ -787,11 +787,7 @@ func validateTokenExpiry(claims *auth.Claims) error {
 }
 
 func parseToken(tokenString string, secret string) (*auth.Claims, error) {
-	// The WebSocket is upgraded regardless of whether the token is already
-	// expired: we still require a valid signature (so forged tokens are
-	// rejected), but defer the expiry decision to dispatch/validateTokenExpiry
-	// so the client can open the connection and then receive the 401 reply.
-	parser := jwt.NewParser(jwt.WithoutClaimsValidation())
+	parser := jwt.NewParser()
 	token, err := parser.ParseWithClaims(tokenString, &auth.Claims{}, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, errors.New("unexpected signing method")
