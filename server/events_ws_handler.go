@@ -174,6 +174,11 @@ func (h *EventsWSHandler) Stream(g *gin.Context) {
 		claims.CurrencyID = "gold"
 	}
 
+	if claims.TenantID != h.app.GetGame().DefaultTenantID(g.Request.Context()) {
+		ErrorWithMessage(g, http.StatusUnauthorized, "invalid tenant", apperrors.ErrUnauthorized)
+		return
+	}
+
 	connID := uuid.NewString()
 
 	conn, err := h.upgrader.Upgrade(g.Writer, g.Request, nil)
