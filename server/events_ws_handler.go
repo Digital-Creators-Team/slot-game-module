@@ -174,8 +174,7 @@ func (h *EventsWSHandler) Stream(g *gin.Context) {
 		claims.CurrencyID = "gold"
 	}
 
-	if claims.TenantID != h.app.GetGame().DefaultTenantID(g.Request.Context()) {
-		ErrorWithMessage(g, http.StatusUnauthorized, "invalid tenant", apperrors.ErrUnauthorized)
+	if !h.validateTenant(g, claims) {
 		return
 	}
 
@@ -811,4 +810,24 @@ func parseToken(tokenString string, secret string) (*auth.Claims, error) {
 
 func (h *EventsWSHandler) timeTrace(msg string, start time.Time) {
 	h.logger.Debug().Dur("duration", time.Since(start)).Msg(msg)
+}
+
+func (h *EventsWSHandler) validateTenant(g *gin.Context, claims *auth.Claims) bool {
+	tenant, err := h.app.tenantProvider.Get(g.Request.Context(), claims.TenantID, false)
+	if err != nil {
+		if errors.Is(err, ErrTenantNotFound) {
+			ErrorWithMessage(g, http.StatusUnauthorized, "invalid tenant", apperrors.ErrUnauthorized)
+			return false
+		}
+
+		h.logger.Warn().Err(err).Msg("failed to get tenant")
+		ErrorWithMessage(g, http.StatusInternalServerError, "failed to get tenant", apperrors.ErrInternalServerError)
+		return false
+	}
+
+	if !tenant.WalletEnabled() {
+		ErrorWithMessage(g, http.StatusUnauthorized, "invalid tenant", apperrors.ErrUnauthorized)
+		return false
+	}
+	return true
 }
