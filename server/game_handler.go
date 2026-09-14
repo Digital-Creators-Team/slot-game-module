@@ -112,6 +112,12 @@ func (h *GameHandler) Authorize(c *gin.Context) {
 	tenant, err := h.app.tenantProvider.Get(ctx, tenantID, false)
 	if err != nil {
 		h.logger.Error().Err(err).Msg("Failed to get tenant info")
+
+		if goerrors.Is(err, ErrTenantNotFound) {
+			Unauthorized(c, errors.New(errors.ErrUnauthorized, "Invalid tenant"))
+			return
+		}
+
 		InternalError(c, errors.Wrap(err, errors.ErrTenantError, "Failed to get tenant info"))
 		return
 	}
@@ -139,8 +145,9 @@ func (h *GameHandler) Authorize(c *gin.Context) {
 
 	tenantWalletProvider, err := h.app.walletProvider.WithTenant(ctx, h.app.tenantProvider, tenantID)
 	if err != nil {
-		if goerrors.Is(err, ErrTenantWalletNotEnabled) {
-			InternalError(c, errors.New(errors.ErrInvalidRequest, "Tenant wallet not enabled"))
+		if goerrors.Is(err, ErrTenantNotFound) ||
+			goerrors.Is(err, ErrTenantWalletNotEnabled) {
+			Unauthorized(c, errors.New(errors.ErrUnauthorized, "Invalid tenant"))
 			return
 		}
 
@@ -262,8 +269,9 @@ func (h *GameHandler) Spin(c *gin.Context) {
 
 	tenantWalletProvider, err := h.app.walletProvider.WithTenant(ctx, h.app.tenantProvider, tenantID)
 	if err != nil {
-		if goerrors.Is(err, ErrTenantWalletNotEnabled) {
-			InternalError(c, errors.New(errors.ErrInvalidRequest, "Tenant wallet not enabled"))
+		if goerrors.Is(err, ErrTenantNotFound) ||
+			goerrors.Is(err, ErrTenantWalletNotEnabled) {
+			Unauthorized(c, errors.New(errors.ErrUnauthorized, "Invalid tenant"))
 			return
 		}
 

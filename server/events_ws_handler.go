@@ -436,6 +436,11 @@ func (h *EventsWSHandler) handleAuthorize(c *WSConn, claims *auth.Claims, req WS
 		if r := h.timeoutReplyIfNeeded(ctx, err); r != nil {
 			return r
 		}
+
+		if errors.Is(err, ErrTenantNotFound) {
+			return &wsReply{status: http.StatusUnauthorized, err: apperrors.Wrap(err, apperrors.ErrUnauthorized, "Invalid tenant")}
+		}
+
 		return &wsReply{status: http.StatusInternalServerError, err: apperrors.Wrap(err, apperrors.ErrTenantError, "Failed to get tenant info")}
 	}
 
@@ -462,8 +467,9 @@ func (h *EventsWSHandler) handleAuthorize(c *WSConn, claims *auth.Claims, req WS
 
 	tenantWalletProvider, err := h.app.walletProvider.WithTenant(ctx, h.app.tenantProvider, claims.TenantID)
 	if err != nil {
-		if errors.Is(err, ErrTenantWalletNotEnabled) {
-			return &wsReply{status: http.StatusBadRequest, err: apperrors.New(apperrors.ErrInvalidRequest, "Tenant wallet not enabled")}
+		if errors.Is(err, ErrTenantNotFound) ||
+			errors.Is(err, ErrTenantWalletNotEnabled) {
+			return &wsReply{status: http.StatusUnauthorized, err: apperrors.New(apperrors.ErrUnauthorized, "Invalid tenant")}
 		}
 
 		return &wsReply{status: http.StatusInternalServerError, err: apperrors.New(apperrors.ErrTenantError, "Failed to get tenant info")}
@@ -536,8 +542,9 @@ func (h *EventsWSHandler) handleSpin(c *WSConn, claims *auth.Claims, req WSReque
 
 	tenantWalletProvider, err := h.app.walletProvider.WithTenant(ctx, h.app.tenantProvider, claims.TenantID)
 	if err != nil {
-		if errors.Is(err, ErrTenantWalletNotEnabled) {
-			return &wsReply{status: http.StatusBadRequest, err: apperrors.New(apperrors.ErrInvalidRequest, "Tenant wallet not enabled")}
+		if errors.Is(err, ErrTenantNotFound) ||
+			errors.Is(err, ErrTenantWalletNotEnabled) {
+			return &wsReply{status: http.StatusUnauthorized, err: apperrors.New(apperrors.ErrUnauthorized, "Invalid tenant")}
 		}
 
 		return &wsReply{status: http.StatusInternalServerError, err: apperrors.New(apperrors.ErrTenantError, "Failed to get tenant info")}
