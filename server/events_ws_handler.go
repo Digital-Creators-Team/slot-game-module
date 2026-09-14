@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"runtime/debug"
 	"sync"
@@ -22,7 +23,7 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-const wsTimeout = 15 * time.Second
+const wsTimeout = 60 * time.Second
 
 type EventsWSHandler struct {
 	app        *App
@@ -58,15 +59,14 @@ func (h *EventsWSHandler) buildWSBaseContext(reqCtx context.Context, claims *aut
 }
 
 func (h *EventsWSHandler) timeoutReplyIfNeeded(ctx context.Context, err error) *wsReply {
-	if err == nil && ctx != nil && ctx.Err() == context.DeadlineExceeded {
-		return errReply(http.StatusRequestTimeout, apperrors.New(apperrors.ErrRequestTimeout, "request timeout"))
+	if errors.Is(err, context.DeadlineExceeded) ||
+		(ctx != nil && errors.Is(ctx.Err(), context.DeadlineExceeded)) {
+		return errReply(
+			http.StatusRequestTimeout,
+			apperrors.New(apperrors.ErrRequestTimeout, fmt.Sprintf("request timeout: %v", err)),
+		)
 	}
-	if err == nil {
-		return nil
-	}
-	if errors.Is(err, context.DeadlineExceeded) || (ctx != nil && ctx.Err() == context.DeadlineExceeded) {
-		return errReply(http.StatusRequestTimeout, apperrors.New(apperrors.ErrRequestTimeout, "request timeout"))
-	}
+
 	return nil
 }
 
@@ -86,6 +86,7 @@ type WSConn struct {
 
 	jackpotMu     sync.Mutex
 	jackpotCancel context.CancelFunc
+	spinMu        sync.Mutex
 
 	baseCtx context.Context
 }
@@ -173,6 +174,10 @@ func (h *EventsWSHandler) Stream(g *gin.Context) {
 		claims.CurrencyID = "gold"
 	}
 
+	if !h.validateTenant(g, claims) {
+		return
+	}
+
 	connID := uuid.NewString()
 
 	conn, err := h.upgrader.Upgrade(g.Writer, g.Request, nil)
@@ -243,7 +248,7 @@ func (h *EventsWSHandler) Stream(g *gin.Context) {
 		if err := json.Unmarshal(msg, &req); err != nil {
 			continue
 		}
-		h.handleMessage(wsConn, claims, req, g.Request.URL.Path)
+		go h.handleMessage(wsConn, claims, req, g.Request.URL.Path)
 	}
 }
 
@@ -321,6 +326,11 @@ func (h *EventsWSHandler) handleMessage(c *WSConn, claims *auth.Claims, req WSRe
 				apperrors.New(apperrors.ErrInternalServerError, "Internal server error"))
 		}
 	}()
+
+	if req.Type == WSEventSpin {
+		c.spinMu.Lock()
+		defer c.spinMu.Unlock()
+	}
 
 	switch req.Type {
 	case WSEventPing:
@@ -489,6 +499,8 @@ func (h *EventsWSHandler) handleAuthorize(c *WSConn, claims *auth.Claims, req WS
 }
 
 func (h *EventsWSHandler) handleSpin(c *WSConn, claims *auth.Claims, req WSRequest) *wsReply {
+	defer h.timeTrace("handleSpin in", time.Now())
+
 	ctx, cancel := c.NewCtxWithTimeout(wsTimeout)
 	defer cancel()
 
@@ -786,11 +798,7 @@ func validateTokenExpiry(claims *auth.Claims) error {
 }
 
 func parseToken(tokenString string, secret string) (*auth.Claims, error) {
-	// The WebSocket is upgraded regardless of whether the token is already
-	// expired: we still require a valid signature (so forged tokens are
-	// rejected), but defer the expiry decision to dispatch/validateTokenExpiry
-	// so the client can open the connection and then receive the 401 reply.
-	parser := jwt.NewParser(jwt.WithoutClaimsValidation())
+	parser := jwt.NewParser()
 	token, err := parser.ParseWithClaims(tokenString, &auth.Claims{}, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, errors.New("unexpected signing method")
@@ -805,4 +813,28 @@ func parseToken(tokenString string, secret string) (*auth.Claims, error) {
 		return nil, errors.New("invalid token claims")
 	}
 	return claims, nil
+}
+
+func (h *EventsWSHandler) timeTrace(msg string, start time.Time) {
+	h.logger.Debug().Dur("duration", time.Since(start)).Msg(msg)
+}
+
+func (h *EventsWSHandler) validateTenant(g *gin.Context, claims *auth.Claims) bool {
+	tenant, err := h.app.tenantProvider.Get(g.Request.Context(), claims.TenantID, false)
+	if err != nil {
+		if errors.Is(err, ErrTenantNotFound) {
+			ErrorWithMessage(g, http.StatusUnauthorized, "invalid tenant", apperrors.ErrUnauthorized)
+			return false
+		}
+
+		h.logger.Warn().Err(err).Msg("failed to get tenant")
+		ErrorWithMessage(g, http.StatusInternalServerError, "failed to get tenant", apperrors.ErrInternalServerError)
+		return false
+	}
+
+	if !tenant.WalletEnabled() {
+		ErrorWithMessage(g, http.StatusUnauthorized, "invalid tenant", apperrors.ErrUnauthorized)
+		return false
+	}
+	return true
 }
