@@ -208,12 +208,13 @@ func (p *WalletProvider) PlaceBets(ctx context.Context, productId, tenantID, use
 		"currency":        currencyID,
 		"txns": []map[string]interface{}{
 			{
-				"id":        transactionId,
-				"gameCode":  gameCode,
-				"status":    "OPEN",
-				"roundId":   roundID,
-				"betAmount": amount.InexactFloat64(), // docs is int, now using float
-				"playInfo":  gameName,
+				"id":          transactionId,
+				"gameCode":    gameCode,
+				"status":      "OPEN",
+				"roundId":     roundID,
+				"betAmount":   amount.InexactFloat64(), // docs is int, now using float
+				"playInfo":    gameName,
+				"isFreespins": false,
 			},
 		},
 	})
@@ -308,10 +309,12 @@ func (p *WalletProvider) SettleBets(ctx context.Context, productId, tenantID, us
 				"roundId":         roundID,
 				"betAmount":       amount.InexactFloat64(), // docs is int, now using float
 				"payoutAmount":    payoutAmount.InexactFloat64(),
+				"winlost":         payoutAmount.InexactFloat64() - amount.InexactFloat64(),
 				"playInfo":        gameName,
 				"turnOver":        amount.InexactFloat64(),
 				"isSingleState":   false,
 				"transactionType": "BY_TRANSACTION",
+				"isFreespins":     false,
 			},
 		},
 	})
