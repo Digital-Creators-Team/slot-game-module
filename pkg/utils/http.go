@@ -22,6 +22,7 @@ type ErrorDetail struct {
 	Timestamp    string `json:"timestamp"`
 	Path         string `json:"path"`
 	ErrorMessage string `json:"error_message"`
+	ErrorCode    int    `json:"error_code"`
 }
 
 type InternalResponse[T any] struct {
@@ -98,6 +99,7 @@ func DoInternalRequest[T any](
 			Err(ErrServiceError).
 			Str("url", req.URL.String()).
 			Str("error_message", respData.Error.ErrorMessage).
+			Int("error_code", respData.Error.ErrorCode).
 			Any("response", respData).
 			Msg("failed to call service")
 

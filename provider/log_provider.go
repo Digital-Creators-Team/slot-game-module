@@ -13,7 +13,6 @@ import (
 	"github.com/Digital-Creators-Team/slot-game-module/events/kafka"
 	"github.com/Digital-Creators-Team/slot-game-module/pkg/utils"
 	"github.com/Digital-Creators-Team/slot-game-module/server"
-	"github.com/Digital-Creators-Team/slot-game-module/types"
 	"github.com/mitchellh/mapstructure"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
@@ -300,14 +299,6 @@ type LogEntry struct {
 type DataAuditEvent struct {
 	Logs  []LogEntry `json:"logs"`
 	Total int        `json:"total"`
-}
-
-// LogServiceResponse wraps the log service response (can be success or error)
-type LogServiceResponse struct {
-	StatusCode int               `json:"status_code"`
-	IsSuccess  bool              `json:"is_success"`
-	Data       DataAuditEvent    `json:"data,omitempty"`
-	Error      types.ErrorDetail `json:"error,omitempty"`
 }
 
 // GetBetHistory gets bet history for a user
