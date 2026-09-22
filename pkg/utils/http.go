@@ -25,12 +25,17 @@ type ErrorDetail struct {
 	ErrorCode    int    `json:"error_code"`
 }
 
+type ErrorResponse struct {
+	StatusCode int         `json:"status_code"`
+	IsSuccess  bool        `json:"is_success"`
+	Error      ErrorDetail `json:"error,omitempty"`
+}
+
 type InternalResponse[T any] struct {
-	StatusCode int  `json:"status_code"`
-	IsSuccess  bool `json:"is_success"`
+	ErrorResponse
+
 	// TODO: fix annotation
-	Data  T           `json:"data,omitempty"`
-	Error ErrorDetail `json:"error,omitempty"`
+	Data T `json:"data,omitempty"`
 }
 
 func MakeRequest[T any](
@@ -79,14 +84,19 @@ func DoInternalRequest[T any](
 	client *http.Client,
 	req *http.Request,
 ) (*InternalResponse[T], error) {
+	var errorResponse ErrorResponse
+
 	rawBytes, respData, err := DoRequest[InternalResponse[T]](logger, client, req)
+	if respData != nil {
+		errorResponse = respData.ErrorResponse
+	}
 	if errors.Is(err, ErrServiceError) {
-		errorData, _ := Unmarshal[InternalResponse[T]](rawBytes)
+		errorData, _ := Unmarshal[InternalResponse[any]](rawBytes)
 		if errorData != nil {
 			if !errorData.IsSuccess || errorData.Error.ErrorMessage != "" {
 				// skip the next error check to return the service error message
 				err = nil
-				respData = errorData
+				errorResponse = errorData.ErrorResponse
 			}
 		}
 	}
@@ -94,18 +104,18 @@ func DoInternalRequest[T any](
 		return nil, err
 	}
 
-	if !respData.IsSuccess || respData.Error.ErrorMessage != "" {
+	if !errorResponse.IsSuccess || errorResponse.Error.ErrorMessage != "" {
 		logger.Error().
 			Err(ErrServiceError).
 			Str("url", req.URL.String()).
-			Str("error_message", respData.Error.ErrorMessage).
-			Int("error_code", respData.Error.ErrorCode).
-			Any("response", respData).
+			Str("error_message", errorResponse.Error.ErrorMessage).
+			Int("error_code", errorResponse.Error.ErrorCode).
+			Bytes("raw_response", rawBytes).
 			Msg("failed to call service")
 
 		errMsg := "unknown error"
-		if respData.Error.ErrorMessage != "" {
-			errMsg = respData.Error.ErrorMessage
+		if errorResponse.Error.ErrorMessage != "" {
+			errMsg = errorResponse.Error.ErrorMessage
 		}
 
 		return nil, fmt.Errorf("%w: %s", ErrServiceError, errMsg)
