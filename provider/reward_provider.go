@@ -1,7 +1,6 @@
 package provider
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -10,6 +9,7 @@ import (
 
 	"github.com/Digital-Creators-Team/slot-game-module/config"
 	"github.com/Digital-Creators-Team/slot-game-module/pkg/providers"
+	"github.com/Digital-Creators-Team/slot-game-module/pkg/utils"
 	"github.com/Digital-Creators-Team/slot-game-module/server"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
@@ -47,20 +47,14 @@ func (p *RewardProvider) Contribute(ctx context.Context, req *providers.Contribu
 		return fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	httpReq, err := utils.MakeRequest(ctx, p.logger, url, &body)
 	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
+		return err
 	}
-	httpReq.Header.Set("Content-Type", "application/json")
 
-	resp, err := p.httpClient.Do(httpReq)
+	_, err = utils.DoInternalRequest[any](p.logger, p.httpClient, httpReq)
 	if err != nil {
-		return fmt.Errorf("failed to contribute to jackpot: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("contribute failed with status %d", resp.StatusCode)
+		return err
 	}
 
 	return nil
@@ -75,27 +69,14 @@ func (p *RewardProvider) Claim(ctx context.Context, req *providers.ClaimRequest)
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	httpReq, err := utils.MakeRequest(ctx, p.logger, url, &body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+		return nil, err
 	}
-	httpReq.Header.Set("Content-Type", "application/json")
 
-	resp, err := p.httpClient.Do(httpReq)
+	result, err := utils.DoInternalRequest[server.JackpotClaim](p.logger, p.httpClient, httpReq)
 	if err != nil {
-		return nil, fmt.Errorf("failed to claim jackpot: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("claim failed with status %d", resp.StatusCode)
-	}
-
-	var result struct {
-		Data server.JackpotClaim `json:"data"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %w", err)
+		return nil, err
 	}
 
 	return &result.Data, nil
@@ -105,26 +86,14 @@ func (p *RewardProvider) Claim(ctx context.Context, req *providers.ClaimRequest)
 func (p *RewardProvider) GetPool(ctx context.Context, poolID string, initValue decimal.Decimal) (*server.JackpotPool, error) {
 	url := fmt.Sprintf("%s/jackpot/pool/%s?init_value=%s", p.baseURL, poolID, initValue.String())
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := utils.MakeRequest[any](ctx, p.logger, url, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+		return nil, err
 	}
 
-	resp, err := p.httpClient.Do(req)
+	result, err := utils.DoInternalRequest[server.JackpotPool](p.logger, p.httpClient, req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get pool: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("reward service returned status %d", resp.StatusCode)
-	}
-
-	var result struct {
-		Data server.JackpotPool `json:"data"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %w", err)
+		return nil, err
 	}
 
 	return &result.Data, nil

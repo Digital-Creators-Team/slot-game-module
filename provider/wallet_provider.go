@@ -1,7 +1,6 @@
 package provider
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -13,6 +12,7 @@ import (
 
 	"github.com/Digital-Creators-Team/slot-game-module/config"
 	moduleerrors "github.com/Digital-Creators-Team/slot-game-module/errors"
+	"github.com/Digital-Creators-Team/slot-game-module/pkg/utils"
 	"github.com/Digital-Creators-Team/slot-game-module/server"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
@@ -60,9 +60,9 @@ func NewWalletProvider(cfg *config.Config, logger zerolog.Logger) *WalletProvide
 func (p *WalletProvider) GetBalance(ctx context.Context, userID, currencyID string) (decimal.Decimal, error) {
 	url := fmt.Sprintf("%s/wallet/balance?user_id=%s&currency_id=%s", p.baseURL, userID, currencyID)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := utils.MakeRequest[any](ctx, p.logger, url, nil)
 	if err != nil {
-		return decimal.Zero, fmt.Errorf("failed to create request: %w", err)
+		return decimal.Zero, err
 	}
 
 	resp, err := p.httpClient.Do(req)
@@ -92,7 +92,7 @@ func (p *WalletProvider) CheckBalance(ctx context.Context, productId, tenantID, 
 	url := fmt.Sprintf("%s/checkBalance", p.baseURL)
 
 	id := uuid.NewString()
-	reqBody := map[string]any{
+	requestBody := map[string]any{
 		"id":              id,
 		"timestampMillis": time.Now().UnixNano() / 1000000,
 		"productId":       productId,
@@ -101,16 +101,11 @@ func (p *WalletProvider) CheckBalance(ctx context.Context, productId, tenantID, 
 		"username":        username,
 	}
 
-	p.logger.Debug().Str("url", url).Any("request", reqBody).Msg("check balance request")
+	p.logger.Debug().Str("url", url).Any("request", requestBody).Msg("check balance request")
 
-	requestBytes, err := json.Marshal(reqBody)
+	req, err := utils.MakeRequest(ctx, p.logger, url, &requestBody)
 	if err != nil {
-		return decimal.Zero, fmt.Errorf("failed to marshal request body: %w", err)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(requestBytes))
-	if err != nil {
-		return decimal.Zero, fmt.Errorf("failed to create request: %w", err)
+		return decimal.Zero, err
 	}
 
 	resp, err := p.httpClient.Do(req)
@@ -155,17 +150,16 @@ func (p *WalletProvider) CheckBalance(ctx context.Context, productId, tenantID, 
 func (p *WalletProvider) Withdraw(ctx context.Context, userID, currencyID string, amount decimal.Decimal) error {
 	url := fmt.Sprintf("%s/wallet/withdraw", p.baseURL)
 
-	body, _ := json.Marshal(map[string]interface{}{
+	requestBody := map[string]interface{}{
 		"user_id":     userID,
 		"currency_id": currencyID,
 		"amount":      amount.InexactFloat64(), // Convert to float64 for external service
-	})
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
-	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
 	}
-	req.Header.Set("Content-Type", "application/json")
+
+	req, err := utils.MakeRequest(ctx, p.logger, url, &requestBody)
+	if err != nil {
+		return err
+	}
 
 	resp, err := p.httpClient.Do(req)
 	if err != nil {
@@ -214,16 +208,10 @@ func (p *WalletProvider) PlaceBets(ctx context.Context, productId, tenantID, use
 
 	p.logger.Debug().Str("url", url).Any("request", requestBody).Msg("place bets request")
 
-	requestBytes, err := json.Marshal(requestBody)
+	req, err := utils.MakeRequest(ctx, p.logger, url, &requestBody)
 	if err != nil {
-		return fmt.Errorf("failed to marshal request body: %w", err)
+		return err
 	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(requestBytes))
-	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := p.httpClient.Do(req)
 	if err != nil {
@@ -265,17 +253,16 @@ func (p *WalletProvider) PlaceBets(ctx context.Context, productId, tenantID, use
 func (p *WalletProvider) Deposit(ctx context.Context, userID, currencyID string, amount decimal.Decimal) error {
 	url := fmt.Sprintf("%s/wallet/deposit", p.baseURL)
 
-	body, _ := json.Marshal(map[string]interface{}{
+	requestBody := map[string]interface{}{
 		"user_id":     userID,
 		"currency_id": currencyID,
 		"amount":      amount.InexactFloat64(), // Convert to float64 for external service
-	})
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
-	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
 	}
-	req.Header.Set("Content-Type", "application/json")
+
+	req, err := utils.MakeRequest(ctx, p.logger, url, &requestBody)
+	if err != nil {
+		return err
+	}
 
 	resp, err := p.httpClient.Do(req)
 	if err != nil {
@@ -320,16 +307,10 @@ func (p *WalletProvider) SettleBets(ctx context.Context, productId, tenantID, us
 
 	p.logger.Debug().Str("url", url).Any("request", requestBody).Msg("settle bets request")
 
-	requestBytes, err := json.Marshal(requestBody)
+	req, err := utils.MakeRequest(ctx, p.logger, url, &requestBody)
 	if err != nil {
-		return fmt.Errorf("failed to marshal request body: %w", err)
+		return err
 	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(requestBytes))
-	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := p.httpClient.Do(req)
 	if err != nil {

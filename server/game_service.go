@@ -6,13 +6,14 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog"
 	"github.com/samber/lo"
+	"github.com/shopspring/decimal"
 
 	"github.com/Digital-Creators-Team/slot-game-module/errors"
 	"github.com/Digital-Creators-Team/slot-game-module/game"
 	"github.com/Digital-Creators-Team/slot-game-module/pkg/providers"
-	"github.com/rs/zerolog"
-	"github.com/shopspring/decimal"
+	"github.com/Digital-Creators-Team/slot-game-module/pkg/trace"
 )
 
 var SessionIDKey = sessionIDKey{}
@@ -113,6 +114,7 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 	}
 	sessionID := uuid.New().String()
 	ctx = context.WithValue(ctx, SessionIDKey, sessionID)
+	ctx = trace.WithTraceID(ctx, sessionID)
 
 	gameCode := s.gameModule.GetGameCode()
 	logger := s.logger.With().
@@ -314,6 +316,7 @@ func (s *GameService) ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest
 	}
 	sessionID := uuid.New().String()
 	ctx = context.WithValue(ctx, SessionIDKey, sessionID)
+	ctx = trace.WithTraceID(ctx, sessionID)
 
 	gameCode := s.gameModule.GetGameCode()
 	logger := s.logger.With().

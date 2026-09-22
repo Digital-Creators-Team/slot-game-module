@@ -110,10 +110,9 @@ func (p *tenantProvider) Get(ctx context.Context, id string, skipCache bool) (*s
 func (p *tenantProvider) get(ctx context.Context, id string) (*server.ResponseTenant, error) {
 	url := fmt.Sprintf("%s/api/v1/tenant/%s", p.baseURL, id)
 
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	req, err := utils.MakeRequest[any](ctx, p.logger, url, nil)
 	if err != nil {
-		p.logger.Error().Err(err).Msg("failed to create request")
-		return nil, fmt.Errorf("failed to create request: %w", err)
+		return nil, err
 	}
 
 	respData, err := utils.DoInternalRequest[server.ResponseTenant](p.logger, p.httpClient, req)
