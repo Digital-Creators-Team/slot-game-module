@@ -313,7 +313,7 @@ func (p *WalletProvider) SettleBets(ctx context.Context, productId, tenantID, us
 				"turnOver":        amount.InexactFloat64(),
 				"isSingleState":   false,
 				"transactionType": "BY_TRANSACTION",
-				"isFreespins":     false,
+				"isFreespins":     amount.Equal(decimal.Zero),
 			},
 		},
 	}
