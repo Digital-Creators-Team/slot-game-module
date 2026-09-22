@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -42,12 +41,7 @@ func NewRewardProvider(cfg *config.Config, logger zerolog.Logger) *RewardProvide
 func (p *RewardProvider) Contribute(ctx context.Context, req *providers.ContributeRequest) error {
 	url := fmt.Sprintf("%s/jackpot/contribute", p.baseURL)
 
-	body, err := json.Marshal(req)
-	if err != nil {
-		return fmt.Errorf("failed to marshal request: %w", err)
-	}
-
-	httpReq, err := utils.MakeRequest(ctx, p.logger, url, &body)
+	httpReq, err := utils.MakeRequest(ctx, p.logger, url, &req)
 	if err != nil {
 		return err
 	}
@@ -64,12 +58,7 @@ func (p *RewardProvider) Contribute(ctx context.Context, req *providers.Contribu
 func (p *RewardProvider) Claim(ctx context.Context, req *providers.ClaimRequest) (*server.JackpotClaim, error) {
 	url := fmt.Sprintf("%s/jackpot/claim", p.baseURL)
 
-	body, err := json.Marshal(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request: %w", err)
-	}
-
-	httpReq, err := utils.MakeRequest(ctx, p.logger, url, &body)
+	httpReq, err := utils.MakeRequest(ctx, p.logger, url, &req)
 	if err != nil {
 		return nil, err
 	}

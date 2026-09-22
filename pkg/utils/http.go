@@ -110,7 +110,6 @@ func DoInternalRequest[T any](
 			Str("url", req.URL.String()).
 			Str("error_message", errorResponse.Error.ErrorMessage).
 			Int("error_code", errorResponse.Error.ErrorCode).
-			Bytes("raw_response", rawBytes).
 			Msg("failed to call service")
 
 		errMsg := "unknown error"
