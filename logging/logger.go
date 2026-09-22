@@ -27,7 +27,7 @@ type Logger = zerolog.Logger
 func shortCallerMarshalFunc(pc uintptr, file string, line int) string {
 	// Extract just the filename from the full path
 	filename := filepath.Base(file)
-	
+
 	// If file is in vendor, try to extract package name
 	if strings.Contains(file, "/vendor/") {
 		// Extract package path after vendor
@@ -44,7 +44,7 @@ func shortCallerMarshalFunc(pc uintptr, file string, line int) string {
 			}
 		}
 	}
-	
+
 	return filename + ":" + strconv.Itoa(line)
 }
 
@@ -138,5 +138,3 @@ func WithFields(logger zerolog.Logger, fields map[string]interface{}) zerolog.Lo
 	}
 	return ctx.Logger()
 }
-
-

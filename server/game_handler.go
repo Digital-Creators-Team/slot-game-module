@@ -2,7 +2,6 @@ package server
 
 import (
 	goerrors "errors"
-	"fmt"
 	"strings"
 
 	"github.com/Digital-Creators-Team/slot-game-module/auth"
@@ -155,7 +154,7 @@ func (h *GameHandler) Authorize(c *gin.Context) {
 		return
 	}
 
-	balance, err := tenantWalletProvider.CheckBalance(ctx, "sexy", tenantID, username, currencyID) //TODO, now cheat sexy
+	balance, err := tenantWalletProvider.CheckBalance(ctx, gameModule.GetGameCode(), tenantID, username, currencyID)
 	if err != nil {
 		balance, err = tenantWalletProvider.GetBalance(ctx, userID, currencyID)
 		if err != nil {
@@ -164,8 +163,6 @@ func (h *GameHandler) Authorize(c *gin.Context) {
 			return
 		}
 	}
-
-	fmt.Printf("===> Authorize, data check v2: %+v\n", balance)
 
 	// Build response
 	response := game.AuthorizeResponse{
