@@ -1923,7 +1923,7 @@ func (m *{{.GameCodeUpper}}Module) determineWinTitle(totalWin, totalBet float64)
 // Access your module's config directly via m.gameConfig (no need to get from context)
 //
 // Calculate bet multiplier from: totalBet / PayLine
-func (m *{{.GameCodeUpper}}Module) GetContributions(ctx context.Context, spinResult *game.SpinResult, totalBet decimal.Decimal) ([]game.JackpotContribution, error) {
+func (m *{{.GameCodeUpper}}Module) GetContributions(ctx context.Context, tenantID string, currency string, spinResult *game.SpinResult, totalBet decimal.Decimal) ([]game.JackpotContribution, error) {
 	// Example: Custom contribution logic
 	// You can implement any logic here, e.g.:
 	// - Different number of pools
@@ -1944,7 +1944,7 @@ func (m *{{.GameCodeUpper}}Module) GetContributions(ctx context.Context, spinRes
 	// Example: Contribute to a single pool with bet multiplier
 	// contribution := decimal.NewFromString("0.01").Mul(totalBet) // 1% of bet
 	// contributions = append(contributions, game.JackpotContribution{
-	// 	PoolID: fmt.Sprintf("%s-%s", gameCode, betMultiplier.String()),
+	// 	PoolID: fmt.Sprintf("%s-%s-%s-%s", tenantID, currency, gameCode, betMultiplier.String()),
 	// 	Amount: contribution,
 	// })
 	
@@ -1953,15 +1953,15 @@ func (m *{{.GameCodeUpper}}Module) GetContributions(ctx context.Context, spinRes
 	// majorRate := decimal.NewFromString("0.003") // 0.3% to major
 	// grandRate := decimal.NewFromString("0.002") // 0.2% to grand
 	// contributions = append(contributions, game.JackpotContribution{
-	// 	PoolID: fmt.Sprintf("%s-%s-mini", gameCode, betMultiplier.String()),
+	// 	PoolID: fmt.Sprintf("%s-%s-%s-%s-mini", tenantID, currency, gameCode, betMultiplier.String()),
 	// 	Amount: totalBet.Mul(miniRate),
 	// })
 	// contributions = append(contributions, game.JackpotContribution{
-	// 	PoolID: fmt.Sprintf("%s-%s-major", gameCode, betMultiplier.String()),
+	// 	PoolID: fmt.Sprintf("%s-%s-%s-%s-major", tenantID, currency, gameCode, betMultiplier.String()),
 	// 	Amount: totalBet.Mul(majorRate),
 	// })
 	// contributions = append(contributions, game.JackpotContribution{
-	// 	PoolID: fmt.Sprintf("%s-%s-grand", gameCode, betMultiplier.String()),
+	// 	PoolID: fmt.Sprintf("%s-%s-%s-%s-grand", tenantID, currency, gameCode, betMultiplier.String()),
 	// 	Amount: totalBet.Mul(grandRate),
 	// })
 	
@@ -1977,7 +1977,7 @@ func (m *{{.GameCodeUpper}}Module) GetContributions(ctx context.Context, spinRes
 // Access your module's config directly via m.gameConfig (no need to get from context)
 //
 // Calculate bet multiplier from: totalBet / PayLine
-func (m *{{.GameCodeUpper}}Module) GetWin(ctx context.Context, spinResult *game.SpinResult, totalBet decimal.Decimal) (*game.JackpotWin, error) {
+func (m *{{.GameCodeUpper}}Module) GetWin(ctx context.Context, tenantID string, currency string, spinResult *game.SpinResult, totalBet decimal.Decimal) (*game.JackpotWin, error) {
 	// Example: Custom win detection logic
 	// You can implement any logic here, e.g.:
 	// - Detect tier based on symbol positions
@@ -2005,8 +2005,8 @@ func (m *{{.GameCodeUpper}}Module) GetWin(ctx context.Context, spinResult *game.
 	
 	// Example: Return win with pool ID including bet multiplier
 	// return &game.JackpotWin{
-	// 	PoolID:    fmt.Sprintf("%s-%s", gameCode, betMultiplier.String()), // Single pool
-	// 	// PoolID:    fmt.Sprintf("%s-%s-%s", gameCode, betMultiplier.String(), tier), // Multiple pools
+	// 	PoolID:    fmt.Sprintf("%s-%s-%s-%s", tenantID, currency, gameCode, betMultiplier.String()), // Single pool
+	// 	// PoolID:    fmt.Sprintf("%s-%s-%s-%s-%s", tenantID, currency, gameCode, betMultiplier.String(), tier), // Multiple pools
 	// 	Tier:      tier,
 	// 	InitValue: initValue,
 	// }, nil
