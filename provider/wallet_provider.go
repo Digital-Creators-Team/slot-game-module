@@ -183,7 +183,7 @@ func (p *WalletProvider) Withdraw(ctx context.Context, userID, currencyID string
 }
 
 // Withdraw deducts amount from player balance
-func (p *WalletProvider) PlaceBets(ctx context.Context, productId, tenantID, userName, currencyID string, amount decimal.Decimal, roundID string, transactionId string, gameCode string, gameName string) error {
+func (p *WalletProvider) PlaceBets(ctx context.Context, productId, tenantID, userName, currencyID string, amount decimal.Decimal, roundID string, transactionId string, gameCode string, gameName string) (decimal.Decimal, error) {
 	url := fmt.Sprintf("%s/placeBets", p.baseURL)
 
 	requestBody := map[string]interface{}{
@@ -210,12 +210,12 @@ func (p *WalletProvider) PlaceBets(ctx context.Context, productId, tenantID, use
 
 	req, err := utils.MakeRequest(ctx, p.logger, url, &requestBody)
 	if err != nil {
-		return err
+		return decimal.Zero, err
 	}
 
 	resp, err := p.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("failed to withdraw: %w", err)
+		return decimal.Zero, fmt.Errorf("failed to withdraw: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -231,22 +231,22 @@ func (p *WalletProvider) PlaceBets(ctx context.Context, productId, tenantID, use
 	}
 	//var errResp ErrorResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return fmt.Errorf("failed to decode response body: %w", err)
+		return decimal.Zero, fmt.Errorf("failed to decode response body: %w", err)
 	}
 
 	p.logger.Debug().Any("result", result).Msg("place bets result")
 
 	if resp.StatusCode == http.StatusOK && result.StatusCode == (int)(moduleerrors.Success) {
-		return nil
+		return decimal.NewFromFloat(result.BalanceAfter), nil
 	}
 
 	if result.StatusCode == (int)(moduleerrors.InsufficientBalance) || result.StatusCode == (int)(moduleerrors.InternalServerError) {
-		return ErrInsufficientFunds
+		return decimal.Zero, ErrInsufficientFunds
 	} else if result.StatusCode != (int)(moduleerrors.Success) {
-		return fmt.Errorf("wallet service returned status %d", result.StatusCode)
+		return decimal.Zero, fmt.Errorf("wallet service returned status %d", result.StatusCode)
 	}
 
-	return fmt.Errorf("withdraw failed: %d", result.StatusCode)
+	return decimal.Zero, fmt.Errorf("withdraw failed: %d", result.StatusCode)
 }
 
 // Deposit adds amount to player balance
