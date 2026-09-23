@@ -13,7 +13,6 @@ import (
 	"github.com/Digital-Creators-Team/slot-game-module/events/kafka"
 	"github.com/Digital-Creators-Team/slot-game-module/pkg/utils"
 	"github.com/Digital-Creators-Team/slot-game-module/server"
-	"github.com/Digital-Creators-Team/slot-game-module/types"
 	"github.com/mitchellh/mapstructure"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
@@ -302,14 +301,6 @@ type DataAuditEvent struct {
 	Total int        `json:"total"`
 }
 
-// LogServiceResponse wraps the log service response (can be success or error)
-type LogServiceResponse struct {
-	StatusCode int               `json:"status_code"`
-	IsSuccess  bool              `json:"is_success"`
-	Data       DataAuditEvent    `json:"data,omitempty"`
-	Error      types.ErrorDetail `json:"error,omitempty"`
-}
-
 // GetBetHistory gets bet history for a user
 func (p *LogProvider) GetBetHistory(ctx context.Context, query *server.BetHistoryQuery) (*server.BetHistoryResponse, error) {
 	// Map BetType to action string
@@ -343,32 +334,14 @@ func (p *LogProvider) GetBetHistory(ctx context.Context, query *server.BetHistor
 		url += fmt.Sprintf("&user_id=%s", query.UserID)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := utils.MakeRequest[any](ctx, p.logger, url, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+		return nil, err
 	}
 
-	resp, err := p.httpClient.Do(req)
+	result, err := utils.DoInternalRequest[DataAuditEvent](p.logger, p.httpClient, req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get bet history: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("log service returned status %d", resp.StatusCode)
-	}
-
-	var result LogServiceResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %w", err)
-	}
-
-	if !result.IsSuccess {
-		errMsg := "unknown error"
-		if result.Error.ErrorMessage != "" {
-			errMsg = result.Error.ErrorMessage
-		}
-		return nil, fmt.Errorf("log service error: %s", errMsg)
+		return nil, err
 	}
 
 	// Convert to Bet format
