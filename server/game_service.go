@@ -784,8 +784,7 @@ func (s *GameService) executeFreeSpin(
 		}
 	}
 
-	balanceAfter := decimal.Zero
-	balanceAfter, err = s.walletProvider.PlaceBets(ctx, gameCode, req.TenantID, req.Username, req.CurrencyID, decimal.Zero, spinState.SessionID, spinState.SessionID, gameCode, gameName)
+	balanceAfter, err := s.walletProvider.PlaceBets(ctx, gameCode, req.TenantID, req.Username, req.CurrencyID, decimal.Zero, spinState.SessionID, spinState.SessionID, gameCode, gameName)
 	if err != nil {
 		logger.Error().Err(err).Msg("Failed to place bets")
 
