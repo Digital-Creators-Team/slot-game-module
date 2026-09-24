@@ -337,11 +337,11 @@ func (s *GameService) ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest
 		return nil, errors.Wrap(err, errors.ErrInternalServerError, "invalid game config type")
 	}
 
-	playerBalance, err := s.walletProvider.CheckBalance(ctx, gameCode, req.TenantID, req.Username, req.CurrencyID)
+	/*playerBalance, err := s.walletProvider.CheckBalance(ctx, gameCode, req.TenantID, req.Username, req.CurrencyID)
 	if err != nil {
 		logger.Error().Err(err).Msg("get balance error")
 		return nil, errors.New(errors.ErrInternalServerError, "get balance error")
-	}
+	}*/
 
 	// 3. Load player state
 	playerState, err := s.getPlayerState(ctx, req.UserID, req.CurrencyID, gameCode)
@@ -402,7 +402,7 @@ func (s *GameService) ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest
 		spinResult, err = s.executeFreeSpin(ctx, req, playerState, spinState, gameConfig, totalBet)
 	} else {
 		// Execute normal spin
-		playerBalance = playerBalance.Sub(totalBet) //fake: pay for this spin.
+		//playerBalance = playerBalance.Sub(totalBet) //fake: pay for this spin.
 		spinResult, err = s.executeNormalSpin(ctx, req, playerState, spinState, gameConfig, totalBet)
 	}
 	if err != nil {
@@ -421,7 +421,7 @@ func (s *GameService) ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest
 	playerState.UpdatedAt = &t
 
 	// 7. Get ending balance
-	spinResult.EndingBalance = playerBalance.Add(spinResult.TotalWin)
+	// spinResult.EndingBalance = playerBalance.Add(spinResult.TotalWin)
 
 	// 8. Log spin
 	if s.logProvider != nil {
@@ -578,13 +578,13 @@ func (s *GameService) executeNormalSpin(
 		gameName = s.gameModule.GetGameName()
 		err      error
 		logger   = s.logger.With().
-				Str("session_id", spinState.SessionID).
-				Str("tenant_id", req.TenantID).
-				Str("currency_id", req.CurrencyID).
-				Str("game_code", gameConfig.GameCode).
-				Str("user_id", req.UserID).
-				Str("spin_type", "normal").
-				Logger()
+			Str("session_id", spinState.SessionID).
+			Str("tenant_id", req.TenantID).
+			Str("currency_id", req.CurrencyID).
+			Str("game_code", gameConfig.GameCode).
+			Str("user_id", req.UserID).
+			Str("spin_type", "normal").
+			Logger()
 	)
 
 	spinState.SpinType = 0
@@ -595,7 +595,7 @@ func (s *GameService) executeNormalSpin(
 	}
 
 	start := time.Now()
-	err = s.walletProvider.PlaceBets(ctx, gameCode, req.TenantID, req.Username, req.CurrencyID, totalBet, spinState.SessionID, spinState.SessionID, gameCode, gameName)
+	balanceAfter, err := s.walletProvider.PlaceBets(ctx, gameCode, req.TenantID, req.Username, req.CurrencyID, totalBet, spinState.SessionID, spinState.SessionID, gameCode, gameName)
 	elapsed := time.Since(start)
 	s.logger.Debug().Int64("duration", elapsed.Milliseconds()).Msg("PlaceBets duration")
 	if err != nil {
@@ -603,9 +603,7 @@ func (s *GameService) executeNormalSpin(
 			Err(err).
 			Str("total_bet", totalBet.String()).
 			Msg("Failed to place bets")
-		//if err := s.walletProvider.Withdraw(ctx, req.UserID, req.CurrencyID, totalBet); err != nil {
-		return nil, errors.Wrap(err, errors.GetCode(err), "failed to withdraw bet")
-		//}
+		return nil, errors.Wrap(err, errors.GetCode(err), "failed to PlaceBets bet")
 	}
 
 	// 2. Execute spin
@@ -631,6 +629,7 @@ func (s *GameService) executeNormalSpin(
 		spinState.Status = game.SpinStatusPaying
 		spinState.SpinResult = spinResult
 	}
+	spinResult.EndingBalance = balanceAfter.Add(spinResult.TotalWin)
 
 	if err := s.saveSpinState(ctx, spinState.SessionID, gameCode, spinState); err != nil {
 		logger.Error().Err(err).Msg("Failed to save post-spin player state")
@@ -735,13 +734,13 @@ func (s *GameService) executeFreeSpin(
 		gameName = s.gameModule.GetGameName()
 		err      error
 		logger   = s.logger.With().
-				Str("session_id", spinState.SessionID).
-				Str("tenant_id", req.TenantID).
-				Str("currency_id", req.CurrencyID).
-				Str("game_code", gameConfig.GameCode).
-				Str("user_id", req.UserID).
-				Str("spin_type", "free").
-				Logger()
+			Str("session_id", spinState.SessionID).
+			Str("tenant_id", req.TenantID).
+			Str("currency_id", req.CurrencyID).
+			Str("game_code", gameConfig.GameCode).
+			Str("user_id", req.UserID).
+			Str("spin_type", "free").
+			Logger()
 	)
 
 	spinState.SpinType = 1
@@ -785,7 +784,7 @@ func (s *GameService) executeFreeSpin(
 		}
 	}
 
-	err = s.walletProvider.PlaceBets(ctx, gameCode, req.TenantID, req.Username, req.CurrencyID, decimal.Zero, spinState.SessionID, spinState.SessionID, gameCode, gameName)
+	balanceAfter, err := s.walletProvider.PlaceBets(ctx, gameCode, req.TenantID, req.Username, req.CurrencyID, decimal.Zero, spinState.SessionID, spinState.SessionID, gameCode, gameName)
 	if err != nil {
 		logger.Error().Err(err).Msg("Failed to place bets")
 
@@ -815,6 +814,7 @@ func (s *GameService) executeFreeSpin(
 	spinResult.RemainingFreeSpin = &playerState.RemainingFreeSpin
 	totalWinFS := playerState.TotalWinFreeSpin
 	spinResult.TotalWinFreeSpin = *totalWinFS
+	spinResult.EndingBalance = balanceAfter.Add(spinResult.TotalWin)
 
 	// Last spinResult for FG
 	playerState.SpinResult = spinResult
