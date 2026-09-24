@@ -3,6 +3,9 @@ package server
 import (
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -10,6 +13,8 @@ import (
 	apperrors "github.com/Digital-Creators-Team/slot-game-module/errors"
 	"github.com/Digital-Creators-Team/slot-game-module/types"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/gorilla/websocket"
+	"github.com/rs/zerolog"
 )
 
 func newTestWSConn() *WSConn {
@@ -30,6 +35,55 @@ func recvPayload(t *testing.T, c *WSConn) []byte {
 		t.Fatalf("timeout waiting for ws payload")
 		return nil
 	}
+}
+
+// newWSConnPair returns a WSConn wired to a real websocket client so tests can
+// exercise code paths that write directly to the socket (e.g. replyPong).
+func newWSConnPair(t *testing.T) (*WSConn, *websocket.Conn) {
+	t.Helper()
+
+	upgrader := websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
+
+	var (
+		mu       sync.Mutex
+		serverCx *websocket.Conn
+	)
+	ready := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			t.Errorf("upgrade: %v", err)
+			close(ready)
+			return
+		}
+		mu.Lock()
+		serverCx = conn
+		mu.Unlock()
+		close(ready)
+	}))
+	t.Cleanup(srv.Close)
+
+	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http")
+	client, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	t.Cleanup(func() { _ = client.Close() })
+
+	<-ready
+	mu.Lock()
+	sc := serverCx
+	mu.Unlock()
+	if sc == nil {
+		t.Fatal("server conn not established")
+	}
+
+	return &WSConn{
+		conn:   sc,
+		logger: zerolog.Nop(),
+		send:   make(chan []byte, 16),
+		closed: make(chan struct{}),
+	}, client
 }
 
 func TestEventsWSHandler_SendSuccess(t *testing.T) {
@@ -108,10 +162,15 @@ func TestEventsWSHandler_SendError(t *testing.T) {
 
 func TestEventsWSHandler_HandleMessage_Ping(t *testing.T) {
 	h := &EventsWSHandler{}
-	c := newTestWSConn()
+	c, client := newWSConnPair(t)
 
 	h.handleMessage(c, nil, WSRequest{Type: WSEventPing}, "/ws")
-	b := recvPayload(t, c)
+
+	_ = client.SetReadDeadline(time.Now().Add(time.Second))
+	_, b, err := client.ReadMessage()
+	if err != nil {
+		t.Fatalf("read pong: %v", err)
+	}
 
 	var out map[string]any
 	if err := json.Unmarshal(b, &out); err != nil {
