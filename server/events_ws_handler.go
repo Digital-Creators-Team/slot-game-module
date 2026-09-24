@@ -121,6 +121,27 @@ func (c *WSConn) Send(payload []byte) error {
 	}
 }
 
+// replyPong writes the pong frame straight back to the client instead of
+// queueing it, so a ping is never dropped behind a full send queue.
+func (c *WSConn) replyPong(req WSRequest) {
+	pong := map[string]interface{}{
+		"type":      "pong",
+		"timestamp": time.Now().Unix(),
+	}
+	b, err := json.Marshal(pong)
+	if err != nil {
+		c.logger.Error().Err(err).Str("req_id", req.ID).Msg("failed to marshal pong")
+		return
+	}
+	if err := c.conn.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		c.logger.Warn().Err(err).Str("req_id", req.ID).Msg("failed to set pong write deadline")
+		return
+	}
+	if err := c.conn.WriteMessage(websocket.TextMessage, b); err != nil {
+		c.logger.Warn().Err(err).Str("req_id", req.ID).Msg("failed to write pong")
+	}
+}
+
 func (c *WSConn) CloseWithReason(reason string) {
 	c.closeOnce.Do(func() {
 		close(c.closed)
@@ -241,13 +262,21 @@ func (h *EventsWSHandler) Stream(g *gin.Context) {
 	for {
 		_, msg, err := conn.ReadMessage()
 		if err != nil {
+			wsConn.logger.Debug().Err(err).Msg("websocket read loop ended")
 			return
 		}
 
 		var req WSRequest
 		if err := json.Unmarshal(msg, &req); err != nil {
+			wsConn.logger.Warn().Err(err).Msg("failed to unmarshal ws request")
 			continue
 		}
+
+		if req.Type == WSEventPing {
+			wsConn.replyPong(req)
+			continue
+		}
+
 		go h.handleMessage(wsConn, claims, req, g.Request.URL.Path)
 	}
 }
@@ -333,14 +362,6 @@ func (h *EventsWSHandler) handleMessage(c *WSConn, claims *auth.Claims, req WSRe
 	}
 
 	switch req.Type {
-	case WSEventPing:
-		resp := map[string]interface{}{
-			"type":      "pong",
-			"timestamp": time.Now().Unix(),
-		}
-		b, _ := json.Marshal(resp)
-		_ = c.Send(b)
-		return
 	case WSEventJackpotSubscribe:
 		h.handleJackpotSubscribe(c, claims, req)
 		//h.writeReply(c, req, path, okReply(http.StatusOK, map[string]bool{"ok": true}))
