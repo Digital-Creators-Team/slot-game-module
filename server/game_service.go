@@ -578,13 +578,13 @@ func (s *GameService) executeNormalSpin(
 		gameName = s.gameModule.GetGameName()
 		err      error
 		logger   = s.logger.With().
-				Str("session_id", spinState.SessionID).
-				Str("tenant_id", req.TenantID).
-				Str("currency_id", req.CurrencyID).
-				Str("game_code", gameConfig.GameCode).
-				Str("user_id", req.UserID).
-				Str("spin_type", "normal").
-				Logger()
+			Str("session_id", spinState.SessionID).
+			Str("tenant_id", req.TenantID).
+			Str("currency_id", req.CurrencyID).
+			Str("game_code", gameConfig.GameCode).
+			Str("user_id", req.UserID).
+			Str("spin_type", "normal").
+			Logger()
 	)
 
 	spinState.SpinType = 0
@@ -595,8 +595,7 @@ func (s *GameService) executeNormalSpin(
 	}
 
 	start := time.Now()
-	balanceAfter := decimal.Zero
-	balanceAfter, err = s.walletProvider.PlaceBets(ctx, gameCode, req.TenantID, req.Username, req.CurrencyID, totalBet, spinState.SessionID, spinState.SessionID, gameCode, gameName)
+	balanceAfter, err := s.walletProvider.PlaceBets(ctx, gameCode, req.TenantID, req.Username, req.CurrencyID, totalBet, spinState.SessionID, spinState.SessionID, gameCode, gameName)
 	elapsed := time.Since(start)
 	s.logger.Debug().Int64("duration", elapsed.Milliseconds()).Msg("PlaceBets duration")
 	if err != nil {
@@ -735,13 +734,13 @@ func (s *GameService) executeFreeSpin(
 		gameName = s.gameModule.GetGameName()
 		err      error
 		logger   = s.logger.With().
-				Str("session_id", spinState.SessionID).
-				Str("tenant_id", req.TenantID).
-				Str("currency_id", req.CurrencyID).
-				Str("game_code", gameConfig.GameCode).
-				Str("user_id", req.UserID).
-				Str("spin_type", "free").
-				Logger()
+			Str("session_id", spinState.SessionID).
+			Str("tenant_id", req.TenantID).
+			Str("currency_id", req.CurrencyID).
+			Str("game_code", gameConfig.GameCode).
+			Str("user_id", req.UserID).
+			Str("spin_type", "free").
+			Logger()
 	)
 
 	spinState.SpinType = 1
