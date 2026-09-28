@@ -160,6 +160,12 @@ func (p *tenantProvider) subscribeTenantEvent(redisClient *coreredis.Client, eve
 			return
 
 		case msg := <-ch:
+			if msg == nil {
+				p.logger.Error().
+					Msg("nil message received")
+				continue
+			}
+
 			var event tenantEvent
 
 			if err := json.Unmarshal([]byte(msg.Payload), &event); err != nil {
