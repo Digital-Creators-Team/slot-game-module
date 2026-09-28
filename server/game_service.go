@@ -629,7 +629,6 @@ func (s *GameService) executeNormalSpin(
 		spinState.Status = game.SpinStatusPaying
 		spinState.SpinResult = spinResult
 	}
-	spinResult.EndingBalance = balanceAfter.Add(spinResult.TotalWin)
 
 	if err := s.saveSpinState(ctx, spinState.SessionID, gameCode, spinState); err != nil {
 		logger.Error().Err(err).Msg("Failed to save post-spin player state")
@@ -666,6 +665,7 @@ func (s *GameService) executeNormalSpin(
 	if spinResult.TotalWin.Sign() <= 0 {
 		payout = decimal.Zero
 	}
+	spinResult.EndingBalance = balanceAfter.Add(payout)
 
 	start = time.Now()
 	err = s.walletProvider.SettleBets(ctx, gameCode, req.TenantID, req.Username, req.CurrencyID, totalBet, payout, spinState.SessionID, spinState.SessionID, gameCode, gameName)
