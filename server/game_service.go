@@ -578,13 +578,13 @@ func (s *GameService) executeNormalSpin(
 		gameName = s.gameModule.GetGameName()
 		err      error
 		logger   = s.logger.With().
-			Str("session_id", spinState.SessionID).
-			Str("tenant_id", req.TenantID).
-			Str("currency_id", req.CurrencyID).
-			Str("game_code", gameConfig.GameCode).
-			Str("user_id", req.UserID).
-			Str("spin_type", "normal").
-			Logger()
+				Str("session_id", spinState.SessionID).
+				Str("tenant_id", req.TenantID).
+				Str("currency_id", req.CurrencyID).
+				Str("game_code", gameConfig.GameCode).
+				Str("user_id", req.UserID).
+				Str("spin_type", "normal").
+				Logger()
 	)
 
 	spinState.SpinType = 0
@@ -659,6 +659,8 @@ func (s *GameService) executeNormalSpin(
 
 			return nil, errors.Wrap(err, errors.ErrInternalServerError, "failed to claim jackpot")
 		}
+
+		spinResult.EndingBalance = balanceAfter.Add(spinResult.TotalWinJackpot)
 	}
 
 	// 5. Deposit winnings to wallet
@@ -734,13 +736,13 @@ func (s *GameService) executeFreeSpin(
 		gameName = s.gameModule.GetGameName()
 		err      error
 		logger   = s.logger.With().
-			Str("session_id", spinState.SessionID).
-			Str("tenant_id", req.TenantID).
-			Str("currency_id", req.CurrencyID).
-			Str("game_code", gameConfig.GameCode).
-			Str("user_id", req.UserID).
-			Str("spin_type", "free").
-			Logger()
+				Str("session_id", spinState.SessionID).
+				Str("tenant_id", req.TenantID).
+				Str("currency_id", req.CurrencyID).
+				Str("game_code", gameConfig.GameCode).
+				Str("user_id", req.UserID).
+				Str("spin_type", "free").
+				Logger()
 	)
 
 	spinState.SpinType = 1
