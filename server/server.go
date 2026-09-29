@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	dbredis "github.com/Digital-Creators-Team/slot-game-module/db/redis"
 	"github.com/Digital-Creators-Team/slot-game-module/game"
 	"github.com/Digital-Creators-Team/slot-game-module/middleware"
+	"github.com/Digital-Creators-Team/slot-game-module/pkg/cfsign"
 	"github.com/Digital-Creators-Team/slot-game-module/pkg/jackpot"
 	"github.com/Digital-Creators-Team/slot-game-module/pkg/providers"
 	"github.com/gin-gonic/gin"
@@ -41,6 +43,7 @@ type App struct {
 	logProvider        providers.LogProvider
 	tenantProvider     providers.TenantProvider
 	wsConnManager      *WSConnManager
+	assetSigner        *cfsign.Signer
 }
 
 // Options holds server configuration options
@@ -109,6 +112,7 @@ func New(opts Options) *App {
 	redis, _ := dbredis.New(app.config.Redis)
 	app.wsConnManager.SetRedisClient(redis)
 	app.eventsWSHandler = NewEventsWSHandler(app, app.wsConnManager)
+	app.assetSigner = newAssetSigner(opts.Config.CloudFront, opts.Logger)
 
 	return app
 }
@@ -149,6 +153,11 @@ func (a *App) SetRedisClient(client *dbredis.Client) {
 			a.wsConnManager.Close()
 		})
 	}
+}
+
+// SetAssetSigner overrides the CloudFront signer (e.g. for tests).
+func (a *App) SetAssetSigner(signer *cfsign.Signer) {
+	a.assetSigner = signer
 }
 
 // AttachJackpotUpdateFeed attaches a source of jackpot updates (e.g., Kafka consumer channel).
@@ -199,6 +208,34 @@ func (a *App) newGameService(
 		return a.gameServiceFactory(gameModule, stateProvider, walletProvider, rewardProvider, logProvider, tenantProvider, logger)
 	}
 	return NewGameService(gameModule, stateProvider, walletProvider, rewardProvider, logProvider, tenantProvider, logger)
+}
+
+// newAssetSigner builds the CloudFront signer from config.
+// Returns nil when CloudFront is not configured; exits if it is configured but invalid.
+func newAssetSigner(c config.CloudFrontConfig, logger zerolog.Logger) *cfsign.Signer {
+	if c.KeyPairID == "" {
+		logger.Warn().Msg("CloudFront is not configured; asset token endpoint is disabled")
+		return nil
+	}
+
+	pemStr := c.PrivateKey
+	if c.PrivateKeyPath != "" {
+		b, err := os.ReadFile(c.PrivateKeyPath)
+		if err != nil {
+			logger.Fatal().Err(err).Str("path", c.PrivateKeyPath).Msg("Failed to read CloudFront private key")
+		}
+		pemStr = string(b)
+	}
+	// Accept single-line PEM with literal "\n" sequences.
+	pemStr = strings.ReplaceAll(pemStr, `\n`, "\n")
+
+	signer, err := cfsign.NewSigner(c.KeyPairID, pemStr, c.CDNDomain)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("Invalid CloudFront configuration")
+	}
+
+	logger.Info().Str("cdn_domain", c.CDNDomain).Msg("CloudFront asset signer initialized")
+	return signer
 }
 
 // UseCommonMiddlewares adds common middlewares to the application
@@ -277,6 +314,11 @@ func (a *App) RegisterHealthCheck() {
 	a.engine.GET("/api/health", a.healthCheck)
 }
 
+// GetAssetSigner returns the CloudFront signer, or nil if CloudFront is not configured.
+func (a *App) GetAssetSigner() *cfsign.Signer {
+	return a.assetSigner
+}
+
 func (a *App) healthCheck(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"status":    "healthy",
@@ -329,6 +371,7 @@ func (a *App) RegisterCommonGameRoutes() {
 				authRoutes.POST("/spin", a.gameHandler.Spin)
 				authRoutes.GET("/get-player-state", a.gameHandler.GetState)
 				authRoutes.GET("/bet-history", a.gameHandler.GetBetHistory)
+				authRoutes.GET("/assets-token", a.gameHandler.AssetsToken)
 			}
 		}
 	}
