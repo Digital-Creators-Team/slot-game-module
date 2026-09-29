@@ -534,3 +534,29 @@ func (h *GameHandler) GetBetHistory(c *gin.Context) {
 
 	OK(c, result)
 }
+
+// AssetsToken issues a CloudFront signed-URL query string that grants the
+// authenticated player read access to game assets on the CDN.
+// The client appends the returned query to every asset URL:
+func (h *GameHandler) AssetsToken(c *gin.Context) {
+	signer := h.app.GetAssetSigner()
+	if signer == nil {
+		h.logger.Error().Msg("Asset token requested but CloudFront is not configured")
+		InternalError(c, errors.New(errors.ErrInternalServerError, "Asset access is not configured"))
+		return
+	}
+
+	// Empty prefix = access to the whole distribution (all games resources).
+	ttl := h.app.Config().CloudFront.TokenTTL
+	token, err := signer.SignPrefix("", ttl)
+	if err != nil {
+		h.logger.Error().Err(err).Msg("Failed to sign asset token")
+		InternalError(c, errors.New(errors.ErrInternalServerError, "Failed to issue asset token"))
+		return
+	}
+
+	// Tokens are per-user credentials; never let a proxy or CDN cache this response.
+	c.Header("Cache-Control", "no-store")
+
+	OK(c, token)
+}
