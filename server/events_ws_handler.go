@@ -672,6 +672,7 @@ func (h *EventsWSHandler) handleBetHistory(c *WSConn, claims *auth.Claims, req W
 	}
 
 	query := &BetHistoryQuery{
+		TenantID: claims.TenantID,
 		UserID:   userID,
 		GameCode: params.GameCode,
 		Type:     params.Type,
