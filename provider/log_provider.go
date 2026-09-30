@@ -9,13 +9,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Digital-Creators-Team/slot-game-module/config"
-	"github.com/Digital-Creators-Team/slot-game-module/events/kafka"
-	"github.com/Digital-Creators-Team/slot-game-module/pkg/utils"
-	"github.com/Digital-Creators-Team/slot-game-module/server"
 	"github.com/mitchellh/mapstructure"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
+
+	"github.com/Digital-Creators-Team/slot-game-module/config"
+	"github.com/Digital-Creators-Team/slot-game-module/events/kafka"
+	"github.com/Digital-Creators-Team/slot-game-module/logging"
+	"github.com/Digital-Creators-Team/slot-game-module/pkg/utils"
+	"github.com/Digital-Creators-Team/slot-game-module/server"
 )
 
 // SpinDetails represents spin log details for mapstructure decoding
@@ -85,7 +87,7 @@ type LogProvider struct {
 	httpClient    *http.Client
 	kafkaProducer *kafka.Producer
 	auditTopic    string
-	logger        zerolog.Logger
+	logger        logging.LoggerProvider
 }
 
 // NewLogProvider creates a new log provider
@@ -109,7 +111,7 @@ func NewLogProvider(cfg *config.Config, kafkaProducer *kafka.Producer, logger ze
 		},
 		kafkaProducer: kafkaProducer,
 		auditTopic:    auditTopic,
-		logger:        logger.With().Str("component", "log_provider").Logger(),
+		logger:        logging.NewLoggerProvider(logger.With().Str("component", "log_provider").Logger()),
 	}
 }
 
@@ -129,7 +131,7 @@ type AuditEvent struct {
 // LogSpin logs a spin event and returns sessionID
 func (p *LogProvider) LogSpin(ctx context.Context, log *server.SpinLog) (string, error) {
 	if p.kafkaProducer == nil {
-		p.logger.Warn().Msg("Kafka producer not configured, skipping spin log")
+		p.logger.For(ctx).Warn().Msg("Kafka producer not configured, skipping spin log")
 		return log.SessionID, nil
 	}
 
@@ -198,7 +200,7 @@ func (p *LogProvider) LogSpin(ctx context.Context, log *server.SpinLog) (string,
 	}
 
 	if err := p.kafkaProducer.SendMessage(p.auditTopic, log.SessionID, event); err != nil {
-		p.logger.Error().Err(err).Msg("Failed to send spin log to Kafka")
+		p.logger.For(ctx).Error().Err(err).Msg("Failed to send spin log to Kafka")
 		return "", fmt.Errorf("failed to log spin: %w", err)
 	}
 
@@ -207,7 +209,7 @@ func (p *LogProvider) LogSpin(ctx context.Context, log *server.SpinLog) (string,
 
 func (p *LogProvider) LogSpinError(ctx context.Context, log *server.SpinErrorLog) (sessionID string, err error) {
 	if p.kafkaProducer == nil {
-		p.logger.Warn().Msg("Kafka producer not configured, skipping spin log")
+		p.logger.For(ctx).Warn().Msg("Kafka producer not configured, skipping spin log")
 		return log.SessionID, nil
 	}
 
@@ -235,7 +237,7 @@ func (p *LogProvider) LogSpinError(ctx context.Context, log *server.SpinErrorLog
 	}
 
 	if err := p.kafkaProducer.SendMessage(p.auditTopic, log.SessionID, event); err != nil {
-		p.logger.Error().Err(err).Msg("Failed to send spin error log to Kafka")
+		p.logger.For(ctx).Error().Err(err).Msg("Failed to send spin error log to Kafka")
 		return "", fmt.Errorf("failed to log spin error: %w", err)
 	}
 
@@ -245,7 +247,7 @@ func (p *LogProvider) LogSpinError(ctx context.Context, log *server.SpinErrorLog
 // LogJackpot logs a jackpot win event and returns sessionID
 func (p *LogProvider) LogJackpot(ctx context.Context, log *server.JackpotLog) (string, error) {
 	if p.kafkaProducer == nil {
-		p.logger.Warn().Msg("Kafka producer not configured, skipping jackpot log")
+		p.logger.For(ctx).Warn().Msg("Kafka producer not configured, skipping jackpot log")
 		return log.SessionID, nil
 	}
 
@@ -274,7 +276,7 @@ func (p *LogProvider) LogJackpot(ctx context.Context, log *server.JackpotLog) (s
 	}
 
 	if err := p.kafkaProducer.SendMessage(p.auditTopic, log.SessionID, event); err != nil {
-		p.logger.Error().Err(err).Msg("Failed to send jackpot log to Kafka")
+		p.logger.For(ctx).Error().Err(err).Msg("Failed to send jackpot log to Kafka")
 		return "", fmt.Errorf("failed to log jackpot: %w", err)
 	}
 
@@ -334,12 +336,12 @@ func (p *LogProvider) GetBetHistory(ctx context.Context, query *server.BetHistor
 		url += fmt.Sprintf("&user_id=%s", query.UserID)
 	}
 
-	req, err := utils.MakeRequest[any](ctx, p.logger, url, nil)
+	req, err := utils.MakeRequest[any](ctx, p.logger.For(ctx), url, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	result, err := utils.DoInternalRequest[DataAuditEvent](p.logger, p.httpClient, req)
+	result, err := utils.DoInternalRequest[DataAuditEvent](p.logger.For(ctx), p.httpClient, req)
 	if err != nil {
 		return nil, err
 	}
@@ -347,7 +349,7 @@ func (p *LogProvider) GetBetHistory(ctx context.Context, query *server.BetHistor
 	// Convert to Bet format
 	bets := make([]server.Bet, 0, len(result.Data.Logs))
 	for _, entry := range result.Data.Logs {
-		bet := p.convertToBet(entry, query.Type)
+		bet := p.convertToBet(ctx, entry, query.Type)
 
 		if bet != nil && bet.Rounds != nil && len(bet.Rounds) > 0 && bet.SplitRoundHistory {
 			b := p.convertToBetEachRound(*bet, bet.Rounds[0])
@@ -377,7 +379,7 @@ func (p *LogProvider) GetBetHistory(ctx context.Context, query *server.BetHistor
 }
 
 // convertToBet converts a LogEntry to Bet format
-func (p *LogProvider) convertToBet(entry LogEntry, betType server.BetType) *server.Bet {
+func (p *LogProvider) convertToBet(ctx context.Context, entry LogEntry, betType server.BetType) *server.Bet {
 	bet := &server.Bet{
 		TenantID:  &entry.TenantID,
 		SessionID: entry.SessionID,
@@ -391,7 +393,7 @@ func (p *LogProvider) convertToBet(entry LogEntry, betType server.BetType) *serv
 		if strings.HasSuffix(entry.Action, "_round") {
 			var details RoundDetails
 			if err := mapstructure.Decode(entry.Details, &details); err != nil {
-				p.logger.Warn().Err(err).Msg("Failed to decode round details")
+				p.logger.For(ctx).Warn().Err(err).Msg("Failed to decode round details")
 				return nil
 			}
 
@@ -406,7 +408,7 @@ func (p *LogProvider) convertToBet(entry LogEntry, betType server.BetType) *serv
 				var ok bool
 				resultMap, ok = details.RoundResult.(map[string]interface{})
 				if !ok {
-					p.logger.Error().Msg("Failed to decode round result map")
+					p.logger.For(ctx).Error().Msg("Failed to decode round result map")
 					resultMap = nil
 				} else {
 					bet.TotalBet, _ = resultMap["totalBet"].(float64)
@@ -416,7 +418,7 @@ func (p *LogProvider) convertToBet(entry LogEntry, betType server.BetType) *serv
 		} else {
 			var details SpinDetails
 			if err := mapstructure.Decode(entry.Details, &details); err != nil {
-				p.logger.Warn().Err(err).Msg("Failed to decode spin details")
+				p.logger.For(ctx).Warn().Err(err).Msg("Failed to decode spin details")
 				return nil
 			}
 
@@ -432,7 +434,7 @@ func (p *LogProvider) convertToBet(entry LogEntry, betType server.BetType) *serv
 				var ok bool
 				resultMap, ok = details.SpinResult.(map[string]interface{})
 				if !ok {
-					p.logger.Error().Msg("Failed to decode round result map")
+					p.logger.For(ctx).Error().Msg("Failed to decode round result map")
 					resultMap = nil
 				}
 			}
@@ -473,7 +475,7 @@ func (p *LogProvider) convertToBet(entry LogEntry, betType server.BetType) *serv
 	case server.BetTypeJackpot:
 		var details JackpotDetails
 		if err := mapstructure.Decode(entry.Details, &details); err != nil {
-			p.logger.Warn().Err(err).Msg("Failed to decode jackpot details")
+			p.logger.For(ctx).Warn().Err(err).Msg("Failed to decode jackpot details")
 			return nil
 		}
 		bet.TotalBet = details.BetAmount

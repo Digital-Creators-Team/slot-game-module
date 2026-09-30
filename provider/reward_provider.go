@@ -6,19 +6,21 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/rs/zerolog"
+	"github.com/shopspring/decimal"
+
 	"github.com/Digital-Creators-Team/slot-game-module/config"
+	"github.com/Digital-Creators-Team/slot-game-module/logging"
 	"github.com/Digital-Creators-Team/slot-game-module/pkg/providers"
 	"github.com/Digital-Creators-Team/slot-game-module/pkg/utils"
 	"github.com/Digital-Creators-Team/slot-game-module/server"
-	"github.com/rs/zerolog"
-	"github.com/shopspring/decimal"
 )
 
 // RewardProvider implements server.RewardProvider using HTTP client
 type RewardProvider struct {
 	baseURL    string
 	httpClient *http.Client
-	logger     zerolog.Logger
+	logger     logging.LoggerProvider
 }
 
 // NewRewardProvider creates a new reward provider
@@ -33,7 +35,7 @@ func NewRewardProvider(cfg *config.Config, logger zerolog.Logger) *RewardProvide
 		httpClient: &http.Client{
 			Timeout: timeout,
 		},
-		logger: logger.With().Str("component", "reward_provider").Logger(),
+		logger: logging.NewLoggerProvider(logger.With().Str("component", "reward_provider").Logger()),
 	}
 }
 
@@ -41,12 +43,12 @@ func NewRewardProvider(cfg *config.Config, logger zerolog.Logger) *RewardProvide
 func (p *RewardProvider) Contribute(ctx context.Context, req *providers.ContributeRequest) error {
 	url := fmt.Sprintf("%s/jackpot/contribute", p.baseURL)
 
-	httpReq, err := utils.MakeRequest(ctx, p.logger, url, &req)
+	httpReq, err := utils.MakeRequest(ctx, p.logger.For(ctx), url, &req)
 	if err != nil {
 		return err
 	}
 
-	_, err = utils.DoInternalRequest[any](p.logger, p.httpClient, httpReq)
+	_, err = utils.DoInternalRequest[any](p.logger.For(ctx), p.httpClient, httpReq)
 	if err != nil {
 		return err
 	}
@@ -58,12 +60,12 @@ func (p *RewardProvider) Contribute(ctx context.Context, req *providers.Contribu
 func (p *RewardProvider) Claim(ctx context.Context, req *providers.ClaimRequest) (*server.JackpotClaim, error) {
 	url := fmt.Sprintf("%s/jackpot/claim", p.baseURL)
 
-	httpReq, err := utils.MakeRequest(ctx, p.logger, url, &req)
+	httpReq, err := utils.MakeRequest(ctx, p.logger.For(ctx), url, &req)
 	if err != nil {
 		return nil, err
 	}
 
-	result, err := utils.DoInternalRequest[server.JackpotClaim](p.logger, p.httpClient, httpReq)
+	result, err := utils.DoInternalRequest[server.JackpotClaim](p.logger.For(ctx), p.httpClient, httpReq)
 	if err != nil {
 		return nil, err
 	}
@@ -75,12 +77,12 @@ func (p *RewardProvider) Claim(ctx context.Context, req *providers.ClaimRequest)
 func (p *RewardProvider) GetPool(ctx context.Context, poolID string, initValue decimal.Decimal) (*server.JackpotPool, error) {
 	url := fmt.Sprintf("%s/jackpot/pool/%s?init_value=%s", p.baseURL, poolID, initValue.String())
 
-	req, err := utils.MakeRequest[any](ctx, p.logger, url, nil)
+	req, err := utils.MakeRequest[any](ctx, p.logger.For(ctx), url, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	result, err := utils.DoInternalRequest[server.JackpotPool](p.logger, p.httpClient, req)
+	result, err := utils.DoInternalRequest[server.JackpotPool](p.logger.For(ctx), p.httpClient, req)
 	if err != nil {
 		return nil, err
 	}

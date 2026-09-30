@@ -40,7 +40,7 @@ type InternalResponse[T any] struct {
 
 func MakeRequest[T any](
 	ctx context.Context,
-	logger zerolog.Logger,
+	logger *zerolog.Logger,
 	url string,
 	apiReq *T,
 ) (*http.Request, error) {
@@ -52,13 +52,13 @@ func MakeRequest[T any](
 	if apiReq != nil {
 		reqBody, err := json.Marshal(apiReq)
 		if err != nil {
-			logger.Error().Err(err).Msg("failed to marshal request")
+			logger.Error().Ctx(ctx).Err(err).Msg("failed to marshal request")
 			return nil, fmt.Errorf("failed to marshal request: %w", err)
 		}
 
 		req, err = http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(reqBody))
 		if err != nil {
-			logger.Error().Err(err).Msg("failed to create request")
+			logger.Error().Ctx(ctx).Err(err).Msg("failed to create request")
 			return nil, fmt.Errorf("failed to create request: %w", err)
 		}
 
@@ -66,7 +66,7 @@ func MakeRequest[T any](
 	} else {
 		req, err = http.NewRequestWithContext(ctx, "GET", url, nil)
 		if err != nil {
-			logger.Error().Err(err).Msg("failed to create request")
+			logger.Error().Ctx(ctx).Err(err).Msg("failed to create request")
 			return nil, fmt.Errorf("failed to create request: %w", err)
 		}
 	}
@@ -80,7 +80,7 @@ func MakeRequest[T any](
 }
 
 func DoInternalRequest[T any](
-	logger zerolog.Logger,
+	logger *zerolog.Logger,
 	client *http.Client,
 	req *http.Request,
 ) (*InternalResponse[T], error) {
@@ -106,6 +106,7 @@ func DoInternalRequest[T any](
 
 	if !errorResponse.IsSuccess || errorResponse.Error.ErrorMessage != "" {
 		logger.Error().
+			Ctx(req.Context()).
 			Err(ErrServiceError).
 			Str("url", req.URL.String()).
 			Str("error_message", errorResponse.Error.ErrorMessage).
@@ -124,13 +125,14 @@ func DoInternalRequest[T any](
 }
 
 func DoRequest[T any](
-	logger zerolog.Logger,
+	logger *zerolog.Logger,
 	client *http.Client,
 	req *http.Request,
 ) ([]byte, *T, error) {
 	resp, err := client.Do(req)
 	if err != nil {
 		logger.Error().
+			Ctx(req.Context()).
 			Err(err).
 			Str("url", req.URL.String()).
 			Msg("failed to send request")
@@ -140,6 +142,7 @@ func DoRequest[T any](
 		err := Body.Close()
 		if err != nil {
 			logger.Error().
+				Ctx(req.Context()).
 				Err(err).
 				Msg("failed to close response body")
 		}
@@ -148,6 +151,7 @@ func DoRequest[T any](
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		logger.Error().
+			Ctx(req.Context()).
 			Err(err).
 			Str("url", req.URL.String()).
 			Msg("failed to read response")
@@ -158,6 +162,7 @@ func DoRequest[T any](
 		resp.StatusCode != http.StatusCreated &&
 		resp.StatusCode != http.StatusAccepted {
 		logger.Error().
+			Ctx(req.Context()).
 			Err(ErrServiceError).
 			Str("url", req.URL.String()).
 			Str("status", resp.Status).
@@ -170,6 +175,7 @@ func DoRequest[T any](
 	respData, err := Unmarshal[T](respBody)
 	if err != nil {
 		logger.Error().
+			Ctx(req.Context()).
 			Err(err).
 			Str("url", req.URL.String()).
 			Bytes("raw_response", respBody).

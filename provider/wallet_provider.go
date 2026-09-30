@@ -10,13 +10,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Digital-Creators-Team/slot-game-module/config"
-	moduleerrors "github.com/Digital-Creators-Team/slot-game-module/errors"
-	"github.com/Digital-Creators-Team/slot-game-module/pkg/utils"
-	"github.com/Digital-Creators-Team/slot-game-module/server"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
+
+	"github.com/Digital-Creators-Team/slot-game-module/config"
+	moduleerrors "github.com/Digital-Creators-Team/slot-game-module/errors"
+	"github.com/Digital-Creators-Team/slot-game-module/logging"
+	"github.com/Digital-Creators-Team/slot-game-module/pkg/utils"
+	"github.com/Digital-Creators-Team/slot-game-module/server"
 )
 
 var ErrInsufficientFunds = errors.New("insufficient funds")
@@ -25,7 +27,7 @@ var ErrInsufficientFunds = errors.New("insufficient funds")
 type WalletProvider struct {
 	baseURL    string
 	httpClient *http.Client
-	logger     zerolog.Logger
+	logger     logging.LoggerProvider
 }
 
 type ErrorResponse struct {
@@ -52,7 +54,7 @@ func NewWalletProvider(cfg *config.Config, logger zerolog.Logger) *WalletProvide
 		httpClient: &http.Client{
 			Timeout: timeout,
 		},
-		logger: logger.With().Str("component", "wallet_provider").Logger(),
+		logger: logging.NewLoggerProvider(logger.With().Str("component", "wallet_provider").Logger()),
 	}
 }
 
@@ -60,7 +62,7 @@ func NewWalletProvider(cfg *config.Config, logger zerolog.Logger) *WalletProvide
 func (p *WalletProvider) GetBalance(ctx context.Context, userID, currencyID string) (decimal.Decimal, error) {
 	url := fmt.Sprintf("%s/wallet/balance?user_id=%s&currency_id=%s", p.baseURL, userID, currencyID)
 
-	req, err := utils.MakeRequest[any](ctx, p.logger, url, nil)
+	req, err := utils.MakeRequest[any](ctx, p.logger.For(ctx), url, nil)
 	if err != nil {
 		return decimal.Zero, err
 	}
@@ -101,9 +103,9 @@ func (p *WalletProvider) CheckBalance(ctx context.Context, productId, tenantID, 
 		"username":        username,
 	}
 
-	p.logger.Debug().Str("url", url).Any("request", requestBody).Msg("check balance request")
+	p.logger.For(ctx).Debug().Str("url", url).Any("request", requestBody).Msg("check balance request")
 
-	req, err := utils.MakeRequest(ctx, p.logger, url, &requestBody)
+	req, err := utils.MakeRequest(ctx, p.logger.For(ctx), url, &requestBody)
 	if err != nil {
 		return decimal.Zero, err
 	}
@@ -128,7 +130,7 @@ func (p *WalletProvider) CheckBalance(ctx context.Context, productId, tenantID, 
 		return decimal.Zero, fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	p.logger.Debug().Bytes("response_bytes", responseBytes).Msg("check balance response")
+	p.logger.For(ctx).Debug().Bytes("response_bytes", responseBytes).Msg("check balance response")
 
 	err = json.Unmarshal(responseBytes, &result)
 	if err != nil {
@@ -141,7 +143,7 @@ func (p *WalletProvider) CheckBalance(ctx context.Context, productId, tenantID, 
 		return decimal.Zero, fmt.Errorf("wallet service returned status %d", result.StatusCode)
 	}
 
-	p.logger.Debug().Any("result", result).Msg("check balance result")
+	p.logger.For(ctx).Debug().Any("result", result).Msg("check balance result")
 
 	return decimal.NewFromFloat(result.Balance), nil
 }
@@ -156,7 +158,7 @@ func (p *WalletProvider) Withdraw(ctx context.Context, userID, currencyID string
 		"amount":      amount.InexactFloat64(), // Convert to float64 for external service
 	}
 
-	req, err := utils.MakeRequest(ctx, p.logger, url, &requestBody)
+	req, err := utils.MakeRequest(ctx, p.logger.For(ctx), url, &requestBody)
 	if err != nil {
 		return err
 	}
@@ -206,9 +208,9 @@ func (p *WalletProvider) PlaceBets(ctx context.Context, productId, tenantID, use
 		},
 	}
 
-	p.logger.Debug().Str("url", url).Any("request", requestBody).Msg("place bets request")
+	p.logger.For(ctx).Debug().Str("url", url).Any("request", requestBody).Msg("place bets request")
 
-	req, err := utils.MakeRequest(ctx, p.logger, url, &requestBody)
+	req, err := utils.MakeRequest(ctx, p.logger.For(ctx), url, &requestBody)
 	if err != nil {
 		return decimal.Zero, err
 	}
@@ -234,7 +236,7 @@ func (p *WalletProvider) PlaceBets(ctx context.Context, productId, tenantID, use
 		return decimal.Zero, fmt.Errorf("failed to decode response body: %w", err)
 	}
 
-	p.logger.Debug().Any("result", result).Msg("place bets result")
+	p.logger.For(ctx).Debug().Any("result", result).Msg("place bets result")
 
 	if resp.StatusCode == http.StatusOK && result.StatusCode == (int)(moduleerrors.Success) {
 		return decimal.NewFromFloat(result.BalanceAfter), nil
@@ -259,7 +261,7 @@ func (p *WalletProvider) Deposit(ctx context.Context, userID, currencyID string,
 		"amount":      amount.InexactFloat64(), // Convert to float64 for external service
 	}
 
-	req, err := utils.MakeRequest(ctx, p.logger, url, &requestBody)
+	req, err := utils.MakeRequest(ctx, p.logger.For(ctx), url, &requestBody)
 	if err != nil {
 		return err
 	}
@@ -305,9 +307,9 @@ func (p *WalletProvider) SettleBets(ctx context.Context, productId, tenantID, us
 		},
 	}
 
-	p.logger.Debug().Str("url", url).Any("request", requestBody).Msg("settle bets request")
+	p.logger.For(ctx).Debug().Str("url", url).Any("request", requestBody).Msg("settle bets request")
 
-	req, err := utils.MakeRequest(ctx, p.logger, url, &requestBody)
+	req, err := utils.MakeRequest(ctx, p.logger.For(ctx), url, &requestBody)
 	if err != nil {
 		return err
 	}
@@ -331,7 +333,7 @@ func (p *WalletProvider) SettleBets(ctx context.Context, productId, tenantID, us
 		return fmt.Errorf("failed to decode response body: %w", err)
 	}
 
-	p.logger.Debug().Any("result", result).Msg("settle bets result")
+	p.logger.For(ctx).Debug().Any("result", result).Msg("settle bets result")
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("deposit failed with status %d", resp.StatusCode)
@@ -346,7 +348,7 @@ func (p *WalletProvider) GetWalletUrl(ctx context.Context) string {
 
 func (p *WalletProvider) WithTenant(ctx context.Context, provider server.TenantProvider, tenantID string) (server.WalletProvider, error) {
 	if provider == nil {
-		p.logger.Warn().
+		p.logger.For(ctx).Warn().
 			Str("tenant_id", tenantID).
 			Msg("Tenant provider is nil")
 		return p, nil
@@ -354,7 +356,7 @@ func (p *WalletProvider) WithTenant(ctx context.Context, provider server.TenantP
 
 	tenant, err := provider.Get(ctx, tenantID, false)
 	if err != nil {
-		p.logger.Error().
+		p.logger.For(ctx).Error().
 			Err(err).
 			Str("tenant_id", tenantID).
 			Msg("Failed to get tenant info")
@@ -362,7 +364,7 @@ func (p *WalletProvider) WithTenant(ctx context.Context, provider server.TenantP
 	}
 
 	if !tenant.WalletEnabled() {
-		p.logger.Error().
+		p.logger.For(ctx).Error().
 			Str("tenant_id", tenantID).
 			Str("status", tenant.Status).
 			Msg("Tenant wallet not enabled")
@@ -372,6 +374,8 @@ func (p *WalletProvider) WithTenant(ctx context.Context, provider server.TenantP
 	return &WalletProvider{
 		baseURL:    tenant.WalletCallbackURL,
 		httpClient: p.httpClient,
-		logger:     p.logger.With().Str("tenant_id", tenantID).Logger(),
+		logger: p.logger.With(func(loggerContext zerolog.Context) zerolog.Context {
+			return loggerContext.Str("tenant_id", tenantID)
+		}),
 	}, nil
 }
