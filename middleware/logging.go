@@ -49,7 +49,7 @@ func LoggingWithConfig(logger zerolog.Logger, config LoggingConfig) gin.HandlerF
 			Logger()
 
 		// Log request start
-		reqLogger.Info().Msg("Request started")
+		reqLogger.Debug().Msg("Request started")
 
 		// Process request
 		c.Next()
@@ -87,5 +87,3 @@ func LoggingWithConfig(logger zerolog.Logger, config LoggingConfig) gin.HandlerF
 		}
 	}
 }
-
-
