@@ -270,6 +270,8 @@ func WithContext(ctx context.Context, mc *ModuleContext) context.Context {
 // Use MustFromContext() in game modules for guaranteed access
 func FromContext(ctx context.Context) *ModuleContext {
 	if mc, ok := ctx.Value(ModuleContextKey).(*ModuleContext); ok {
+		// set logger context here for game module log
+		mc.Logger = mc.Logger.With().Ctx(ctx).Logger()
 		return mc
 	}
 	return nil

@@ -342,7 +342,7 @@ func (h *GameHandler) Spin(c *gin.Context) {
 	// Convert to response format
 	response := result.SpinResult.ToSpinResponse()
 
-	h.logger.Info().
+	h.logger.Debug().
 		Str("user_id", userID).
 		Str("game_code", gameModule.GetGameCode()).
 		Str("session_id", result.SessionID).

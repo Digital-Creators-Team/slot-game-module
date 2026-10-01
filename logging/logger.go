@@ -10,6 +10,8 @@ import (
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+
+	"github.com/Digital-Creators-Team/slot-game-module/pkg/trace"
 )
 
 // Config holds logging configuration
@@ -72,7 +74,8 @@ func New(config Config) zerolog.Logger {
 		With().
 		Timestamp().
 		Caller().
-		Logger()
+		Logger().
+		Hook(trace.NewTraceHook())
 
 	log.Logger = logger
 
