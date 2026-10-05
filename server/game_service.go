@@ -412,6 +412,11 @@ func (s *GameService) ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest
 		spinResult, err = s.executeNormalSpin(ctx, req, playerState, spinState, gameConfig, totalBet)
 	}
 	if err != nil {
+		if spinState.Error == nil {
+			errMsg := err.Error()
+			spinState.Error = &errMsg
+		}
+
 		logErr := s.logSpinError(ctx, spinState)
 		if logErr == nil {
 			s.clearSpinStateAsync(ctx, spinState.SessionID, gameCode)
