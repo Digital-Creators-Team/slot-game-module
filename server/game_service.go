@@ -602,6 +602,10 @@ func (s *GameService) executeNormalSpin(
 
 	if err := s.saveSpinState(ctx, spinState.SessionID, gameCode, spinState); err != nil {
 		logger.Error().Err(err).Msg("Failed to save pre-spin state")
+
+		errMsg := err.Error()
+		spinState.Error = &errMsg
+
 		return nil, errors.Wrap(err, errors.ErrInternalServerError, "failed to save spin state")
 	}
 
@@ -614,6 +618,10 @@ func (s *GameService) executeNormalSpin(
 			Err(err).
 			Str("total_bet", totalBet.String()).
 			Msg("Failed to place bets")
+
+		errMsg := err.Error()
+		spinState.Error = &errMsg
+
 		return nil, errors.Wrap(err, errors.GetCode(err), "failed to PlaceBets bet")
 	}
 
@@ -774,6 +782,10 @@ func (s *GameService) executeFreeSpin(
 
 	if err := s.savePlayerState(ctx, req.UserID, req.CurrencyID, gameCode, playerState); err != nil {
 		logger.Error().Err(err).Msg("Failed to save post-spin player state")
+
+		errMsg := err.Error()
+		spinState.Error = &errMsg
+
 		return nil, errors.Wrap(err, errors.ErrInternalServerError, "failed to save spin state")
 	}
 
