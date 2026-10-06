@@ -2310,6 +2310,10 @@ jobs:
       env_config: |
         - name: ENVIRONMENT
           value: "dev"
+        - name: LOGGING_LEVEL
+          value: "debug"
+        - name: LOGGING_FORMAT
+          value: "json"
         - name: REDIS_USERNAME
           value: ""
         - name: REDIS_ADDR
@@ -2327,8 +2331,13 @@ jobs:
           value: "http://reward-service.fgs-games.svc.cluster.local:80"
         - name: EXTERNAL_SERVICES_LOG_SERVICE_BASE_URL
           value: "http://log-service.fgs-games.svc.cluster.local:80"
-		- name: EXTERNAL_SERVICES_TENANT_SERVICE_BASE_URL
+        - name: EXTERNAL_SERVICES_TENANT_SERVICE_BASE_URL
           value: "http://tenant-service.fgs-games.svc.cluster.local:81"
+        - name: CLOUDFRONT_PRIVATE_KEY
+          valueFrom:
+            secretKeyRef:
+              name: aws-secrets
+              key: aws-cf-private-key
       resources_config: |
         limits:
           cpu: 500m
@@ -2339,7 +2348,7 @@ jobs:
     secrets: inherit
 `
 
-var githubBuildStagingTemplate = `name: Build & Push (Helm)
+var githubBuildStagingTemplate = `name: STG-Build & Push (Helm)
 
 on:
   workflow_dispatch: {}
@@ -2372,6 +2381,10 @@ jobs:
       env_config: |
         - name: ENVIRONMENT
           value: "STAGING"
+        - name: LOGGING_LEVEL
+          value: "info"
+        - name: LOGGING_FORMAT
+          value: "json"
         - name: REDIS_USERNAME
           value: ""
         - name: REDIS_ADDR
@@ -2389,8 +2402,13 @@ jobs:
           value: "http://reward-service.fgs-games.svc.cluster.local:80"
         - name: EXTERNAL_SERVICES_LOG_SERVICE_BASE_URL
           value: "http://log-service.fgs-games.svc.cluster.local:80"
-		- name: EXTERNAL_SERVICES_TENANT_SERVICE_BASE_URL
+        - name: EXTERNAL_SERVICES_TENANT_SERVICE_BASE_URL
           value: "http://tenant-service.fgs-games.svc.cluster.local:81"
+        - name: CLOUDFRONT_PRIVATE_KEY
+          valueFrom:
+            secretKeyRef:
+              name: aws-secrets
+              key: aws-cf-private-key
       resources_config: |
         limits:
           cpu: 500m
