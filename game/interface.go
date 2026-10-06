@@ -71,7 +71,7 @@ type Module interface {
 
 	DefaultCurrency(ctx context.Context) string
 
-	GetExtraState(ctx context.Context) map[string]interface{}
+	InitExtraState(ctx context.Context) map[string]interface{}
 }
 
 // Other games may feature multiple game modes with varying base bets (pay_line)
