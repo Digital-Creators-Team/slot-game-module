@@ -105,3 +105,7 @@ func (b *BaseModule) PlayFreeSpin(ctx context.Context, betMultiplier float32) (*
 func (b *BaseModule) GenerateFreeSpins(ctx context.Context, betMultiplier float32, count int) ([]*SpinResult, error) {
 	return nil, fmt.Errorf("GenerateFreeSpins must be implemented by game module")
 }
+
+func (b *BaseModule) GetExtraState(ctx context.Context) map[string]interface{} {
+	return nil
+}
