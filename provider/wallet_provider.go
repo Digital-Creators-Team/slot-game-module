@@ -336,7 +336,11 @@ func (p *WalletProvider) SettleBets(ctx context.Context, productId, tenantID, us
 	p.logger.For(ctx).Debug().Any("result", result).Msg("settle bets result")
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("deposit failed with status %d", resp.StatusCode)
+		return fmt.Errorf("settle bets response status %d", resp.StatusCode)
+	}
+
+	if result.StatusCode != (int)(moduleerrors.Success) {
+		return fmt.Errorf("wallet service returned status %d", result.StatusCode)
 	}
 
 	return nil
