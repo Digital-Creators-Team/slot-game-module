@@ -482,6 +482,13 @@ func (h *EventsWSHandler) handleAuthorize(c *WSConn, claims *auth.Claims, req WS
 		s.FreeSpins = nil
 	}
 
+	// Special game which need int player state at the first time
+	// TODO : verify with function later
+	if gameModule.GetGameCode() == "crazy-fury" && s.ExtraData == nil {
+		firstExtraData := gameModule.InitExtraState(ctx)
+		s.ExtraData = firstExtraData
+	}
+
 	if h.app.walletProvider == nil {
 		return &wsReply{status: http.StatusInternalServerError, err: apperrors.New(apperrors.ErrInternalServerError, "Wallet provider not configured")}
 	}

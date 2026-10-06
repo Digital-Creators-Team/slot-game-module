@@ -135,6 +135,13 @@ func (h *GameHandler) Authorize(c *gin.Context) {
 		s.FreeSpins = nil
 	}
 
+	// Special game which need int player state at the first time
+	// TODO : verify with function later
+	if gameModule.GetGameCode() == "crazy-fury" && s.ExtraData == nil {
+		firstExtraData := gameModule.InitExtraState(ctx)
+		s.ExtraData = firstExtraData
+	}
+
 	// Get balance - requires WalletProvider
 	if h.app.walletProvider == nil {
 		h.logger.Error().Msg("Wallet provider not configured")
