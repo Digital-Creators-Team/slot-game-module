@@ -50,6 +50,7 @@ type GameService struct {
 	rewardProvider providers.RewardProvider
 	logProvider    providers.LogProvider
 	tenantProvider providers.TenantProvider
+	gameProvider   providers.GameProvider
 	logger         logging.LoggerProvider
 }
 
@@ -61,6 +62,7 @@ func NewGameService(
 	rewardProvider providers.RewardProvider,
 	logProvider providers.LogProvider,
 	tenantProvider providers.TenantProvider,
+	gameProvider providers.GameProvider,
 	logger zerolog.Logger,
 ) *GameService {
 	return &GameService{
@@ -70,6 +72,7 @@ func NewGameService(
 		rewardProvider: rewardProvider,
 		logProvider:    logProvider,
 		tenantProvider: tenantProvider,
+		gameProvider:   gameProvider,
 		logger:         logging.NewLoggerProvider(logger.With().Str("service", "game").Logger()),
 	}
 }

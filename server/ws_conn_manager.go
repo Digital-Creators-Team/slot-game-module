@@ -15,6 +15,7 @@ import (
 
 type WSConnManager struct {
 	logger zerolog.Logger
+	gameID string
 	nodeID string
 
 	mu    sync.RWMutex
@@ -31,9 +32,10 @@ type WSConnManager struct {
 	closeCh   chan struct{}
 }
 
-func NewWSConnManager(logger zerolog.Logger) *WSConnManager {
+func NewWSConnManager(app *App, logger zerolog.Logger) *WSConnManager {
 	return &WSConnManager{
 		logger:  logger.With().Str("component", "ws-conn-manager").Logger(),
+		gameID:  app.GetGameCode(),
 		nodeID:  uuid.NewString(),
 		conns:   make(map[string]*WSConn),
 		closeCh: make(chan struct{}),
@@ -75,6 +77,18 @@ func (m *WSConnManager) Get(connID string) (*WSConn, bool) {
 	return conn, ok
 }
 
+func (m *WSConnManager) ListByTenant(tenantID string) []*WSConn {
+	conns := make([]*WSConn, 0)
+	m.mu.RLock()
+	for _, conn := range m.conns {
+		if conn.TenantID == tenantID {
+			conns = append(conns, conn)
+		}
+	}
+	m.mu.RUnlock()
+	return conns
+}
+
 func (m *WSConnManager) Close() {
 	m.closeOnce.Do(func() {
 		close(m.closeCh)
@@ -109,11 +123,29 @@ func (m *WSConnManager) startSubscriber() error {
 					m.logger.Warn().Err(err).Msg("failed to unmarshal kick message")
 					continue
 				}
-				conn, ok := m.Get(kick.ConnID)
-				if !ok {
+
+				if kick.GameID != "" && kick.GameID != m.gameID {
 					continue
 				}
-				conn.CloseWithReason(kick.Reason)
+
+				if kick.ConnID != "" {
+					conn, ok := m.Get(kick.ConnID)
+					if !ok {
+						continue
+					}
+
+					conn.CloseWithReason(kick.Reason)
+					continue
+				}
+
+				if kick.TenantID != "" {
+					conns := m.ListByTenant(kick.TenantID)
+					for _, conn := range conns {
+						conn.CloseWithReason(kick.Reason)
+					}
+
+					continue
+				}
 			}
 		}
 	}()
@@ -202,4 +234,3 @@ func (m *WSConnManager) PublishKick(ctx context.Context, msg WSKickMessage) erro
 	}
 	return r.GetClient().Publish(ctx, "presence:kick", payload).Err()
 }
-

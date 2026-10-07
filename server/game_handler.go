@@ -1,16 +1,18 @@
 package server
 
 import (
+	"context"
 	goerrors "errors"
 	"strings"
 
-	"github.com/Digital-Creators-Team/slot-game-module/auth"
-	"github.com/Digital-Creators-Team/slot-game-module/errors"
-	"github.com/Digital-Creators-Team/slot-game-module/game"
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog"
 	"github.com/samber/lo"
 	"github.com/shopspring/decimal"
+
+	"github.com/Digital-Creators-Team/slot-game-module/auth"
+	"github.com/Digital-Creators-Team/slot-game-module/errors"
+	"github.com/Digital-Creators-Team/slot-game-module/game"
 )
 
 // GameHandler handles common HTTP requests for the game
@@ -118,6 +120,10 @@ func (h *GameHandler) Authorize(c *gin.Context) {
 		}
 
 		InternalError(c, errors.Wrap(err, errors.ErrTenantError, "Failed to get tenant info"))
+		return
+	}
+
+	if !h.checkGameStatus(c, ctx, tenantID, username) {
 		return
 	}
 
@@ -234,6 +240,19 @@ func (h *GameHandler) Spin(c *gin.Context) {
 		return
 	}
 
+	// Get username from JWT
+	username, _ := auth.GetUsername(c)
+	if len(username) == 0 {
+		BadRequest(c, errors.New(errors.ErrInvalidRequest, "Username not found in JWT"))
+		return
+	}
+
+	name, _ := auth.GetName(c)
+	if len(name) == 0 {
+		BadRequest(c, errors.New(errors.ErrInvalidRequest, "Name not found in JWT"))
+		return
+	}
+
 	cfg, err := h.app.gameModule.GetConfig(ctx)
 	if err != nil {
 		InternalError(c, errors.New(errors.ErrConfigError, "Fail to get game config"))
@@ -264,6 +283,10 @@ func (h *GameHandler) Spin(c *gin.Context) {
 	currencyID := h.extractCurrencyID(c)
 	tenantID := h.extractTenantID(c)
 
+	if !h.checkGameStatus(c, ctx, tenantID, username) {
+		return
+	}
+
 	tenantWalletProvider, err := h.app.walletProvider.WithTenant(ctx, h.app.tenantProvider, tenantID)
 	if err != nil {
 		if goerrors.Is(err, ErrTenantNotFound) ||
@@ -284,21 +307,9 @@ func (h *GameHandler) Spin(c *gin.Context) {
 		h.app.rewardProvider,
 		h.app.logProvider,
 		h.app.tenantProvider,
+		h.app.gameProvider,
 		h.logger,
 	)
-
-	// Get username from JWT
-	username, _ := auth.GetUsername(c)
-	if len(username) == 0 {
-		BadRequest(c, errors.New(errors.ErrInvalidRequest, "Username not found in JWT"))
-		return
-	}
-
-	name, _ := auth.GetName(c)
-	if len(name) == 0 {
-		BadRequest(c, errors.New(errors.ErrInvalidRequest, "Name not found in JWT"))
-		return
-	}
 
 	result, err := gameService.ExecuteSpinV2(ctx, &SpinServiceRequest{
 		TenantID:      tenantID,
@@ -559,4 +570,29 @@ func (h *GameHandler) AssetsToken(c *gin.Context) {
 	c.Header("Cache-Control", "no-store")
 
 	OK(c, token)
+}
+
+func (h *GameHandler) checkGameStatus(
+	c *gin.Context,
+	ctx context.Context,
+	tenantID string,
+	username string,
+) bool {
+	tenantGame, err := h.app.gameProvider.Get(ctx, tenantID, false)
+	if err != nil {
+		if goerrors.Is(err, ErrTenantGameNotFound) {
+			Unauthorized(c, errors.New(errors.ErrUnauthorized, "Invalid tenant"))
+			return false
+		}
+
+		InternalError(c, errors.New(errors.ErrTenantError, "Failed to get tenant game info"))
+		return false
+	}
+
+	if !tenantGame.IsActive() || !tenantGame.AllowUsername(username) {
+		Unauthorized(c, errors.New(errors.ErrUnauthorized, "Invalid game status"))
+		return false
+	}
+
+	return true
 }

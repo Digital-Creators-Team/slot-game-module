@@ -15,6 +15,7 @@ type WSResponse struct {
 }
 
 type WSKickMessage struct {
+	GameID   string `json:"game_id"`
 	TenantID string `json:"tenant_id"`
 	UserID   string `json:"user_id"`
 	ConnID   string `json:"conn_id"`

@@ -199,6 +199,10 @@ func (h *EventsWSHandler) Stream(g *gin.Context) {
 		return
 	}
 
+	if !h.validateGame(g, claims) {
+		return
+	}
+
 	connID := uuid.NewString()
 
 	conn, err := h.upgrader.Upgrade(g.Writer, g.Request, nil)
@@ -236,6 +240,7 @@ func (h *EventsWSHandler) Stream(g *gin.Context) {
 	//}
 	if oldConnID != "" && oldConnID != wsConn.ID {
 		_ = h.connMgr.PublishKick(ctx, WSKickMessage{
+			GameID:   h.app.GetGameCode(),
 			TenantID: wsConn.TenantID,
 			UserID:   wsConn.UserID,
 			ConnID:   oldConnID,
@@ -578,6 +583,7 @@ func (h *EventsWSHandler) handleSpin(c *WSConn, claims *auth.Claims, req WSReque
 		h.app.rewardProvider,
 		h.app.logProvider,
 		h.app.tenantProvider,
+		h.app.gameProvider,
 		h.logger,
 	)
 
@@ -858,5 +864,43 @@ func (h *EventsWSHandler) validateTenant(g *gin.Context, claims *auth.Claims) bo
 		ErrorWithMessage(g, http.StatusUnauthorized, "invalid tenant", apperrors.ErrUnauthorized)
 		return false
 	}
+	return true
+}
+
+func (h *EventsWSHandler) validateGame(g *gin.Context, claims *auth.Claims) bool {
+	tenant, err := h.app.tenantProvider.Get(g.Request.Context(), claims.TenantID, false)
+	if err != nil {
+		if errors.Is(err, ErrTenantNotFound) {
+			ErrorWithMessage(g, http.StatusUnauthorized, "invalid tenant", apperrors.ErrUnauthorized)
+			return false
+		}
+
+		h.logger.Warn().Err(err).Msg("failed to get tenant")
+		ErrorWithMessage(g, http.StatusInternalServerError, "failed to get tenant", apperrors.ErrInternalServerError)
+		return false
+	}
+
+	if !tenant.WalletEnabled() {
+		ErrorWithMessage(g, http.StatusUnauthorized, "invalid tenant", apperrors.ErrUnauthorized)
+		return false
+	}
+
+	tenantGame, err := h.app.gameProvider.Get(g.Request.Context(), claims.TenantID, false)
+	if err != nil {
+		if errors.Is(err, ErrTenantGameNotFound) {
+			ErrorWithMessage(g, http.StatusUnauthorized, "invalid tenant", apperrors.ErrUnauthorized)
+			return false
+		}
+
+		h.logger.Warn().Err(err).Msg("failed to get tenant game")
+		ErrorWithMessage(g, http.StatusInternalServerError, "failed to get tenant game", apperrors.ErrInternalServerError)
+		return false
+	}
+
+	if !tenantGame.IsActive() || !tenantGame.AllowUsername(claims.Username) {
+		ErrorWithMessage(g, http.StatusUnauthorized, "invalid game status", apperrors.ErrUnauthorized)
+		return false
+	}
+
 	return true
 }
