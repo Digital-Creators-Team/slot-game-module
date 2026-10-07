@@ -276,6 +276,10 @@ func (a *App) RegisterGame(module game.Module) {
 	// Keep jackpot service aware of current game code for contribution logging.
 	if a.jackpotService != nil {
 		a.jackpotService.SetGameCode(module.GetGameCode())
+		err := a.bootstrapJackpotPools()
+		if err != nil {
+			a.logger.Fatal().Err(err).Msg("Failed to bootstrap jackpot pools")
+		}
 	}
 }
 
@@ -287,6 +291,41 @@ func (a *App) GetGame() game.Module {
 // GetJackpotService returns the jackpot service
 func (a *App) GetJackpotService() *jackpot.Service {
 	return a.jackpotService
+}
+
+func (a *App) bootstrapJackpotPools() error {
+	handler, ok := a.gameModule.(game.JackpotHandler)
+	if !ok || a.jackpotService == nil {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*120)
+	defer cancel()
+
+	appConfig, err := a.gameModule.GetConfig(ctx)
+	if err != nil {
+		return err
+	}
+	gameCode := a.gameModule.GetGameCode()
+	cfg := appConfig.GetConfig()
+
+	for _, t := range cfg.Tier {
+		for _, mul := range cfg.Multiplier {
+			bet := t * mul
+			poolIDs, err := handler.GetPoolID(ctx, cfg.DefaultTenantID,
+				cfg.DefaultCurrency, gameCode, bet)
+			if err != nil {
+				return err
+			}
+			for _, pid := range poolIDs {
+				init, err := handler.GetInitialPoolValue(ctx, pid, bet)
+				if err != nil {
+					return err
+				}
+				a.jackpotService.RegisterPool(jackpot.PoolConfig{ID: pid, Init: init})
+			}
+		}
+	}
+	return a.jackpotService.InitializePoolsFromProvider(ctx)
 }
 
 // GetStateProvider returns the state provider
