@@ -487,6 +487,10 @@ func (h *EventsWSHandler) handleAuthorize(c *WSConn, claims *auth.Claims, req WS
 	if gameModule.GetGameCode() == "crazy-fury" && s.ExtraData == nil {
 		firstExtraData := gameModule.InitExtraState(ctx)
 		s.ExtraData = firstExtraData
+		err = h.app.stateProvider.SavePlayerState(ctx, claims.UserID, claims.CurrencyID, gameModule.GetGameCode(), s)
+		if err != nil {
+			return &wsReply{status: http.StatusInternalServerError, err: apperrors.Wrap(err, apperrors.ErrPlayerStateError, "Failed to set first player state")}
+		}
 	}
 
 	if h.app.walletProvider == nil {

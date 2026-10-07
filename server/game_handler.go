@@ -140,6 +140,12 @@ func (h *GameHandler) Authorize(c *gin.Context) {
 	if gameModule.GetGameCode() == "crazy-fury" && s.ExtraData == nil {
 		firstExtraData := gameModule.InitExtraState(ctx)
 		s.ExtraData = firstExtraData
+		err = h.app.stateProvider.SavePlayerState(ctx, userID, currencyID, gameModule.GetGameCode(), s)
+		if err != nil {
+			h.logger.Error().Err(err).Msg("Failed to set player state")
+			InternalError(c, errors.Wrap(err, errors.ErrPlayerStateError, "Failed to set player state"))
+			return
+		}
 	}
 
 	// Get balance - requires WalletProvider
