@@ -31,8 +31,8 @@ type gameProvider struct {
 
 // NewGameProvider creates a new game provider
 func NewGameProvider(
-	module gamemodule.Module,
 	cfg *config.Config,
+	module gamemodule.Module,
 	logger zerolog.Logger,
 	redisClient *coreredis.Client,
 ) server.GameProvider {
