@@ -158,6 +158,10 @@ func (a *App) SetGameProvider(provider GameProvider) {
 	a.gameProvider = provider
 
 	if a.gameProvider != nil {
+		if a.gameModule != nil {
+			a.gameProvider.SetGameCode(a.gameModule.GetGameCode())
+		}
+
 		a.gameProvider.AddDisableGameCallback(context.Background(), a.eventsWSHandler.KickTenantPlayersCallback)
 	}
 }
