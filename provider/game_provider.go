@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -21,12 +22,13 @@ import (
 
 // gameProvider implements server.GameProvider using HTTP client
 type gameProvider struct {
-	gameCode   string
-	baseURL    string
-	httpClient *http.Client
-	cacheTTL   time.Duration
-	gameMap    cache.Cache[server.TenantGame]
-	logger     logging.LoggerProvider
+	gameCode             string
+	baseURL              string
+	httpClient           *http.Client
+	cacheTTL             time.Duration
+	gameMap              cache.Cache[server.TenantGame]
+	disableGameCallbacks []func(context.Context, server.TenantGame)
+	logger               logging.LoggerProvider
 }
 
 // NewGameProvider creates a new game provider
@@ -53,8 +55,9 @@ func NewGameProvider(
 		httpClient: &http.Client{
 			Timeout: timeout,
 		},
-		cacheTTL: cacheTTL,
-		gameMap:  cache.NewTTLMap[server.TenantGame](),
+		cacheTTL:             cacheTTL,
+		gameMap:              cache.NewTTLMap[server.TenantGame](),
+		disableGameCallbacks: []func(context.Context, server.TenantGame){},
 		logger: logging.NewLoggerProvider(logger.With().
 			Str("component", "game_provider").
 			Str("game_code", module.GetGameCode()).
@@ -101,7 +104,7 @@ func (p *gameProvider) Get(ctx context.Context, tenantID string, skipCache bool)
 }
 
 func (p *gameProvider) get(ctx context.Context, tenantID string) (*server.TenantGame, error) {
-	url := fmt.Sprintf("%s/api/v2/game/%s/%s", p.baseURL, p.gameCode, tenantID)
+	url := fmt.Sprintf("%s/api/v2/game/get/%s/%s", p.baseURL, p.gameCode, tenantID)
 
 	req, err := utils.MakeRequest[any](ctx, p.logger.For(ctx), url, nil)
 	if err != nil {
@@ -116,10 +119,22 @@ func (p *gameProvider) get(ctx context.Context, tenantID string) (*server.Tenant
 	return &respData.Data, nil
 }
 
+func (p *gameProvider) AddDisableGameCallback(ctx context.Context, callback func(context.Context, server.TenantGame)) {
+	p.disableGameCallbacks = append(p.disableGameCallbacks, callback)
+}
+
+func (p *gameProvider) runDisableGameCallbacks(ctx context.Context, game server.TenantGame) {
+	for _, callback := range p.disableGameCallbacks {
+		callback(ctx, game)
+	}
+}
+
 type gameEvent struct {
-	GameCode string `json:"game_code"`
-	TenantID string `json:"tenant_id"`
-	Type     string `json:"type"`
+	Timestamp time.Time       `json:"timestamp"`
+	GameCode  string          `json:"game_code"`
+	TenantID  string          `json:"tenant_id"`
+	Type      string          `json:"type"`
+	Details   json.RawMessage `json:"details"`
 }
 
 func (p *gameProvider) subscribeGameEvent(redisClient *coreredis.Client, eventChannel string) {
@@ -169,18 +184,64 @@ func (p *gameProvider) subscribeGameEvent(redisClient *coreredis.Client, eventCh
 				continue
 			}
 
-			err := p.gameMap.Delete(ctx, event.TenantID)
+			cached, err := p.gameMap.Get(ctx, event.TenantID)
+			if errors.Is(err, server.ErrTenantNotFound) {
+				continue
+			}
+
+			if cached.GameCode == "" {
+				p.logger.For(ctx).Warn().Msg("invalid cached game code")
+				continue
+			}
+
+			var updated server.TenantGame
+			err = json.Unmarshal(event.Details, &updated)
 			if err != nil {
 				p.logger.For(ctx).Error().
 					Err(err).
-					Str("tenant_id", event.TenantID).
-					Msg("failed to delete tenant cache")
+					Any("details", event.Details).
+					Msg("Failed to unmarshal event details")
+				continue
+			}
+
+			if updated.Status != cached.Status && !updated.IsActive() {
+				// kick all tenant players
+				p.runDisableGameCallbacks(ctx, updated)
+			} else if updated.LimitAccess {
+				if updated.LimitAccess != cached.LimitAccess || p.isWhitelistUpdated(cached.UsernameWhitelist, updated.UsernameWhitelist) {
+					// kick all tenant players
+					// TODO: except usernames
+					p.runDisableGameCallbacks(ctx, updated)
+				}
+			}
+
+			err = p.gameMap.Delete(ctx, updated.TenantID)
+			if err != nil {
+				p.logger.For(ctx).Error().
+					Err(err).
+					Str("tenant_id", updated.TenantID).
+					Msg("failed to delete game cache")
 				continue
 			}
 
 			p.logger.For(ctx).Debug().
 				Str("tenant_id", event.TenantID).
-				Msg("setting cache invalidated")
+				Msg("game cache updated")
 		}
 	}
+}
+
+func (p *gameProvider) isWhitelistUpdated(cached, updated []string) bool {
+	updatedMap := make(map[string]bool, len(updated))
+	for _, item := range updated {
+		updatedMap[item] = true
+	}
+
+	for _, item := range cached {
+		if !updatedMap[item] {
+			return false
+		}
+	}
+
+	return true
 }

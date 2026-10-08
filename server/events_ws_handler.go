@@ -34,7 +34,7 @@ type EventsWSHandler struct {
 }
 
 func NewEventsWSHandler(app *App, connMgr *WSConnManager) *EventsWSHandler {
-	return &EventsWSHandler{
+	handler := &EventsWSHandler{
 		app:     app,
 		logger:  app.logger.With().Str("handler", "events-ws").Logger(),
 		connMgr: connMgr,
@@ -45,6 +45,10 @@ func NewEventsWSHandler(app *App, connMgr *WSConnManager) *EventsWSHandler {
 		},
 		sessionTTL: 60 * time.Second,
 	}
+
+	app.gameProvider.AddDisableGameCallback(context.Background(), handler.kickTenantPlayersCallback)
+
+	return handler
 }
 
 func (h *EventsWSHandler) buildWSBaseContext(reqCtx context.Context, claims *auth.Claims) context.Context {
@@ -903,4 +907,19 @@ func (h *EventsWSHandler) validateGame(g *gin.Context, claims *auth.Claims) bool
 	}
 
 	return true
+}
+
+func (h *EventsWSHandler) kickTenantPlayersCallback(ctx context.Context, tenantGame TenantGame) {
+	err := h.connMgr.PublishKick(ctx, WSKickMessage{
+		GameID:   tenantGame.GameCode,
+		TenantID: tenantGame.TenantID,
+		Reason:   "game_disabled",
+	})
+	if err != nil {
+		h.logger.Error().Ctx(ctx).
+			Err(err).
+			Str("game_code", tenantGame.GameCode).
+			Str("tenant_id", tenantGame.TenantID).
+			Msg("Error publishing kick message")
+	}
 }
