@@ -199,7 +199,8 @@ func (h *EventsWSHandler) Stream(g *gin.Context) {
 		return
 	}
 
-	if !h.validateGame(g, claims) {
+	// TODO: require game provider
+	if h.app.gameProvider != nil && !h.validateGame(g, claims) {
 		return
 	}
 

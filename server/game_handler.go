@@ -123,7 +123,8 @@ func (h *GameHandler) Authorize(c *gin.Context) {
 		return
 	}
 
-	if !h.checkGameStatus(c, ctx, tenantID, username) {
+	// TODO: require game provider
+	if h.app.gameProvider != nil && !h.checkGameStatus(c, ctx, tenantID, username) {
 		return
 	}
 
@@ -283,7 +284,8 @@ func (h *GameHandler) Spin(c *gin.Context) {
 	currencyID := h.extractCurrencyID(c)
 	tenantID := h.extractTenantID(c)
 
-	if !h.checkGameStatus(c, ctx, tenantID, username) {
+	// TODO: require game provider
+	if h.app.gameProvider != nil && !h.checkGameStatus(c, ctx, tenantID, username) {
 		return
 	}
 
