@@ -872,7 +872,7 @@ func (h *EventsWSHandler) validateGame(g *gin.Context, claims *auth.Claims) bool
 	tenantGame, err := h.app.gameProvider.Get(g.Request.Context(), claims.TenantID, false)
 	if err != nil {
 		if errors.Is(err, ErrTenantGameNotFound) {
-			ErrorWithMessage(g, http.StatusUnauthorized, "invalid tenant", apperrors.ErrUnauthorized)
+			ErrorWithMessage(g, http.StatusUnauthorized, "invalid tenant", apperrors.ErrGameStatusError)
 			return false
 		}
 
@@ -881,7 +881,7 @@ func (h *EventsWSHandler) validateGame(g *gin.Context, claims *auth.Claims) bool
 	}
 
 	if !tenantGame.IsActive() || !tenantGame.AllowUsername(claims.Username) {
-		ErrorWithMessage(g, http.StatusUnauthorized, "invalid game status", apperrors.ErrUnauthorized)
+		ErrorWithMessage(g, http.StatusUnauthorized, "invalid game status", apperrors.ErrGameStatusError)
 		return false
 	}
 
