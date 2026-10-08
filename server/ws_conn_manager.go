@@ -16,7 +16,6 @@ import (
 type WSConnManager struct {
 	logger zerolog.Logger
 	nodeID string
-	app    *App
 
 	mu    sync.RWMutex
 	conns map[string]*WSConn
@@ -32,10 +31,9 @@ type WSConnManager struct {
 	closeCh   chan struct{}
 }
 
-func NewWSConnManager(app *App, logger zerolog.Logger) *WSConnManager {
+func NewWSConnManager(logger zerolog.Logger) *WSConnManager {
 	return &WSConnManager{
 		logger:  logger.With().Str("component", "ws-conn-manager").Logger(),
-		app:     app,
 		nodeID:  uuid.NewString(),
 		conns:   make(map[string]*WSConn),
 		closeCh: make(chan struct{}),
@@ -123,12 +121,10 @@ func (m *WSConnManager) startSubscriber() error {
 					m.logger.Warn().Err(err).Msg("failed to unmarshal kick message")
 					continue
 				}
-
 				conn, ok := m.Get(kick.ConnID)
 				if !ok {
 					continue
 				}
-
 				conn.CloseWithReason(kick.Reason)
 			}
 		}
