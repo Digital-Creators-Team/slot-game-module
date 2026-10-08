@@ -868,23 +868,6 @@ func (h *EventsWSHandler) validateTenant(g *gin.Context, claims *auth.Claims) bo
 }
 
 func (h *EventsWSHandler) validateGame(g *gin.Context, claims *auth.Claims) bool {
-	tenant, err := h.app.tenantProvider.Get(g.Request.Context(), claims.TenantID, false)
-	if err != nil {
-		if errors.Is(err, ErrTenantNotFound) {
-			ErrorWithMessage(g, http.StatusUnauthorized, "invalid tenant", apperrors.ErrUnauthorized)
-			return false
-		}
-
-		h.logger.Warn().Err(err).Msg("failed to get tenant")
-		ErrorWithMessage(g, http.StatusInternalServerError, "failed to get tenant", apperrors.ErrInternalServerError)
-		return false
-	}
-
-	if !tenant.WalletEnabled() {
-		ErrorWithMessage(g, http.StatusUnauthorized, "invalid tenant", apperrors.ErrUnauthorized)
-		return false
-	}
-
 	tenantGame, err := h.app.gameProvider.Get(g.Request.Context(), claims.TenantID, false)
 	if err != nil {
 		if errors.Is(err, ErrTenantGameNotFound) {
@@ -892,7 +875,6 @@ func (h *EventsWSHandler) validateGame(g *gin.Context, claims *auth.Claims) bool
 			return false
 		}
 
-		h.logger.Warn().Err(err).Msg("failed to get tenant game")
 		ErrorWithMessage(g, http.StatusInternalServerError, "failed to get tenant game", apperrors.ErrInternalServerError)
 		return false
 	}

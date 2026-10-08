@@ -93,7 +93,7 @@ func (p *gameProvider) Get(ctx context.Context, tenantID string, skipCache bool)
 	}
 
 	if game == nil {
-		return nil, server.ErrTenantNotFound
+		return nil, server.ErrTenantGameNotFound
 	}
 
 	err = p.gameMap.Set(ctx, tenantID, *game, p.cacheTTL)
@@ -188,7 +188,7 @@ func (p *gameProvider) subscribeGameEvent(redisClient *coreredis.Client, eventCh
 			}
 
 			cached, err := p.gameMap.Get(ctx, event.TenantID)
-			if errors.Is(err, server.ErrTenantNotFound) {
+			if errors.Is(err, server.ErrTenantGameNotFound) {
 				continue
 			}
 
