@@ -12,6 +12,7 @@ import (
 
 	"github.com/Digital-Creators-Team/slot-game-module/config"
 	coreredis "github.com/Digital-Creators-Team/slot-game-module/db/redis"
+	"github.com/Digital-Creators-Team/slot-game-module/logging"
 	"github.com/Digital-Creators-Team/slot-game-module/pkg/cache"
 	"github.com/Digital-Creators-Team/slot-game-module/pkg/utils"
 	"github.com/Digital-Creators-Team/slot-game-module/server"
@@ -25,7 +26,7 @@ type tenantProvider struct {
 	httpClient   *http.Client
 	cacheTTL     time.Duration
 	tenantMap    cache.Cache[server.ResponseTenant]
-	logger       zerolog.Logger
+	logger       logging.LoggerProvider
 }
 
 // NewTenantProvider creates a new tenant provider
@@ -52,7 +53,7 @@ func NewTenantProvider(
 		},
 		cacheTTL:  cacheTTL,
 		tenantMap: cache.NewTTLMap[server.ResponseTenant](),
-		logger:    logger.With().Str("component", "tenant_provider").Logger(),
+		logger:    logging.NewLoggerProvider(logger.With().Str("component", "tenant_provider").Logger()),
 	}
 
 	p.whitelistMap = make(map[string]bool, len(tenantConfig.Whitelist))
@@ -82,7 +83,7 @@ func (p *tenantProvider) Get(ctx context.Context, id string, skipCache bool) (*s
 		if err == nil {
 			return &cached, nil
 		}
-		p.logger.Warn().
+		p.logger.For(ctx).Warn().
 			Err(err).
 			Str("tenant_id", id).
 			Msg("tenant cache miss")
@@ -99,7 +100,7 @@ func (p *tenantProvider) Get(ctx context.Context, id string, skipCache bool) (*s
 
 	err = p.tenantMap.Set(ctx, id, *tenant, p.cacheTTL)
 	if err != nil {
-		p.logger.Warn().
+		p.logger.For(ctx).Warn().
 			Err(err).
 			Str("tenant_id", id).
 			Msg("failed to set tenant cache")
@@ -110,12 +111,12 @@ func (p *tenantProvider) Get(ctx context.Context, id string, skipCache bool) (*s
 func (p *tenantProvider) get(ctx context.Context, id string) (*server.ResponseTenant, error) {
 	url := fmt.Sprintf("%s/api/v1/tenant/%s", p.baseURL, id)
 
-	req, err := utils.MakeRequest[any](ctx, p.logger, url, nil)
+	req, err := utils.MakeRequest[any](ctx, p.logger.For(ctx), url, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	respData, err := utils.DoInternalRequest[server.ResponseTenant](p.logger, p.httpClient, req)
+	respData, err := utils.DoInternalRequest[server.ResponseTenant](p.logger.For(ctx), p.httpClient, req)
 	if err != nil {
 		return nil, err
 	}
@@ -148,7 +149,7 @@ func (p *tenantProvider) subscribeTenantEvent(redisClient *coreredis.Client, eve
 	defer func(ps *redis.PubSub) {
 		err := ps.Close()
 		if err != nil {
-			p.logger.Error().Err(err).Msg("failed to close tenant event redis subscription")
+			p.logger.For(ctx).Error().Err(err).Msg("failed to close tenant event redis subscription")
 		}
 	}(ps)
 
@@ -160,10 +161,16 @@ func (p *tenantProvider) subscribeTenantEvent(redisClient *coreredis.Client, eve
 			return
 
 		case msg := <-ch:
+			if msg == nil {
+				p.logger.For(ctx).Error().
+					Msg("nil message received")
+				continue
+			}
+
 			var event tenantEvent
 
 			if err := json.Unmarshal([]byte(msg.Payload), &event); err != nil {
-				p.logger.Error().
+				p.logger.For(ctx).Error().
 					Err(err).
 					Msg("failed to parse tenant refresh event")
 
@@ -179,14 +186,14 @@ func (p *tenantProvider) subscribeTenantEvent(redisClient *coreredis.Client, eve
 
 			err := p.tenantMap.Delete(ctx, event.TenantID)
 			if err != nil {
-				p.logger.Error().
+				p.logger.For(ctx).Error().
 					Err(err).
 					Str("tenant_id", event.TenantID).
 					Msg("failed to delete tenant cache")
 				continue
 			}
 
-			p.logger.Debug().
+			p.logger.For(ctx).Debug().
 				Str("tenant_id", event.TenantID).
 				Msg("setting cache invalidated")
 		}

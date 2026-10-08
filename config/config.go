@@ -18,6 +18,7 @@ type Config struct {
 	JWT              JWTConfig              `mapstructure:"jwt"`
 	Logging          logging.Config         `mapstructure:"logging"`
 	ExternalServices ExternalServicesConfig `mapstructure:"external_services"`
+	CloudFront       CloudFrontConfig       `mapstructure:"cloudfront"`
 }
 
 // ServerConfig holds HTTP server configuration
@@ -74,6 +75,14 @@ type TenantServiceConfig struct {
 	EventChannel string        `mapstructure:"event_channel"`
 	Whitelist    []string      `mapstructure:"whitelist"`
 	Blacklist    []string      `mapstructure:"blacklist"`
+}
+
+type CloudFrontConfig struct {
+	KeyPairID      string        `mapstructure:"key_pair_id"`
+	PrivateKey     string        `mapstructure:"private_key"`      // PEM content (deployments)
+	PrivateKeyPath string        `mapstructure:"private_key_path"` // path to .pem (local dev)
+	CDNDomain      string        `mapstructure:"cdn_domain"`
+	TokenTTL       time.Duration `mapstructure:"token_ttl"`
 }
 
 // Load loads configuration from YAML file using Viper

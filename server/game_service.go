@@ -12,6 +12,7 @@ import (
 
 	"github.com/Digital-Creators-Team/slot-game-module/errors"
 	"github.com/Digital-Creators-Team/slot-game-module/game"
+	"github.com/Digital-Creators-Team/slot-game-module/logging"
 	"github.com/Digital-Creators-Team/slot-game-module/pkg/providers"
 	"github.com/Digital-Creators-Team/slot-game-module/pkg/trace"
 )
@@ -49,7 +50,7 @@ type GameService struct {
 	rewardProvider providers.RewardProvider
 	logProvider    providers.LogProvider
 	tenantProvider providers.TenantProvider
-	logger         zerolog.Logger
+	logger         logging.LoggerProvider
 }
 
 // NewGameService creates a new default game service
@@ -69,7 +70,7 @@ func NewGameService(
 		rewardProvider: rewardProvider,
 		logProvider:    logProvider,
 		tenantProvider: tenantProvider,
-		logger:         logger.With().Str("service", "game").Logger(),
+		logger:         logging.NewLoggerProvider(logger.With().Str("service", "game").Logger()),
 	}
 }
 
@@ -117,7 +118,7 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 	ctx = trace.WithTraceID(ctx, sessionID)
 
 	gameCode := s.gameModule.GetGameCode()
-	logger := s.logger.With().
+	logger := s.logger.For(ctx).With().
 		Str("game_code", gameCode).
 		Str("session_id", sessionID).
 		Any("spin_request", req).
@@ -204,6 +205,11 @@ func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) 
 		spinResult, err = s.executeNormalSpin(ctx, req, playerState, spinState, gameConfig, totalBet)
 	}
 	if err != nil {
+		if spinState.Error == nil {
+			errMsg := err.Error()
+			spinState.Error = &errMsg
+		}
+
 		logErr := s.logSpinError(ctx, spinState)
 		if logErr == nil {
 			s.clearSpinStateAsync(ctx, spinState.SessionID, gameCode)
@@ -319,7 +325,7 @@ func (s *GameService) ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest
 	ctx = trace.WithTraceID(ctx, sessionID)
 
 	gameCode := s.gameModule.GetGameCode()
-	logger := s.logger.With().
+	logger := s.logger.For(ctx).With().
 		Str("game_code", gameCode).
 		Str("session_id", sessionID).
 		Any("spin_request", req).
@@ -406,6 +412,11 @@ func (s *GameService) ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest
 		spinResult, err = s.executeNormalSpin(ctx, req, playerState, spinState, gameConfig, totalBet)
 	}
 	if err != nil {
+		if spinState.Error == nil {
+			errMsg := err.Error()
+			spinState.Error = &errMsg
+		}
+
 		logErr := s.logSpinError(ctx, spinState)
 		if logErr == nil {
 			s.clearSpinStateAsync(ctx, spinState.SessionID, gameCode)
@@ -577,32 +588,40 @@ func (s *GameService) executeNormalSpin(
 		gameCode = s.gameModule.GetGameCode()
 		gameName = s.gameModule.GetGameName()
 		err      error
-		logger   = s.logger.With().
-			Str("session_id", spinState.SessionID).
-			Str("tenant_id", req.TenantID).
-			Str("currency_id", req.CurrencyID).
-			Str("game_code", gameConfig.GameCode).
-			Str("user_id", req.UserID).
-			Str("spin_type", "normal").
-			Logger()
+		logger   = s.logger.For(ctx).With().
+				Str("session_id", spinState.SessionID).
+				Str("tenant_id", req.TenantID).
+				Str("currency_id", req.CurrencyID).
+				Str("game_code", gameConfig.GameCode).
+				Str("user_id", req.UserID).
+				Str("spin_type", "normal").
+				Logger()
 	)
 
 	spinState.SpinType = 0
 
 	if err := s.saveSpinState(ctx, spinState.SessionID, gameCode, spinState); err != nil {
 		logger.Error().Err(err).Msg("Failed to save pre-spin state")
+
+		errMsg := err.Error()
+		spinState.Error = &errMsg
+
 		return nil, errors.Wrap(err, errors.ErrInternalServerError, "failed to save spin state")
 	}
 
 	start := time.Now()
 	balanceAfter, err := s.walletProvider.PlaceBets(ctx, gameCode, req.TenantID, req.Username, req.CurrencyID, totalBet, spinState.SessionID, spinState.SessionID, gameCode, gameName)
 	elapsed := time.Since(start)
-	s.logger.Debug().Int64("duration", elapsed.Milliseconds()).Msg("PlaceBets duration")
+	s.logger.For(ctx).Debug().Int64("duration", elapsed.Milliseconds()).Msg("PlaceBets duration")
 	if err != nil {
 		logger.Error().
 			Err(err).
 			Str("total_bet", totalBet.String()).
 			Msg("Failed to place bets")
+
+		errMsg := err.Error()
+		spinState.Error = &errMsg
+
 		return nil, errors.Wrap(err, errors.GetCode(err), "failed to PlaceBets bet")
 	}
 
@@ -670,7 +689,7 @@ func (s *GameService) executeNormalSpin(
 	start = time.Now()
 	err = s.walletProvider.SettleBets(ctx, gameCode, req.TenantID, req.Username, req.CurrencyID, totalBet, payout, spinState.SessionID, spinState.SessionID, gameCode, gameName)
 	elapsed = time.Since(start)
-	s.logger.Debug().Int64("duration", elapsed.Milliseconds()).Msg("SettleBets duration")
+	s.logger.For(ctx).Debug().Int64("duration", elapsed.Milliseconds()).Msg("SettleBets duration")
 	if err != nil {
 		logger.Error().
 			Err(err).
@@ -733,14 +752,14 @@ func (s *GameService) executeFreeSpin(
 		gameCode = s.gameModule.GetGameCode()
 		gameName = s.gameModule.GetGameName()
 		err      error
-		logger   = s.logger.With().
-			Str("session_id", spinState.SessionID).
-			Str("tenant_id", req.TenantID).
-			Str("currency_id", req.CurrencyID).
-			Str("game_code", gameConfig.GameCode).
-			Str("user_id", req.UserID).
-			Str("spin_type", "free").
-			Logger()
+		logger   = s.logger.For(ctx).With().
+				Str("session_id", spinState.SessionID).
+				Str("tenant_id", req.TenantID).
+				Str("currency_id", req.CurrencyID).
+				Str("game_code", gameConfig.GameCode).
+				Str("user_id", req.UserID).
+				Str("spin_type", "free").
+				Logger()
 	)
 
 	spinState.SpinType = 1
@@ -763,6 +782,10 @@ func (s *GameService) executeFreeSpin(
 
 	if err := s.savePlayerState(ctx, req.UserID, req.CurrencyID, gameCode, playerState); err != nil {
 		logger.Error().Err(err).Msg("Failed to save post-spin player state")
+
+		errMsg := err.Error()
+		spinState.Error = &errMsg
+
 		return nil, errors.Wrap(err, errors.ErrInternalServerError, "failed to save spin state")
 	}
 
@@ -826,7 +849,7 @@ func (s *GameService) executeFreeSpin(
 		playerState.IsLastFreeSpin = true
 		spinResult.PlayedFreeSpin = playerState.PlayedFreeSpin
 
-		logger.Info().
+		logger.Debug().
 			Float64("total_win", playerState.TotalWinFreeSpin.InexactFloat64()).
 			Msg("Free spins completed")
 
@@ -871,7 +894,7 @@ func (s *GameService) contributeToJackpot(ctx context.Context, sessionID, tenant
 				SpinID:     &sessionID,
 				TotalPools: &totalPools,
 			}); err != nil {
-				s.logger.Error().Err(err).Str("pool", contrib.PoolID).Msg("Failed to contribute to jackpot pool")
+				s.logger.For(ctx).Error().Err(err).Str("pool", contrib.PoolID).Msg("Failed to contribute to jackpot pool")
 			}
 		}
 		return nil
@@ -879,7 +902,7 @@ func (s *GameService) contributeToJackpot(ctx context.Context, sessionID, tenant
 
 	// No default logic - games must implement JackpotHandler to contribute to jackpot pools
 	// This ensures games explicitly define their jackpot rules
-	s.logger.Debug().Str("game_code", gameCode).Msg("No jackpot contribution - game module does not implement JackpotHandler")
+	s.logger.For(ctx).Debug().Str("game_code", gameCode).Msg("No jackpot contribution - game module does not implement JackpotHandler")
 	return nil
 }
 
@@ -917,7 +940,7 @@ func (s *GameService) processJackpotWin(
 	}
 
 	if len(jackpotWin) == 0 {
-		s.logger.Warn().Str("game_code", gameCode).Msg("Jackpot win detected but game module does not implement JackpotHandler - skipping jackpot processing")
+		s.logger.For(ctx).Warn().Str("game_code", gameCode).Msg("Jackpot win detected but game module does not implement JackpotHandler - skipping jackpot processing")
 		return nil
 	}
 
@@ -996,7 +1019,7 @@ func (s *GameService) clearSpinStateAsync(ctx context.Context, sessionID, gameCo
 	go func(ctx context.Context) {
 		err := s.stateProvider.DeleteSpinState(ctx, sessionID, gameCode)
 		if err != nil {
-			s.logger.Error().
+			s.logger.For(ctx).Error().
 				Err(err).
 				Str("game_code", gameCode).
 				Str("session_id", sessionID).
@@ -1014,14 +1037,14 @@ func (s *GameService) logSpinError(
 	)
 
 	if spinState == nil {
-		s.logger.Warn().
+		s.logger.For(ctx).Warn().
 			Str("game_code", gameCode).
 			Msg("Empty spin state")
 		return nil
 	}
 
 	if s.logProvider == nil {
-		s.logger.Warn().
+		s.logger.For(ctx).Warn().
 			Str("session_id", spinState.SessionID).
 			Str("user_id", spinState.UserID).
 			Str("username", spinState.Username).
@@ -1055,7 +1078,7 @@ func (s *GameService) logSpinError(
 
 	_, err := s.logProvider.LogSpinError(ctx, errorLog)
 	if err != nil {
-		s.logger.Error().Err(err).Msg("Failed to log spin error")
+		s.logger.For(ctx).Error().Err(err).Msg("Failed to log spin error")
 		return err
 	}
 

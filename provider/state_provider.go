@@ -5,22 +5,24 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/rs/zerolog"
+
 	coreredis "github.com/Digital-Creators-Team/slot-game-module/db/redis"
 	"github.com/Digital-Creators-Team/slot-game-module/game"
-	"github.com/rs/zerolog"
+	"github.com/Digital-Creators-Team/slot-game-module/logging"
 )
 
 // StateProvider implements server.StateProvider using Redis
 type StateProvider struct {
 	redis  *coreredis.Client
-	logger zerolog.Logger
+	logger logging.LoggerProvider
 }
 
 // NewStateProvider creates a new state provider
 func NewStateProvider(redisClient *coreredis.Client, logger zerolog.Logger) *StateProvider {
 	return &StateProvider{
 		redis:  redisClient,
-		logger: logger.With().Str("component", "state_provider").Logger(),
+		logger: logging.NewLoggerProvider(logger.With().Str("component", "state_provider").Logger()),
 	}
 }
 
@@ -34,7 +36,7 @@ func (p *StateProvider) GetPlayerState(ctx context.Context, userID, currencyID, 
 	data, err := p.redis.Get(ctx, key)
 	if err != nil {
 		// Key not found - return default state
-		p.logger.Debug().Str("key", key).Msg("No existing state, returning default")
+		p.logger.For(ctx).Debug().Str("key", key).Msg("No existing state, returning default")
 		return game.NewPlayerState(), nil
 	}
 
@@ -84,7 +86,7 @@ func (p *StateProvider) GetSpinState(ctx context.Context, sessionID, gameCode st
 	data, err := p.redis.Get(ctx, key)
 	if err != nil {
 		// Key not found - return default state
-		p.logger.Debug().Str("key", key).Msg("No existing state, returning default")
+		p.logger.For(ctx).Debug().Str("key", key).Msg("No existing state, returning default")
 		return nil, nil
 	}
 
