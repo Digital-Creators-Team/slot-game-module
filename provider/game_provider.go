@@ -193,7 +193,14 @@ func (p *gameProvider) subscribeGameEvent(redisClient *coreredis.Client, eventCh
 			}
 
 			if cached.GameCode == "" {
-				p.logger.For(ctx).Warn().Msg("invalid cached game code")
+				err = p.gameMap.Delete(ctx, event.TenantID)
+				if err != nil {
+					p.logger.For(ctx).Error().
+						Err(err).
+						Str("tenant_id", event.TenantID).
+						Msg("failed to clear game cache")
+				}
+
 				continue
 			}
 
@@ -204,6 +211,15 @@ func (p *gameProvider) subscribeGameEvent(redisClient *coreredis.Client, eventCh
 					Err(err).
 					Any("details", event.Details).
 					Msg("Failed to unmarshal event details")
+
+				err = p.gameMap.Delete(ctx, event.TenantID)
+				if err != nil {
+					p.logger.For(ctx).Error().
+						Err(err).
+						Str("tenant_id", event.TenantID).
+						Msg("failed to clear game cache")
+				}
+
 				continue
 			}
 
