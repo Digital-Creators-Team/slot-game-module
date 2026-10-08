@@ -241,7 +241,7 @@ func (h *EventsWSHandler) Stream(g *gin.Context) {
 	//}
 	if oldConnID != "" && oldConnID != wsConn.ID {
 		_ = h.connMgr.PublishKick(ctx, WSKickMessage{
-			GameID:   h.app.GetGameCode(),
+			GameCode: h.app.GetGameCode(),
 			TenantID: wsConn.TenantID,
 			UserID:   wsConn.UserID,
 			ConnID:   oldConnID,
@@ -890,7 +890,7 @@ func (h *EventsWSHandler) validateGame(g *gin.Context, claims *auth.Claims) bool
 
 func (h *EventsWSHandler) KickTenantPlayersCallback(ctx context.Context, tenantGame TenantGame) {
 	err := h.connMgr.PublishKick(ctx, WSKickMessage{
-		GameID:   tenantGame.GameCode,
+		GameCode: tenantGame.GameCode,
 		TenantID: tenantGame.TenantID,
 		Reason:   "game_disabled",
 	})

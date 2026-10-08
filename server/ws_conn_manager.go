@@ -134,7 +134,7 @@ func (m *WSConnManager) startSubscriber() error {
 					continue
 				}
 
-				if kick.GameID != "" && kick.GameID != m.app.GetGameCode() {
+				if kick.GameCode != "" && kick.GameCode != m.app.GetGameCode() {
 					continue
 				}
 
