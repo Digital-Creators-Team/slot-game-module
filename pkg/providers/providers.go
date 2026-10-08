@@ -245,6 +245,7 @@ var (
 
 // GameProvider interface for game operations
 type GameProvider interface {
+	SetGameCode(code string)
 	Get(ctx context.Context, tenantID string, skipCache bool) (*TenantGame, error)
 	AddDisableGameCallback(ctx context.Context, callback func(context.Context, TenantGame))
 }

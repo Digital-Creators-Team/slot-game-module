@@ -13,7 +13,6 @@ import (
 
 	"github.com/Digital-Creators-Team/slot-game-module/config"
 	coreredis "github.com/Digital-Creators-Team/slot-game-module/db/redis"
-	gamemodule "github.com/Digital-Creators-Team/slot-game-module/game"
 	"github.com/Digital-Creators-Team/slot-game-module/logging"
 	"github.com/Digital-Creators-Team/slot-game-module/pkg/cache"
 	"github.com/Digital-Creators-Team/slot-game-module/pkg/utils"
@@ -34,7 +33,6 @@ type gameProvider struct {
 // NewGameProvider creates a new game provider
 func NewGameProvider(
 	cfg *config.Config,
-	module gamemodule.Module,
 	logger zerolog.Logger,
 	redisClient *coreredis.Client,
 ) server.GameProvider {
@@ -50,8 +48,7 @@ func NewGameProvider(
 	}
 
 	p := &gameProvider{
-		gameCode: module.GetGameCode(),
-		baseURL:  gameConfig.BaseURL,
+		baseURL: gameConfig.BaseURL,
 		httpClient: &http.Client{
 			Timeout: timeout,
 		},
@@ -60,7 +57,6 @@ func NewGameProvider(
 		disableGameCallbacks: []func(context.Context, server.TenantGame){},
 		logger: logging.NewLoggerProvider(logger.With().
 			Str("component", "game_provider").
-			Str("game_code", module.GetGameCode()).
 			Logger(),
 		),
 	}
@@ -70,6 +66,13 @@ func NewGameProvider(
 	}
 
 	return p
+}
+
+func (p *gameProvider) SetGameCode(code string) {
+	p.gameCode = code
+	p.logger = p.logger.With(func(loggerContext zerolog.Context) zerolog.Context {
+		return loggerContext.Str("game_code", code)
+	})
 }
 
 func (p *gameProvider) Get(ctx context.Context, tenantID string, skipCache bool) (*server.TenantGame, error) {
@@ -215,12 +218,21 @@ func (p *gameProvider) subscribeGameEvent(redisClient *coreredis.Client, eventCh
 				}
 			}
 
-			err = p.gameMap.Delete(ctx, updated.TenantID)
+			err = p.gameMap.Set(ctx, updated.TenantID, updated, p.cacheTTL)
 			if err != nil {
 				p.logger.For(ctx).Error().
 					Err(err).
 					Str("tenant_id", updated.TenantID).
-					Msg("failed to delete game cache")
+					Msg("failed to update game cache")
+
+				err = p.gameMap.Delete(ctx, updated.TenantID)
+				if err != nil {
+					p.logger.For(ctx).Error().
+						Err(err).
+						Str("tenant_id", updated.TenantID).
+						Msg("failed to clear game cache")
+				}
+
 				continue
 			}
 

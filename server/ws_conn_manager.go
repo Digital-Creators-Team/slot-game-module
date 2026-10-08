@@ -15,8 +15,8 @@ import (
 
 type WSConnManager struct {
 	logger zerolog.Logger
-	gameID string
 	nodeID string
+	app    *App
 
 	mu    sync.RWMutex
 	conns map[string]*WSConn
@@ -35,7 +35,7 @@ type WSConnManager struct {
 func NewWSConnManager(app *App, logger zerolog.Logger) *WSConnManager {
 	return &WSConnManager{
 		logger:  logger.With().Str("component", "ws-conn-manager").Logger(),
-		gameID:  app.GetGameCode(),
+		app:     app,
 		nodeID:  uuid.NewString(),
 		conns:   make(map[string]*WSConn),
 		closeCh: make(chan struct{}),
@@ -124,10 +124,6 @@ func (m *WSConnManager) startSubscriber() error {
 					continue
 				}
 
-				if kick.GameID != "" && kick.GameID != m.gameID {
-					continue
-				}
-
 				if kick.ConnID != "" {
 					conn, ok := m.Get(kick.ConnID)
 					if !ok {
@@ -135,6 +131,10 @@ func (m *WSConnManager) startSubscriber() error {
 					}
 
 					conn.CloseWithReason(kick.Reason)
+					continue
+				}
+
+				if kick.GameID != "" && kick.GameID != m.app.GetGameCode() {
 					continue
 				}
 

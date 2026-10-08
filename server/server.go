@@ -289,6 +289,9 @@ func (a *App) RegisterGame(module game.Module) {
 			a.logger.Fatal().Err(err).Msg("Failed to bootstrap jackpot pools")
 		}
 	}
+	if a.gameProvider != nil {
+		a.gameProvider.SetGameCode(module.GetGameCode())
+	}
 }
 
 // GetGame returns the registered game module
