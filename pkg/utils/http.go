@@ -16,6 +16,7 @@ import (
 
 var (
 	ErrServiceError = fmt.Errorf("service returned error")
+	ErrUnknownError = fmt.Errorf("unknown service error")
 )
 
 type ErrorDetail struct {
@@ -119,6 +120,10 @@ func DoInternalRequest[T any](
 		}
 
 		return nil, fmt.Errorf("%w: %s", ErrServiceError, errMsg)
+	}
+
+	if respData == nil {
+		return nil, ErrUnknownError
 	}
 
 	return respData, nil

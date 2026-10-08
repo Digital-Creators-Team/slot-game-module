@@ -199,6 +199,11 @@ func (h *EventsWSHandler) Stream(g *gin.Context) {
 		return
 	}
 
+	// TODO: require game provider
+	if h.app.gameProvider != nil && !h.validateGame(g, claims) {
+		return
+	}
+
 	connID := uuid.NewString()
 
 	conn, err := h.upgrader.Upgrade(g.Writer, g.Request, nil)
@@ -236,6 +241,7 @@ func (h *EventsWSHandler) Stream(g *gin.Context) {
 	//}
 	if oldConnID != "" && oldConnID != wsConn.ID {
 		_ = h.connMgr.PublishKick(ctx, WSKickMessage{
+			GameCode: h.app.GetGameCode(),
 			TenantID: wsConn.TenantID,
 			UserID:   wsConn.UserID,
 			ConnID:   oldConnID,
@@ -578,6 +584,7 @@ func (h *EventsWSHandler) handleSpin(c *WSConn, claims *auth.Claims, req WSReque
 		h.app.rewardProvider,
 		h.app.logProvider,
 		h.app.tenantProvider,
+		h.app.gameProvider,
 		h.logger,
 	)
 
@@ -859,4 +866,31 @@ func (h *EventsWSHandler) validateTenant(g *gin.Context, claims *auth.Claims) bo
 		return false
 	}
 	return true
+}
+
+func (h *EventsWSHandler) validateGame(g *gin.Context, claims *auth.Claims) bool {
+	tenantGame, err := h.app.gameProvider.Get(g.Request.Context(), claims.TenantID, false)
+	if err != nil {
+		if errors.Is(err, ErrTenantGameNotFound) {
+			ErrorWithMessage(g, http.StatusUnauthorized, "invalid tenant", apperrors.ErrUnauthorized)
+			return false
+		}
+
+		ErrorWithMessage(g, http.StatusInternalServerError, "failed to get tenant game", apperrors.ErrInternalServerError)
+		return false
+	}
+
+	if !tenantGame.IsActive() || !tenantGame.AllowUsername(claims.Username) {
+		ErrorWithMessage(g, http.StatusUnauthorized, "invalid game status", apperrors.ErrUnauthorized)
+		return false
+	}
+
+	return true
+}
+
+func (h *EventsWSHandler) KickTenantPlayersCallback(ctx context.Context, tenantGame TenantGame) {
+	conns := h.connMgr.ListByTenant(tenantGame.TenantID)
+	for _, conn := range conns {
+		conn.CloseWithReason("game_disabled")
+	}
 }
