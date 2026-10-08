@@ -117,6 +117,10 @@ func New(opts Options) *App {
 	app.eventsWSHandler = NewEventsWSHandler(app, app.wsConnManager)
 	app.assetSigner = newAssetSigner(opts.Config.CloudFront, opts.Logger)
 
+	if app.gameProvider != nil {
+		app.gameProvider.AddDisableGameCallback(context.Background(), app.eventsWSHandler.KickTenantPlayersCallback)
+	}
+
 	return app
 }
 
@@ -152,6 +156,10 @@ func (a *App) SetTenantProvider(provider TenantProvider) {
 // SetGameProvider sets the game provider for game operations
 func (a *App) SetGameProvider(provider GameProvider) {
 	a.gameProvider = provider
+
+	if a.gameProvider != nil {
+		a.gameProvider.AddDisableGameCallback(context.Background(), a.eventsWSHandler.KickTenantPlayersCallback)
+	}
 }
 
 func (a *App) SetRedisClient(client *dbredis.Client) {
