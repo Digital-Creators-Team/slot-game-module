@@ -269,6 +269,14 @@ func (p *gameProvider) isWhitelistUpdated(cached, updated []string) bool {
 		if !updatedMap[item] {
 			return false
 		}
+
+		updatedMap[item] = false
+	}
+
+	for _, v := range updatedMap {
+		if v {
+			return false
+		}
 	}
 
 	return true
