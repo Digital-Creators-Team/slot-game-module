@@ -111,7 +111,7 @@ func New(opts Options) *App {
 	// Create handlers
 	app.gameHandler = NewGameHandler(app)
 	app.jackpotHandler = NewJackpotHandler(app, app.jackpotService)
-	app.wsConnManager = NewWSConnManager(app, opts.Logger)
+	app.wsConnManager = NewWSConnManager(opts.Logger)
 	redis, _ := dbredis.New(app.config.Redis)
 	app.wsConnManager.SetRedisClient(redis)
 	app.eventsWSHandler = NewEventsWSHandler(app, app.wsConnManager)
