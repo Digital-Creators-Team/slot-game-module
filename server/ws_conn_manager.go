@@ -124,28 +124,12 @@ func (m *WSConnManager) startSubscriber() error {
 					continue
 				}
 
-				if kick.ConnID != "" {
-					conn, ok := m.Get(kick.ConnID)
-					if !ok {
-						continue
-					}
-
-					conn.CloseWithReason(kick.Reason)
+				conn, ok := m.Get(kick.ConnID)
+				if !ok {
 					continue
 				}
 
-				if kick.GameCode != "" && kick.GameCode != m.app.GetGameCode() {
-					continue
-				}
-
-				if kick.TenantID != "" {
-					conns := m.ListByTenant(kick.TenantID)
-					for _, conn := range conns {
-						conn.CloseWithReason(kick.Reason)
-					}
-
-					continue
-				}
+				conn.CloseWithReason(kick.Reason)
 			}
 		}
 	}()

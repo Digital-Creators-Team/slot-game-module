@@ -889,16 +889,8 @@ func (h *EventsWSHandler) validateGame(g *gin.Context, claims *auth.Claims) bool
 }
 
 func (h *EventsWSHandler) KickTenantPlayersCallback(ctx context.Context, tenantGame TenantGame) {
-	err := h.connMgr.PublishKick(ctx, WSKickMessage{
-		GameCode: tenantGame.GameCode,
-		TenantID: tenantGame.TenantID,
-		Reason:   "game_disabled",
-	})
-	if err != nil {
-		h.logger.Error().Ctx(ctx).
-			Err(err).
-			Str("game_code", tenantGame.GameCode).
-			Str("tenant_id", tenantGame.TenantID).
-			Msg("Error publishing kick message")
+	conns := h.connMgr.ListByTenant(tenantGame.TenantID)
+	for _, conn := range conns {
+		conn.CloseWithReason("game_disabled")
 	}
 }
