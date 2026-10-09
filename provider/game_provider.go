@@ -265,22 +265,13 @@ func (p *gameProvider) isWhitelistUpdated(cached, updated []string) bool {
 		updatedMap[item] = false
 	}
 
-	//count := 0
 	for _, item := range cached {
-		checked, exists := updatedMap[item]
+		_, exists := updatedMap[item]
 		if !exists {
 			return true
 		}
 
-		if !checked {
-			//updatedMap[item] = true
-			//count++
-		}
 	}
-
-	//// return this count check only if we need to kick existing whitelisted session again
-	//// after the whitelist changed to include more users
-	//return count != len(updatedMap)
 
 	return false
 }
