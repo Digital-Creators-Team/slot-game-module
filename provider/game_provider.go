@@ -262,14 +262,16 @@ func (p *gameProvider) subscribeGameEvent(redisClient *coreredis.Client, eventCh
 func (p *gameProvider) isWhitelistUpdated(cached, updated []string) bool {
 	updatedMap := make(map[string]bool, len(updated))
 	for _, item := range updated {
-		updatedMap[item] = true
+		updatedMap[item] = false
 	}
 
 	for _, item := range cached {
-		if !updatedMap[item] {
-			return false
+		_, exists := updatedMap[item]
+		if !exists {
+			return true
 		}
+
 	}
 
-	return true
+	return false
 }
