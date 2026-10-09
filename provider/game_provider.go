@@ -262,22 +262,25 @@ func (p *gameProvider) subscribeGameEvent(redisClient *coreredis.Client, eventCh
 func (p *gameProvider) isWhitelistUpdated(cached, updated []string) bool {
 	updatedMap := make(map[string]bool, len(updated))
 	for _, item := range updated {
-		updatedMap[item] = true
-	}
-
-	for _, item := range cached {
-		if !updatedMap[item] {
-			return false
-		}
-
 		updatedMap[item] = false
 	}
 
-	for _, v := range updatedMap {
-		if v {
-			return false
+	//count := 0
+	for _, item := range cached {
+		checked, exists := updatedMap[item]
+		if !exists {
+			return true
+		}
+
+		if !checked {
+			//updatedMap[item] = true
+			//count++
 		}
 	}
 
-	return true
+	//// return this count check only if we need to kick existing whitelisted session again
+	//// after the whitelist changed to include more users
+	//return count != len(updatedMap)
+
+	return false
 }
