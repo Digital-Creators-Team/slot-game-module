@@ -22,7 +22,7 @@ func DefaultCORSConfig() CORSConfig {
 		AllowOrigins:     []string{"*"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Content-Type", "Content-Length", "Accept-Encoding", "X-CSRF-Token", "Authorization", "accept", "origin", "Cache-Control", "X-Requested-With", "X-Trace-ID"},
-		ExposeHeaders:    []string{"X-Trace-ID", "X-Error-Code", "X-Error-Message"},
+		ExposeHeaders:    []string{"X-Trace-ID"},
 		AllowCredentials: true,
 		MaxAge:           86400,
 	}
