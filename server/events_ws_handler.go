@@ -865,6 +865,7 @@ func (h *EventsWSHandler) validateTenant(g *gin.Context, claims *auth.Claims) bo
 		ErrorWithMessage(g, http.StatusForbidden, "invalid tenant", apperrors.ErrUnauthorized)
 		return false
 	}
+
 	return true
 }
 
