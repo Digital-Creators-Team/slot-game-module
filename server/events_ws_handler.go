@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"runtime/debug"
+	"strconv"
 	"sync"
 	"time"
 
@@ -167,24 +168,24 @@ func (c *WSConn) StopJackpot() {
 
 func (h *EventsWSHandler) Stream(g *gin.Context) {
 	if h.connMgr == nil || !h.connMgr.HasRedis() {
-		ErrorWithMessage(g, http.StatusInternalServerError, "redis client not configured")
+		h.connectError(g, http.StatusInternalServerError, "redis client not configured")
 		return
 	}
 
 	tokenString := g.Query("token")
 	if tokenString == "" {
-		ErrorWithMessage(g, http.StatusUnauthorized, "missing token", apperrors.ErrUnauthorized)
+		h.connectError(g, http.StatusUnauthorized, "missing token", apperrors.ErrUnauthorized)
 		return
 	}
 
 	claims, err := parseToken(tokenString, h.app.config.JWT.Secret)
 	if err != nil {
-		ErrorWithMessage(g, http.StatusUnauthorized, "invalid or expired token", apperrors.ErrUnauthorized)
+		h.connectError(g, http.StatusUnauthorized, "invalid or expired token", apperrors.ErrUnauthorized)
 		return
 	}
 
 	if claims.UserID == "" {
-		ErrorWithMessage(g, http.StatusUnauthorized, "invalid token claims", apperrors.ErrUnauthorized)
+		h.connectError(g, http.StatusUnauthorized, "invalid token claims", apperrors.ErrUnauthorized)
 		return
 	}
 
@@ -812,6 +813,15 @@ func (h *EventsWSHandler) subscribeJackpot(c *WSConn, tenantID string, currency 
 	}()
 }
 
+func (h *EventsWSHandler) connectError(g *gin.Context, statusCode int, message string, customCode ...int) {
+	if len(customCode) > 0 && customCode[0] != -1 {
+		g.Header("X-Error-Code", strconv.Itoa(customCode[0]))
+	}
+
+	g.Header("X-Error-Message", message)
+	ErrorWithMessage(g, statusCode, message, customCode...)
+}
+
 // validateTokenExpiry returns an AppError with code ErrUnauthorized (401) if the
 // claims' token has already expired, so that the reply carries both
 // status_code=401 and error_code=401 which the client can interpret as an
@@ -852,17 +862,17 @@ func (h *EventsWSHandler) validateTenant(g *gin.Context, claims *auth.Claims) bo
 	tenant, err := h.app.tenantProvider.Get(g.Request.Context(), claims.TenantID, false)
 	if err != nil {
 		if errors.Is(err, ErrTenantNotFound) {
-			ErrorWithMessage(g, http.StatusUnauthorized, "invalid tenant", apperrors.ErrUnauthorized)
+			h.connectError(g, http.StatusUnauthorized, "invalid tenant", apperrors.ErrUnauthorized)
 			return false
 		}
 
 		h.logger.Warn().Err(err).Msg("failed to get tenant")
-		ErrorWithMessage(g, http.StatusInternalServerError, "failed to get tenant", apperrors.ErrInternalServerError)
+		h.connectError(g, http.StatusInternalServerError, "failed to get tenant", apperrors.ErrInternalServerError)
 		return false
 	}
 
 	if !tenant.WalletEnabled() {
-		ErrorWithMessage(g, http.StatusUnauthorized, "invalid tenant", apperrors.ErrUnauthorized)
+		h.connectError(g, http.StatusUnauthorized, "invalid tenant", apperrors.ErrUnauthorized)
 		return false
 	}
 	return true
@@ -872,16 +882,16 @@ func (h *EventsWSHandler) validateGame(g *gin.Context, claims *auth.Claims) bool
 	tenantGame, err := h.app.gameProvider.Get(g.Request.Context(), claims.TenantID, false)
 	if err != nil {
 		if errors.Is(err, ErrTenantGameNotFound) {
-			ErrorWithMessage(g, http.StatusUnauthorized, "invalid tenant", apperrors.ErrGameStatusError)
+			h.connectError(g, http.StatusUnauthorized, "invalid tenant", apperrors.ErrGameStatusError)
 			return false
 		}
 
-		ErrorWithMessage(g, http.StatusInternalServerError, "failed to get tenant game", apperrors.ErrInternalServerError)
+		h.connectError(g, http.StatusInternalServerError, "failed to get tenant game", apperrors.ErrInternalServerError)
 		return false
 	}
 
 	if !tenantGame.IsActive() || !tenantGame.AllowUsername(claims.Username) {
-		ErrorWithMessage(g, http.StatusUnauthorized, "invalid game status", apperrors.ErrGameStatusError)
+		h.connectError(g, http.StatusUnauthorized, "invalid game status", apperrors.ErrGameStatusError)
 		return false
 	}
 
