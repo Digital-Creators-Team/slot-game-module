@@ -28,6 +28,7 @@ const (
 	ErrGameLogicError      = 1009
 	ErrTenantError         = 1010
 	ErrGameStatusError     = 1011
+	ErrUserLoggedOut       = 1012
 )
 
 type StatusCode int
@@ -134,6 +135,10 @@ func GetCode(err error) int {
 	switch err.Error() {
 	case "insufficient funds":
 		return ErrInsufficientBalance
+	case "user logged out":
+		return ErrUserLoggedOut
+	case "invalid token":
+		return ErrUnauthorized
 	default:
 		return ErrInternalServerError
 	}
