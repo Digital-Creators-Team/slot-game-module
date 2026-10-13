@@ -49,7 +49,7 @@ func CORSWithConfig(config CORSConfig) gin.HandlerFunc {
 		}
 
 		c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
-		
+
 		if config.AllowCredentials {
 			c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
 		}
@@ -95,5 +95,3 @@ func CORSWithConfig(config CORSConfig) gin.HandlerFunc {
 		c.Next()
 	}
 }
-
-

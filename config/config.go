@@ -59,6 +59,7 @@ type ExternalServicesConfig struct {
 	RewardService ServiceConfig       `mapstructure:"reward_service"`
 	LogService    ServiceConfig       `mapstructure:"log_service"`
 	TenantService TenantServiceConfig `mapstructure:"tenant_service"`
+	GameService   GameServiceConfig   `mapstructure:"game_service"`
 }
 
 // ServiceConfig holds external service configuration
@@ -75,6 +76,14 @@ type TenantServiceConfig struct {
 	EventChannel string        `mapstructure:"event_channel"`
 	Whitelist    []string      `mapstructure:"whitelist"`
 	Blacklist    []string      `mapstructure:"blacklist"`
+}
+
+// GameServiceConfig holds game service configuration
+type GameServiceConfig struct {
+	ServiceConfig `mapstructure:",squash"`
+
+	CacheTTL     time.Duration `mapstructure:"cache_ttl"`
+	EventChannel string        `mapstructure:"event_channel"`
 }
 
 type CloudFrontConfig struct {

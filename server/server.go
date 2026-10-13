@@ -42,6 +42,7 @@ type App struct {
 	rewardProvider     providers.RewardProvider
 	logProvider        providers.LogProvider
 	tenantProvider     providers.TenantProvider
+	gameProvider       providers.GameProvider
 	wsConnManager      *WSConnManager
 	assetSigner        *cfsign.Signer
 }
@@ -60,6 +61,7 @@ type GameServiceFactory func(
 	rewardProvider providers.RewardProvider,
 	logProvider providers.LogProvider,
 	tenantProvider providers.TenantProvider,
+	gameProvider providers.GameProvider,
 	logger zerolog.Logger,
 ) SpinService
 
@@ -94,9 +96,10 @@ func New(opts Options) *App {
 			rewardProvider providers.RewardProvider,
 			logProvider providers.LogProvider,
 			tenantProvider providers.TenantProvider,
+			gameProvider providers.GameProvider,
 			logger zerolog.Logger,
 		) SpinService {
-			return NewGameService(gameModule, stateProvider, walletProvider, rewardProvider, logProvider, tenantProvider, logger)
+			return NewGameService(gameModule, stateProvider, walletProvider, rewardProvider, logProvider, tenantProvider, gameProvider, logger)
 		},
 	}
 
@@ -113,6 +116,10 @@ func New(opts Options) *App {
 	app.wsConnManager.SetRedisClient(redis)
 	app.eventsWSHandler = NewEventsWSHandler(app, app.wsConnManager)
 	app.assetSigner = newAssetSigner(opts.Config.CloudFront, opts.Logger)
+
+	if app.gameProvider != nil {
+		app.gameProvider.AddDisableGameCallback(context.Background(), app.eventsWSHandler.KickTenantPlayersCallback)
+	}
 
 	return app
 }
@@ -144,6 +151,19 @@ func (a *App) SetLogProvider(provider LogProvider) {
 // SetTenantProvider sets the tenant provider for tenant operations
 func (a *App) SetTenantProvider(provider TenantProvider) {
 	a.tenantProvider = provider
+}
+
+// SetGameProvider sets the game provider for game operations
+func (a *App) SetGameProvider(provider GameProvider) {
+	a.gameProvider = provider
+
+	if a.gameProvider != nil {
+		if a.gameModule != nil {
+			a.gameProvider.SetGameCode(a.gameModule.GetGameCode())
+		}
+
+		a.gameProvider.AddDisableGameCallback(context.Background(), a.eventsWSHandler.KickTenantPlayersCallback)
+	}
 }
 
 func (a *App) SetRedisClient(client *dbredis.Client) {
@@ -202,12 +222,13 @@ func (a *App) newGameService(
 	rewardProvider RewardProvider,
 	logProvider LogProvider,
 	tenantProvider providers.TenantProvider,
+	gameProvider providers.GameProvider,
 	logger zerolog.Logger,
 ) SpinService {
 	if a.gameServiceFactory != nil {
-		return a.gameServiceFactory(gameModule, stateProvider, walletProvider, rewardProvider, logProvider, tenantProvider, logger)
+		return a.gameServiceFactory(gameModule, stateProvider, walletProvider, rewardProvider, logProvider, tenantProvider, gameProvider, logger)
 	}
-	return NewGameService(gameModule, stateProvider, walletProvider, rewardProvider, logProvider, tenantProvider, logger)
+	return NewGameService(gameModule, stateProvider, walletProvider, rewardProvider, logProvider, tenantProvider, gameProvider, logger)
 }
 
 // newAssetSigner builds the CloudFront signer from config.
@@ -271,6 +292,9 @@ func (a *App) RegisterGame(module game.Module) {
 		if err != nil {
 			a.logger.Fatal().Err(err).Msg("Failed to bootstrap jackpot pools")
 		}
+	}
+	if a.gameProvider != nil {
+		a.gameProvider.SetGameCode(module.GetGameCode())
 	}
 }
 
@@ -337,6 +361,16 @@ func (a *App) GetRewardProvider() providers.RewardProvider {
 // GetLogProvider returns the log provider
 func (a *App) GetLogProvider() providers.LogProvider {
 	return a.logProvider
+}
+
+// GetTenantProvider returns the tenant provider
+func (a *App) GetTenantProvider() providers.TenantProvider {
+	return a.tenantProvider
+}
+
+// GetGameProvider returns the game provider
+func (a *App) GetGameProvider() providers.GameProvider {
+	return a.gameProvider
 }
 
 // GetGameCode returns the game code of registered module

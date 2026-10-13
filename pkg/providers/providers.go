@@ -238,3 +238,61 @@ type ResponseTenant struct {
 
 	SecretKey string `json:"secret_key"`
 }
+
+var (
+	ErrTenantGameNotFound = errors.New("tenant game not found")
+)
+
+// GameProvider interface for game operations
+type GameProvider interface {
+	SetGameCode(code string)
+	Get(ctx context.Context, tenantID string, skipCache bool) (*TenantGame, error)
+	AddDisableGameCallback(ctx context.Context, callback func(context.Context, TenantGame))
+}
+
+type TenantGame struct {
+	ID                string         `json:"id" bson:"_id"`
+	CreatedAt         time.Time      `json:"created_at" bson:"created_at"`
+	UpdatedAt         time.Time      `json:"updated_at" bson:"updated_at"`
+	TenantID          string         `json:"tenant_id" bson:"tenant_id"`
+	GameCode          string         `json:"game_code" bson:"game_code"`
+	CustomGameCode    string         `json:"custom_game_code,omitempty" bson:"custom_game_code,omitempty"`
+	PlayURL           string         `json:"play_url" bson:"play_url"`
+	AndroidPlayURL    string         `json:"android_play_url" bson:"android_play_url"`
+	IOSPlayURL        string         `json:"ios_play_url" bson:"ios_play_url"`
+	Status            string         `json:"status" bson:"status"`
+	Rank              int            `json:"rank" bson:"rank"`
+	CurrencySetting   map[string]any `json:"currency_setting" bson:"currency_setting"`
+	LimitAccess       bool           `json:"limit_access" bson:"limit_access"`
+	UsernameWhitelist []string       `json:"username_whitelist" bson:"username_whitelist"`
+
+	// cache field for logic check
+	UsernameWhitelistMap map[string]bool `json:"username_whitelist_map,omitempty" bson:"-"`
+}
+
+func (g *TenantGame) IsActive() bool {
+	return g.Status == "active"
+}
+
+func (g *TenantGame) AllowUsername(username string) bool {
+	if !g.LimitAccess {
+		return true
+	}
+
+	if len(g.UsernameWhitelist) == 0 {
+		return false
+	}
+
+	if len(g.UsernameWhitelistMap) == 0 {
+		g.UsernameWhitelistMap = make(map[string]bool, len(g.UsernameWhitelist))
+		for _, allowUsername := range g.UsernameWhitelist {
+			g.UsernameWhitelistMap[allowUsername] = true
+		}
+	}
+
+	if ok := g.UsernameWhitelistMap[username]; !ok {
+		return false
+	}
+
+	return true
+}

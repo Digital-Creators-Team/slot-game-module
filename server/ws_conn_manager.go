@@ -75,6 +75,18 @@ func (m *WSConnManager) Get(connID string) (*WSConn, bool) {
 	return conn, ok
 }
 
+func (m *WSConnManager) ListByTenant(tenantID string) []*WSConn {
+	conns := make([]*WSConn, 0)
+	m.mu.RLock()
+	for _, conn := range m.conns {
+		if conn.TenantID == tenantID {
+			conns = append(conns, conn)
+		}
+	}
+	m.mu.RUnlock()
+	return conns
+}
+
 func (m *WSConnManager) Close() {
 	m.closeOnce.Do(func() {
 		close(m.closeCh)
@@ -202,4 +214,3 @@ func (m *WSConnManager) PublishKick(ctx context.Context, msg WSKickMessage) erro
 	}
 	return r.GetClient().Publish(ctx, "presence:kick", payload).Err()
 }
-

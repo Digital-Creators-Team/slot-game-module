@@ -9,6 +9,7 @@ type (
 	RewardProvider     = providers.RewardProvider
 	TenantProvider     = providers.TenantProvider
 	LogProvider        = providers.LogProvider
+	GameProvider       = providers.GameProvider
 	JackpotPool        = providers.JackpotPool
 	JackpotClaim       = providers.JackpotClaim
 	BetType            = providers.BetType
@@ -20,6 +21,7 @@ type (
 	BetHistoryResponse = providers.BetHistoryResponse
 	GameRound          = providers.GameRound
 	ResponseTenant     = providers.ResponseTenant
+	TenantGame         = providers.TenantGame
 )
 
 const (
@@ -31,4 +33,5 @@ const (
 var (
 	ErrTenantNotFound         = providers.ErrTenantNotFound
 	ErrTenantWalletNotEnabled = providers.ErrTenantWalletNotEnabled
+	ErrTenantGameNotFound     = providers.ErrTenantGameNotFound
 )

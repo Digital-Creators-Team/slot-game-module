@@ -1551,6 +1551,7 @@ func main() {
 	app.SetRewardProvider(provider.NewRewardProvider(cfg, logger))
 	app.SetLogProvider(provider.NewLogProvider(cfg, kafkaProducer, logger))
 	app.SetTenantProvider(provider.NewTenantProvider(cfg, logger, redisClient))
+	app.SetGameProvider(provider.NewGameProvider(cfg, logger, redisClient))
 
 	// 4. Register game module
 	// Load from config directory (merges module-base.yml and {{.GameCodeSnake}}.yaml)
@@ -2134,6 +2135,17 @@ external_services:
     timeout: 5s
     cache_ttl: 300s
     event_channel: tenant:event:tenant
+  game_service:
+    base_url: http://game-api:8387
+    timeout: 5s
+    cache_ttl: 300s
+    event_channel: game:event:tenant
+
+cloudfront:
+  key_pair_id: ''
+  private_key: ''
+  cdn_domain: 'https://.cloudfront.net'
+  token_ttl: 60s
 `
 
 var moduleBaseConfigTemplate = `# Base module configuration (shared across games)
@@ -2333,6 +2345,8 @@ jobs:
           value: "http://log-service.fgs-games.svc.cluster.local:80"
         - name: EXTERNAL_SERVICES_TENANT_SERVICE_BASE_URL
           value: "http://tenant-service.fgs-games.svc.cluster.local:81"
+        - name: EXTERNAL_SERVICES_GAME_SERVICE_BASE_URL
+          value: "http://auth-service.fgs-games.svc.cluster.local:81"
         - name: CLOUDFRONT_PRIVATE_KEY
           valueFrom:
             secretKeyRef:
@@ -2404,6 +2418,8 @@ jobs:
           value: "http://log-service.fgs-games.svc.cluster.local:80"
         - name: EXTERNAL_SERVICES_TENANT_SERVICE_BASE_URL
           value: "http://tenant-service.fgs-games.svc.cluster.local:81"
+        - name: EXTERNAL_SERVICES_GAME_SERVICE_BASE_URL
+          value: "http://auth-service.fgs-games.svc.cluster.local:81"
         - name: CLOUDFRONT_PRIVATE_KEY
           valueFrom:
             secretKeyRef:
