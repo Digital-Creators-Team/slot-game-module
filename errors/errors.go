@@ -39,6 +39,7 @@ const (
 	TransactionNotFound  StatusCode = 20001
 	TransactionDuplicate StatusCode = 20002
 	InvalidToken         StatusCode = 30001
+	UserLoggedOut        StatusCode = 30003
 	ForbiddenRequest     StatusCode = 40003
 	InternalServerError  StatusCode = 50001
 )

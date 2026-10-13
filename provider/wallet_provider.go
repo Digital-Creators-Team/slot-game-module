@@ -21,7 +21,11 @@ import (
 	"github.com/Digital-Creators-Team/slot-game-module/server"
 )
 
-var ErrInsufficientFunds = errors.New("insufficient funds")
+var (
+	ErrInsufficientFunds = errors.New("insufficient funds")
+	ErrUserLoggedOut     = errors.New("user logged out")
+	ErrInvalidToken      = errors.New("invalid token")
+)
 
 // WalletProvider implements server.WalletProvider using HTTP client
 type WalletProvider struct {
@@ -242,10 +246,25 @@ func (p *WalletProvider) PlaceBets(ctx context.Context, productId, tenantID, use
 		return decimal.NewFromFloat(result.BalanceAfter), nil
 	}
 
-	if result.StatusCode == (int)(moduleerrors.InsufficientBalance) || result.StatusCode == (int)(moduleerrors.InternalServerError) {
+	switch result.StatusCode {
+	case int(moduleerrors.InsufficientBalance),
+		int(moduleerrors.InternalServerError):
 		return decimal.Zero, ErrInsufficientFunds
-	} else if result.StatusCode != (int)(moduleerrors.Success) {
-		return decimal.Zero, fmt.Errorf("wallet service returned status %d", result.StatusCode)
+
+	case int(moduleerrors.InvalidToken):
+		return decimal.Zero, ErrInvalidToken
+
+	case int(moduleerrors.UserLoggedOut):
+		return decimal.Zero, ErrUserLoggedOut
+
+	case int(moduleerrors.Success):
+		// success
+
+	default:
+		return decimal.Zero, fmt.Errorf(
+			"wallet service returned status %d",
+			result.StatusCode,
+		)
 	}
 
 	return decimal.Zero, fmt.Errorf("withdraw failed: %d", result.StatusCode)
