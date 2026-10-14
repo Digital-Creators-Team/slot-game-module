@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Digital-Creators-Team/slot-game-module/errors"
-	"github.com/Digital-Creators-Team/slot-game-module/types"
+	"gl.owvn.org/veuve/server/slot-game-module/errors"
+	"gl.owvn.org/veuve/server/slot-game-module/types"
 	"github.com/gin-gonic/gin"
 )
 

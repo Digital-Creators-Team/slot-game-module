@@ -1,10 +1,10 @@
 package wire
 
 import (
-	"github.com/Digital-Creators-Team/slot-game-module/config"
-	"github.com/Digital-Creators-Team/slot-game-module/db/redis"
-	"github.com/Digital-Creators-Team/slot-game-module/logging"
-	"github.com/Digital-Creators-Team/slot-game-module/server"
+	"gl.owvn.org/veuve/server/slot-game-module/config"
+	"gl.owvn.org/veuve/server/slot-game-module/db/redis"
+	"gl.owvn.org/veuve/server/slot-game-module/logging"
+	"gl.owvn.org/veuve/server/slot-game-module/server"
 	"github.com/google/wire"
 	"github.com/rs/zerolog"
 )

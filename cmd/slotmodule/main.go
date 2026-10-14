@@ -19,7 +19,7 @@ import (
 
 const (
 	// Module path for version checking
-	modulePathForCheck = "github.com/Digital-Creators-Team/slot-game-module"
+	modulePathForCheck = "gl.owvn.org/veuve/server/slot-game-module"
 	// Go proxy URL (can use proxy.golang.org or private proxy)
 	goProxyURL = "https://proxy.golang.org"
 	// Set to true to block usage if outdated, false to just warn
@@ -353,7 +353,7 @@ Examples:
 		Long: `List all games registered in the games registry (GAMES.md).
 
 This command fetches and displays all games from the central games registry
-located at: https://github.com/Digital-Creators-Team/slot-game-module/blob/games-registry/GAMES.md
+located at: https://gl.owvn.org/veuve/server/slot-game-module/blob/games-registry/GAMES.md
 
 Examples:
   slotmodule ls
@@ -711,7 +711,7 @@ func runCreate(cmd *cobra.Command, args []string) {
 		Port:              port,
 		PayLines:          paylines,
 		WithWire:          withWire,
-		CoreModulePath:    "github.com/Digital-Creators-Team/slot-game-module",
+		CoreModulePath:    "gl.owvn.org/veuve/server/slot-game-module",
 		CoreModuleVersion: getCoreModuleVersion(),
 	}
 
@@ -1216,7 +1216,7 @@ func runInit(cmd *cobra.Command, args []string) {
 		Port:              port,
 		PayLines:          paylines,
 		WithWire:          false,
-		CoreModulePath:    "github.com/Digital-Creators-Team/slot-game-module",
+		CoreModulePath:    "gl.owvn.org/veuve/server/slot-game-module",
 		CoreModuleVersion: getCoreModuleVersion(),
 	}
 
@@ -2488,7 +2488,7 @@ vendor:
 
 # Update slot-game-module to latest version, tidy, and vendor
 update:
-	go get -u github.com/Digital-Creators-Team/slot-game-module
+	go get -u gl.owvn.org/veuve/server/slot-game-module
 	go mod tidy
 	go mod vendor
 
@@ -2528,7 +2528,7 @@ release: swagger build
 
 var readmeTemplate = `# {{.GameCodeUpper}} Game Service
 
-A slot game service built using the [Slot Game Module](https://github.com/Digital-Creators-Team/slot-game-module).
+A slot game service built using the [Slot Game Module](https://gl.owvn.org/veuve/server/slot-game-module).
 
 ## Quick Start
 

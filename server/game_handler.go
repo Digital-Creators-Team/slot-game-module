@@ -10,9 +10,9 @@ import (
 	"github.com/samber/lo"
 	"github.com/shopspring/decimal"
 
-	"github.com/Digital-Creators-Team/slot-game-module/auth"
-	"github.com/Digital-Creators-Team/slot-game-module/errors"
-	"github.com/Digital-Creators-Team/slot-game-module/game"
+	"gl.owvn.org/veuve/server/slot-game-module/auth"
+	"gl.owvn.org/veuve/server/slot-game-module/errors"
+	"gl.owvn.org/veuve/server/slot-game-module/game"
 )
 
 // GameHandler handles common HTTP requests for the game

@@ -5,7 +5,7 @@ import (
 
 	"github.com/rs/zerolog"
 
-	"github.com/Digital-Creators-Team/slot-game-module/pkg/providers"
+	"gl.owvn.org/veuve/server/slot-game-module/pkg/providers"
 )
 
 // ModuleContext provides access to dependencies and services for game modules

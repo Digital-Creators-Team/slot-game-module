@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	dbredis "github.com/Digital-Creators-Team/slot-game-module/db/redis"
+	dbredis "gl.owvn.org/veuve/server/slot-game-module/db/redis"
 	"github.com/go-redis/redis/v8"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"

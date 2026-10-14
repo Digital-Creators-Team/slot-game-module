@@ -3,7 +3,7 @@ package server
 import "runtime/debug"
 
 const (
-	modulePath = "github.com/Digital-Creators-Team/slot-game-module"
+	modulePath = "gl.owvn.org/veuve/server/slot-game-module"
 )
 
 var version = moduleVersion()

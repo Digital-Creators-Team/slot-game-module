@@ -11,7 +11,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
-	"github.com/Digital-Creators-Team/slot-game-module/pkg/trace"
+	"gl.owvn.org/veuve/server/slot-game-module/pkg/trace"
 )
 
 // Config holds logging configuration

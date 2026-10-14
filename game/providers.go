@@ -1,6 +1,6 @@
 package game
 
-import "github.com/Digital-Creators-Team/slot-game-module/pkg/providers"
+import "gl.owvn.org/veuve/server/slot-game-module/pkg/providers"
 
 // Alias provider interfaces/types from pkg/providers to avoid duplication.
 type (

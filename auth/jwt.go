@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Digital-Creators-Team/slot-game-module/types"
+	"gl.owvn.org/veuve/server/slot-game-module/types"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/rs/zerolog"

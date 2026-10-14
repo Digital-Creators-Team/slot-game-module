@@ -5,7 +5,7 @@ import (
 	"runtime/debug"
 	"time"
 
-	"github.com/Digital-Creators-Team/slot-game-module/types"
+	"gl.owvn.org/veuve/server/slot-game-module/types"
 	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog"
 )

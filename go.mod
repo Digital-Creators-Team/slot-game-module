@@ -1,4 +1,4 @@
-module github.com/Digital-Creators-Team/slot-game-module
+module gl.owvn.org/veuve/server/slot-game-module
 
 go 1.25.4
 

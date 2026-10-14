@@ -10,12 +10,12 @@ import (
 	"github.com/go-redis/redis/v8"
 	"github.com/rs/zerolog"
 
-	"github.com/Digital-Creators-Team/slot-game-module/config"
-	coreredis "github.com/Digital-Creators-Team/slot-game-module/db/redis"
-	"github.com/Digital-Creators-Team/slot-game-module/logging"
-	"github.com/Digital-Creators-Team/slot-game-module/pkg/cache"
-	"github.com/Digital-Creators-Team/slot-game-module/pkg/utils"
-	"github.com/Digital-Creators-Team/slot-game-module/server"
+	"gl.owvn.org/veuve/server/slot-game-module/config"
+	coreredis "gl.owvn.org/veuve/server/slot-game-module/db/redis"
+	"gl.owvn.org/veuve/server/slot-game-module/logging"
+	"gl.owvn.org/veuve/server/slot-game-module/pkg/cache"
+	"gl.owvn.org/veuve/server/slot-game-module/pkg/utils"
+	"gl.owvn.org/veuve/server/slot-game-module/server"
 )
 
 // tenantProvider implements server.TenantProvider using HTTP client
