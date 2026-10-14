@@ -1,0 +1,897 @@
+package server
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net/http"
+	"runtime/debug"
+	"sync"
+	"time"
+
+	"gl.owvn.org/veuve/server/slot-game-module/auth"
+	apperrors "gl.owvn.org/veuve/server/slot-game-module/errors"
+	"gl.owvn.org/veuve/server/slot-game-module/game"
+	"gl.owvn.org/veuve/server/slot-game-module/types"
+	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
+	"github.com/gorilla/websocket"
+	"github.com/rs/zerolog"
+	"github.com/samber/lo"
+	"github.com/shopspring/decimal"
+)
+
+const wsTimeout = 60 * time.Second
+
+type EventsWSHandler struct {
+	app        *App
+	logger     zerolog.Logger
+	connMgr    *WSConnManager
+	upgrader   websocket.Upgrader
+	sessionTTL time.Duration
+}
+
+func NewEventsWSHandler(app *App, connMgr *WSConnManager) *EventsWSHandler {
+	return &EventsWSHandler{
+		app:     app,
+		logger:  app.logger.With().Str("handler", "events-ws").Logger(),
+		connMgr: connMgr,
+		upgrader: websocket.Upgrader{
+			CheckOrigin:     func(r *http.Request) bool { return true },
+			ReadBufferSize:  1024,
+			WriteBufferSize: 1024,
+		},
+		sessionTTL: 60 * time.Second,
+	}
+}
+
+func (h *EventsWSHandler) buildWSBaseContext(reqCtx context.Context, claims *auth.Claims) context.Context {
+	if reqCtx != nil {
+		if mc := game.FromContext(reqCtx); mc != nil {
+			return game.WithContext(context.Background(), mc)
+		}
+	}
+	user := game.NewUser(claims.TenantID, claims.UserID, claims.Username, claims.CurrencyID)
+	mc := game.NewModuleContext(user, h.app.logger, h.app.stateProvider, h.app.walletProvider, h.app.rewardProvider, h.app.logProvider)
+	return game.WithContext(context.Background(), mc)
+}
+
+func (h *EventsWSHandler) timeoutReplyIfNeeded(ctx context.Context, err error) *wsReply {
+	if errors.Is(err, context.DeadlineExceeded) ||
+		(ctx != nil && errors.Is(ctx.Err(), context.DeadlineExceeded)) {
+		return errReply(
+			http.StatusRequestTimeout,
+			apperrors.New(apperrors.ErrRequestTimeout, fmt.Sprintf("request timeout: %v", err)),
+		)
+	}
+
+	return nil
+}
+
+type WSConn struct {
+	ID       string
+	TenantID string
+	UserID   string
+
+	conn   *websocket.Conn
+	logger zerolog.Logger
+	mgr    *WSConnManager
+
+	send chan []byte
+
+	closeOnce sync.Once
+	closed    chan struct{}
+
+	jackpotMu     sync.Mutex
+	jackpotCancel context.CancelFunc
+	spinMu        sync.Mutex
+
+	baseCtx context.Context
+}
+
+func (c *WSConn) Done() <-chan struct{} {
+	return c.closed
+}
+
+func (c *WSConn) Context() context.Context {
+	if c.baseCtx != nil {
+		return c.baseCtx
+	}
+	return context.Background()
+}
+
+func (c *WSConn) NewCtxWithTimeout(timeout time.Duration) (context.Context, context.CancelFunc) {
+	base := c.Context()
+	if _, ok := base.Deadline(); ok {
+		return base, func() {}
+	}
+	return context.WithTimeout(base, timeout)
+}
+
+func (c *WSConn) Send(payload []byte) error {
+	select {
+	case <-c.closed:
+		return errors.New("connection closed")
+	case c.send <- payload:
+		return nil
+	default:
+		return errors.New("send queue full")
+	}
+}
+
+// replyPong writes the pong frame straight back to the client instead of
+// queueing it, so a ping is never dropped behind a full send queue.
+func (c *WSConn) replyPong(req WSRequest) {
+	pong := map[string]interface{}{
+		"type":      "pong",
+		"timestamp": time.Now().Unix(),
+	}
+	b, err := json.Marshal(pong)
+	if err != nil {
+		c.logger.Error().Err(err).Str("req_id", req.ID).Msg("failed to marshal pong")
+		return
+	}
+	if err := c.conn.SetWriteDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		c.logger.Warn().Err(err).Str("req_id", req.ID).Msg("failed to set pong write deadline")
+		return
+	}
+	if err := c.conn.WriteMessage(websocket.TextMessage, b); err != nil {
+		c.logger.Warn().Err(err).Str("req_id", req.ID).Msg("failed to write pong")
+	}
+}
+
+func (c *WSConn) CloseWithReason(reason string) {
+	c.closeOnce.Do(func() {
+		close(c.closed)
+		_ = c.conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, reason), time.Now().Add(2*time.Second))
+		_ = c.conn.Close()
+	})
+}
+
+func (c *WSConn) Close() {
+	c.CloseWithReason("closed")
+}
+
+// Unsubscribe from jackpot events
+func (c *WSConn) StopJackpot() {
+	c.jackpotMu.Lock()
+	cancel := c.jackpotCancel
+	c.jackpotCancel = nil
+	c.jackpotMu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+}
+
+func (h *EventsWSHandler) Stream(g *gin.Context) {
+	if h.connMgr == nil || !h.connMgr.HasRedis() {
+		ErrorWithMessage(g, http.StatusInternalServerError, "redis client not configured")
+		return
+	}
+
+	tokenString := g.Query("token")
+	if tokenString == "" {
+		ErrorWithMessage(g, http.StatusUnauthorized, "missing token", apperrors.ErrUnauthorized)
+		return
+	}
+
+	claims, err := parseToken(tokenString, h.app.config.JWT.Secret)
+	if err != nil {
+		ErrorWithMessage(g, http.StatusUnauthorized, "invalid or expired token", apperrors.ErrUnauthorized)
+		return
+	}
+
+	if claims.UserID == "" {
+		ErrorWithMessage(g, http.StatusUnauthorized, "invalid token claims", apperrors.ErrUnauthorized)
+		return
+	}
+
+	if claims.TenantID == "" {
+		claims.TenantID = "fgs"
+	}
+	if claims.CurrencyID == "" {
+		claims.CurrencyID = "gold"
+	}
+
+	if !h.validateTenant(g, claims) {
+		return
+	}
+
+	// TODO: require game provider
+	if h.app.gameProvider != nil && !h.validateGame(g, claims) {
+		return
+	}
+
+	connID := uuid.NewString()
+
+	conn, err := h.upgrader.Upgrade(g.Writer, g.Request, nil)
+	if err != nil {
+		h.logger.Error().Err(err).Msg("failed to upgrade to websocket")
+		return
+	}
+
+	wsConn := &WSConn{
+		ID:       connID,
+		TenantID: claims.TenantID,
+		UserID:   claims.UserID,
+		conn:     conn,
+		logger: h.logger.With().
+			Str("conn_id", connID).
+			Str("tenant_id", claims.TenantID).
+			Str("user_id", claims.UserID).
+			Logger(),
+		mgr:    h.connMgr,
+		send:   make(chan []byte, 256),
+		closed: make(chan struct{}),
+	}
+
+	wsConn.baseCtx = h.buildWSBaseContext(g.Request.Context(), claims)
+
+	h.connMgr.Register(wsConn)
+
+	ctx := context.Background()
+	oldConnID, _ := h.connMgr.AcquireSession(ctx, wsConn.TenantID, wsConn.UserID, wsConn.ID, h.sessionTTL)
+	//if err != nil {
+	//	wsConn.logger.Error().Err(err).Msg("failed to acquire session")
+	//	h.connMgr.Unregister(wsConn.ID)
+	//	wsConn.CloseWithReason("failed_to_acquire_session")
+	//	return
+	//}
+	if oldConnID != "" && oldConnID != wsConn.ID {
+		_ = h.connMgr.PublishKick(ctx, WSKickMessage{
+			GameCode: h.app.GetGameCode(),
+			TenantID: wsConn.TenantID,
+			UserID:   wsConn.UserID,
+			ConnID:   oldConnID,
+			Reason:   "duplicate_connection",
+		})
+	}
+
+	conn.SetReadLimit(1 << 20)
+	_ = conn.SetReadDeadline(time.Now().Add(70 * time.Second))
+	conn.SetPongHandler(func(string) error {
+		return conn.SetReadDeadline(time.Now().Add(70 * time.Second))
+	})
+
+	go h.writePump(wsConn)
+	defer func() {
+		wsConn.StopJackpot()
+		wsConn.Close()
+		h.connMgr.Unregister(wsConn.ID)
+		_ = h.connMgr.ReleaseSession(context.Background(), wsConn.TenantID, wsConn.UserID, wsConn.ID)
+	}()
+
+	h.autoSubscribeJackpot(wsConn, claims)
+
+	for {
+		_, msg, err := conn.ReadMessage()
+		if err != nil {
+			wsConn.logger.Debug().Err(err).Msg("websocket read loop ended")
+			return
+		}
+
+		var req WSRequest
+		if err := json.Unmarshal(msg, &req); err != nil {
+			wsConn.logger.Warn().Err(err).Msg("failed to unmarshal ws request")
+			continue
+		}
+
+		if req.Type == WSEventPing {
+			wsConn.replyPong(req)
+			continue
+		}
+
+		go h.handleMessage(wsConn, claims, req, g.Request.URL.Path)
+	}
+}
+
+func (h *EventsWSHandler) writePump(c *WSConn) {
+	defer func() {
+		if r := recover(); r != nil {
+			h.logger.Error().
+				Interface("panic", r).
+				Str("stack", string(debug.Stack())).
+				Msg("panic recovered in write pump")
+			c.Close()
+		}
+	}()
+
+	pingTicker := time.NewTicker(25 * time.Second)
+	defer pingTicker.Stop()
+
+	refreshTicker := time.NewTicker(20 * time.Second)
+	defer refreshTicker.Stop()
+
+	for {
+		select {
+		case <-c.closed:
+			return
+		case payload := <-c.send:
+			_ = c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+			if err := c.conn.WriteMessage(websocket.TextMessage, payload); err != nil {
+				c.Close()
+				return
+			}
+		case <-pingTicker.C:
+			_ = c.conn.WriteControl(websocket.PingMessage, []byte("ping"), time.Now().Add(5*time.Second))
+		case <-refreshTicker.C:
+			_ = h.connMgr.TouchSession(context.Background(), c.TenantID, c.UserID, c.ID, h.sessionTTL)
+		}
+	}
+}
+
+type wsReply struct {
+	status int
+	data   any
+	err    error
+}
+
+//nolint:unused
+func okReply(status int, data any) *wsReply {
+	return &wsReply{status: status, data: data}
+}
+
+func errReply(status int, err error) *wsReply {
+	return &wsReply{status: status, err: err}
+}
+
+func (h *EventsWSHandler) writeReply(c *WSConn, req WSRequest, path string, reply *wsReply) {
+	if req.ID == "" || reply == nil {
+		return
+	}
+	if reply.err != nil {
+		h.sendError(c, req, path, reply.status, reply.err)
+		return
+	}
+	h.sendSuccess(c, req, reply.status, reply.data)
+}
+
+func (h *EventsWSHandler) handleMessage(c *WSConn, claims *auth.Claims, req WSRequest, path string) {
+	defer func() {
+		if r := recover(); r != nil {
+			h.logger.Error().
+				Interface("panic", r).
+				Str("event_type", string(req.Type)).
+				Str("req_id", req.ID).
+				Str("stack", string(debug.Stack())).
+				Msg("panic recovered in message handler")
+			h.sendError(c, req, path, http.StatusInternalServerError,
+				apperrors.New(apperrors.ErrInternalServerError, "Internal server error"))
+		}
+	}()
+
+	if req.Type == WSEventSpin {
+		c.spinMu.Lock()
+		defer c.spinMu.Unlock()
+	}
+
+	switch req.Type {
+	case WSEventJackpotSubscribe:
+		h.handleJackpotSubscribe(c, claims, req)
+		//h.writeReply(c, req, path, okReply(http.StatusOK, map[string]bool{"ok": true}))
+		return
+	}
+
+	h.writeReply(c, req, path, h.dispatch(c, claims, req))
+}
+
+func (h *EventsWSHandler) dispatch(c *WSConn, claims *auth.Claims, req WSRequest) *wsReply {
+	// Block mid-session token expiry: the token is validated once at connection
+	// time, but it can expire afterwards. Re-check it before using the claims so
+	// an expired session cannot keep spinning / reading state, and surface it
+	// with a code the client recognises (401 / ErrUnauthorized).
+	if err := validateTokenExpiry(claims); err != nil {
+		return errReply(http.StatusUnauthorized, err)
+	}
+
+	switch req.Type {
+	case WSEventAuthorizeGame:
+		return h.handleAuthorize(c, claims, req)
+	case WSEventSpin:
+		return h.handleSpin(c, claims, req)
+	case WSEventGetPlayerState:
+		return h.handleGetState(c, claims, req)
+	case WSEventBetHistory:
+		return h.handleBetHistory(c, claims, req)
+	default:
+		return errReply(http.StatusBadRequest, apperrors.New(apperrors.ErrInvalidRequest, "unknown event type"))
+	}
+}
+
+func (h *EventsWSHandler) sendSuccess(c *WSConn, req WSRequest, status int, data any) {
+	wrapped := types.SuccessResponse[any]{
+		StatusCode: status,
+		IsSuccess:  true,
+		Data:       data,
+	}
+	raw, _ := json.Marshal(wrapped)
+	envelope := WSResponse{ID: req.ID, Type: req.Type, Data: raw}
+	b, _ := json.Marshal(envelope)
+	_ = c.Send(b)
+}
+
+func (h *EventsWSHandler) sendError(c *WSConn, req WSRequest, path string, status int, err error) {
+	msg := err.Error()
+	code := ErrUndefinedErrorCode
+	if appErr, ok := err.(*apperrors.AppError); ok {
+		msg = appErr.Message
+		code = appErr.Code
+		status = apperrors.HTTPStatusFromCode(appErr.Code)
+	}
+
+	wrapped := types.ErrorResponse{
+		StatusCode: status,
+		IsSuccess:  false,
+		Error: types.ErrorDetail{
+			Timestamp:    time.Now().Format(time.RFC3339),
+			Path:         path,
+			ErrorMessage: msg,
+			ErrorCode:    code,
+		},
+	}
+	raw, _ := json.Marshal(wrapped)
+	envelope := WSResponse{ID: req.ID, Type: req.Type, Data: raw}
+	b, _ := json.Marshal(envelope)
+	_ = c.Send(b)
+}
+
+func (h *EventsWSHandler) handleAuthorize(c *WSConn, claims *auth.Claims, req WSRequest) *wsReply {
+	ctx, cancel := c.NewCtxWithTimeout(wsTimeout)
+	defer cancel()
+
+	gameModule := h.app.GetGame()
+	if gameModule == nil {
+		return &wsReply{status: http.StatusInternalServerError, err: apperrors.New(apperrors.ErrGameModuleNotFound, "Game not configured")}
+	}
+
+	cfg, err := gameModule.GetConfig(ctx)
+	if err != nil {
+		if r := h.timeoutReplyIfNeeded(ctx, err); r != nil {
+			return r
+		}
+		return &wsReply{status: http.StatusInternalServerError, err: apperrors.New(apperrors.ErrInternalServerError, "Failed to retrieve game configuration")}
+	}
+
+	if h.app.tenantProvider == nil {
+		return &wsReply{status: http.StatusInternalServerError, err: apperrors.New(apperrors.ErrInternalServerError, "Tenant provider not configured")}
+	}
+
+	tenant, err := h.app.tenantProvider.Get(ctx, claims.TenantID, false)
+	if err != nil {
+		if r := h.timeoutReplyIfNeeded(ctx, err); r != nil {
+			return r
+		}
+
+		if errors.Is(err, ErrTenantNotFound) {
+			return &wsReply{status: http.StatusUnauthorized, err: apperrors.Wrap(err, apperrors.ErrUnauthorized, "Invalid tenant")}
+		}
+
+		return &wsReply{status: http.StatusInternalServerError, err: apperrors.Wrap(err, apperrors.ErrTenantError, "Failed to get tenant info")}
+	}
+
+	if h.app.stateProvider == nil {
+		return &wsReply{status: http.StatusInternalServerError, err: apperrors.New(apperrors.ErrInternalServerError, "State provider not configured")}
+	}
+
+	playerState, err := h.app.stateProvider.GetPlayerState(ctx, claims.UserID, claims.CurrencyID, gameModule.GetGameCode())
+	if err != nil {
+		if r := h.timeoutReplyIfNeeded(ctx, err); r != nil {
+			return r
+		}
+		return &wsReply{status: http.StatusInternalServerError, err: apperrors.Wrap(err, apperrors.ErrPlayerStateError, "Failed to get player state")}
+	}
+
+	s, ok := playerState.(*game.PlayerState)
+	if ok {
+		s.FreeSpins = nil
+	}
+
+	if h.app.walletProvider == nil {
+		return &wsReply{status: http.StatusInternalServerError, err: apperrors.New(apperrors.ErrInternalServerError, "Wallet provider not configured")}
+	}
+
+	tenantWalletProvider, err := h.app.walletProvider.WithTenant(ctx, h.app.tenantProvider, claims.TenantID)
+	if err != nil {
+		if errors.Is(err, ErrTenantNotFound) ||
+			errors.Is(err, ErrTenantWalletNotEnabled) {
+			return &wsReply{status: http.StatusUnauthorized, err: apperrors.New(apperrors.ErrUnauthorized, "Invalid tenant")}
+		}
+
+		return &wsReply{status: http.StatusInternalServerError, err: apperrors.New(apperrors.ErrTenantError, "Failed to get tenant info")}
+	}
+
+	balance, err := tenantWalletProvider.CheckBalance(ctx, gameModule.GetGameCode(), claims.TenantID, claims.Username, claims.CurrencyID)
+	if err != nil {
+		if r := h.timeoutReplyIfNeeded(ctx, err); r != nil {
+			return r
+		}
+		return &wsReply{status: http.StatusInternalServerError, err: apperrors.Wrap(err, apperrors.ErrWalletError, "Failed to get balance")}
+	}
+
+	response := game.AuthorizeResponse{
+		LastState:  s,
+		GameConfig: buildConfig(cfg, tenant),
+		Player: game.Player{
+			TenantID: claims.TenantID,
+			UserID:   claims.UserID,
+			Username: claims.Username,
+			Balance:  balance,
+			Currency: claims.CurrencyID,
+		},
+	}
+
+	return &wsReply{status: http.StatusOK, data: response}
+}
+
+func (h *EventsWSHandler) handleSpin(c *WSConn, claims *auth.Claims, req WSRequest) *wsReply {
+	defer h.timeTrace("handleSpin in", time.Now())
+
+	ctx, cancel := c.NewCtxWithTimeout(wsTimeout)
+	defer cancel()
+
+	gameModule := h.app.GetGame()
+	if gameModule == nil {
+		return &wsReply{status: http.StatusInternalServerError, err: apperrors.New(apperrors.ErrGameModuleNotFound, "Game not configured")}
+	}
+
+	cfg, err := h.app.gameModule.GetConfig(ctx)
+	if err != nil {
+		if r := h.timeoutReplyIfNeeded(ctx, err); r != nil {
+			return r
+		}
+		return &wsReply{status: http.StatusInternalServerError, err: apperrors.New(apperrors.ErrConfigError, "Fail to get game config")}
+	}
+
+	tier, mul := cfg.GetConfig().Tier, cfg.GetConfig().Multiplier
+	if len(tier) == 0 || len(mul) == 0 {
+		return &wsReply{status: http.StatusInternalServerError, err: apperrors.New(apperrors.ErrConfigError, "Bet setting not found")}
+	}
+
+	var spinReq SpinRequest
+	if err := json.Unmarshal(req.Data, &spinReq); err != nil {
+		return &wsReply{status: http.StatusBadRequest, err: apperrors.New(apperrors.ErrInvalidRequest, "Invalid request payload")}
+	}
+
+	if !lo.Contains(tier, spinReq.Tier) || !lo.Contains(mul, spinReq.Multiplier) {
+		return &wsReply{status: http.StatusBadRequest, err: apperrors.New(apperrors.ErrInvalidRequest, "Bet setting not found")}
+	}
+
+	if claims.Username == "" {
+		return &wsReply{status: http.StatusBadRequest, err: apperrors.New(apperrors.ErrInvalidRequest, "Username not found in JWT")}
+	}
+	if claims.Name == "" {
+		return &wsReply{status: http.StatusBadRequest, err: apperrors.New(apperrors.ErrInvalidRequest, "Name not found in JWT")}
+	}
+
+	betMul := float32(decimal.NewFromFloat32(spinReq.Tier).Mul(decimal.NewFromFloat32(spinReq.Multiplier)).InexactFloat64())
+
+	tenantWalletProvider, err := h.app.walletProvider.WithTenant(ctx, h.app.tenantProvider, claims.TenantID)
+	if err != nil {
+		if errors.Is(err, ErrTenantNotFound) ||
+			errors.Is(err, ErrTenantWalletNotEnabled) {
+			return &wsReply{status: http.StatusUnauthorized, err: apperrors.New(apperrors.ErrUnauthorized, "Invalid tenant")}
+		}
+
+		return &wsReply{status: http.StatusInternalServerError, err: apperrors.New(apperrors.ErrTenantError, "Failed to get tenant info")}
+	}
+
+	gameService := h.app.newGameService(
+		gameModule,
+		h.app.stateProvider,
+		tenantWalletProvider,
+		h.app.rewardProvider,
+		h.app.logProvider,
+		h.app.tenantProvider,
+		h.app.gameProvider,
+		h.logger,
+	)
+
+	result, err := gameService.ExecuteSpinV2(ctx, &SpinServiceRequest{
+		TenantID:      claims.TenantID,
+		UserID:        claims.UserID,
+		Username:      claims.Username,
+		Name:          claims.Name,
+		CurrencyID:    claims.CurrencyID,
+		BetMultiplier: betMul,
+		Tier:          spinReq.Tier,
+		Multiplier:    spinReq.Multiplier,
+		CheatPayout:   spinReq.CheatPayout,
+		ExtraData:     spinReq.ExtraData,
+	})
+	if err != nil {
+		if r := h.timeoutReplyIfNeeded(ctx, err); r != nil {
+			return r
+		}
+		return &wsReply{status: http.StatusInternalServerError, err: err}
+	}
+
+	response := result.SpinResult.ToSpinResponse()
+	return &wsReply{status: http.StatusOK, data: response}
+}
+
+func (h *EventsWSHandler) handleGetState(c *WSConn, claims *auth.Claims, req WSRequest) *wsReply {
+	ctx, cancel := c.NewCtxWithTimeout(wsTimeout)
+	defer cancel()
+
+	gameModule := h.app.GetGame()
+	if gameModule == nil {
+		return &wsReply{status: http.StatusInternalServerError, err: apperrors.New(apperrors.ErrGameModuleNotFound, "Game not configured")}
+	}
+
+	if h.app.stateProvider == nil {
+		return &wsReply{status: http.StatusInternalServerError, err: apperrors.New(apperrors.ErrInternalServerError, "State provider not configured")}
+	}
+
+	playerState, err := h.app.stateProvider.GetPlayerState(ctx, claims.UserID, claims.CurrencyID, gameModule.GetGameCode())
+	if err != nil {
+		if r := h.timeoutReplyIfNeeded(ctx, err); r != nil {
+			return r
+		}
+		return &wsReply{status: http.StatusInternalServerError, err: apperrors.Wrap(err, apperrors.ErrPlayerStateError, "Failed to get player state")}
+	}
+
+	return &wsReply{status: http.StatusOK, data: playerState}
+}
+
+type betHistoryWSRequest struct {
+	Type     BetType `json:"type"`
+	GameCode string  `json:"gameCode"`
+	Limit    int     `json:"limit"`
+	Page     int     `json:"page"`
+}
+
+func (h *EventsWSHandler) handleBetHistory(c *WSConn, claims *auth.Claims, req WSRequest) *wsReply {
+	ctx, cancel := c.NewCtxWithTimeout(wsTimeout)
+	defer cancel()
+
+	gameModule := h.app.GetGame()
+	if gameModule == nil {
+		return &wsReply{status: http.StatusInternalServerError, err: apperrors.New(apperrors.ErrGameModuleNotFound, "Game not configured")}
+	}
+
+	if h.app.logProvider == nil {
+		return &wsReply{status: http.StatusInternalServerError, err: apperrors.New(apperrors.ErrInternalServerError, "Log provider not configured")}
+	}
+
+	var params betHistoryWSRequest
+	if err := json.Unmarshal(req.Data, &params); err != nil {
+		return &wsReply{status: http.StatusBadRequest, err: apperrors.New(apperrors.ErrInvalidRequest, "Invalid request payload")}
+	}
+
+	if params.Limit <= 0 {
+		params.Limit = 20
+	}
+	if params.Limit > 100 {
+		params.Limit = 100
+	}
+	if params.Page < 0 {
+		params.Page = 0
+	}
+	if params.GameCode == "" {
+		params.GameCode = gameModule.GetGameCode()
+	}
+
+	var userID string
+	if params.Type != BetTypeJackpot {
+		userID = claims.UserID
+	}
+
+	query := &BetHistoryQuery{
+		TenantID: claims.TenantID,
+		UserID:   userID,
+		GameCode: params.GameCode,
+		Type:     params.Type,
+		Page:     params.Page,
+		Limit:    params.Limit,
+	}
+
+	result, err := h.app.logProvider.GetBetHistory(ctx, query)
+	if err != nil {
+		if r := h.timeoutReplyIfNeeded(ctx, err); r != nil {
+			return r
+		}
+		return &wsReply{status: http.StatusInternalServerError, err: apperrors.Wrap(err, apperrors.ErrInternalServerError, "Failed to get bet history")}
+	}
+
+	return &wsReply{status: http.StatusOK, data: result}
+}
+
+type jackpotSubscribeWSRequest struct {
+	BetMultiplier    float32 `json:"bet_multiplier"`
+	BetMultiplierAlt float32 `json:"betMultiplier"`
+}
+
+type jackpotWSSender struct {
+	conn *WSConn
+}
+
+func (s *jackpotWSSender) Send(resp *Response) error {
+	cp := *resp
+	payload, err := json.Marshal(&cp)
+	if err != nil {
+		return err
+	}
+	return s.conn.Send(payload)
+}
+
+func (h *EventsWSHandler) handleJackpotSubscribe(c *WSConn, claims *auth.Claims, req WSRequest) {
+	var subReq jackpotSubscribeWSRequest
+	if err := json.Unmarshal(req.Data, &subReq); err != nil {
+		return
+	}
+
+	betMultiplier := subReq.BetMultiplier
+	if betMultiplier == 0 {
+		betMultiplier = subReq.BetMultiplierAlt
+	}
+	if betMultiplier <= 0 {
+		return
+	}
+
+	h.subscribeJackpot(c, claims.TenantID, claims.CurrencyID, betMultiplier)
+}
+
+func (h *EventsWSHandler) autoSubscribeJackpot(c *WSConn, claims *auth.Claims) {
+	if h.app.stateProvider == nil {
+		return
+	}
+	gameModule := h.app.GetGame()
+	if gameModule == nil {
+		return
+	}
+	ctx, cancel := c.NewCtxWithTimeout(wsTimeout)
+	defer cancel()
+	state, err := h.app.stateProvider.GetPlayerState(ctx, claims.UserID, claims.CurrencyID, gameModule.GetGameCode())
+	if err != nil {
+		return
+	}
+	ps, ok := state.(*game.PlayerState)
+	if !ok || ps == nil {
+		return
+	}
+	betMultiplier := ps.BetMultiplier
+	if betMultiplier <= 0 && ps.Tier > 0 && ps.Mul > 0 {
+		betMultiplier = float32(decimal.NewFromFloat32(ps.Tier).Mul(decimal.NewFromFloat32(ps.Mul)).InexactFloat64())
+	}
+	if betMultiplier <= 0 {
+		return
+	}
+	h.subscribeJackpot(c, claims.TenantID, claims.CurrencyID, betMultiplier)
+}
+
+func (h *EventsWSHandler) subscribeJackpot(c *WSConn, tenantID string, currency string, betMultiplier float32) {
+	c.StopJackpot()
+
+	base := c.Context()
+	ctx, cancel := context.WithCancel(base)
+	c.jackpotMu.Lock()
+	c.jackpotCancel = cancel
+	c.jackpotMu.Unlock()
+
+	gameModule := h.app.GetGame()
+	if gameModule == nil {
+		cancel()
+		return
+	}
+
+	gameCode := gameModule.GetGameCode()
+	var targetPoolIDs []string
+	if handler, ok := gameModule.(game.JackpotHandler); ok {
+		poolIDs, err := handler.GetPoolID(ctx, tenantID, currency, gameCode, betMultiplier)
+		if err != nil {
+			cancel()
+			return
+		}
+		targetPoolIDs = poolIDs
+	}
+	isTargetPool := func(poolID string) bool {
+		return len(targetPoolIDs) == 0 || lo.Contains(targetPoolIDs, poolID)
+	}
+	config := &streamConfig{
+		tenantID:      tenantID,
+		currency:      currency,
+		betMultiplier: betMultiplier,
+		targetPoolIDs: targetPoolIDs,
+		isTargetPool:  isTargetPool,
+		ctx:           ctx,
+	}
+
+	sender := &jackpotWSSender{conn: c}
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				c.logger.Error().
+					Interface("panic", r).
+					Str("stack", string(debug.Stack())).
+					Msg("panic recovered in jackpot stream")
+			}
+		}()
+		h.app.jackpotHandler.streamUpdates(config, sender)
+	}()
+}
+
+// validateTokenExpiry returns an AppError with code ErrUnauthorized (401) if the
+// claims' token has already expired, so that the reply carries both
+// status_code=401 and error_code=401 which the client can interpret as an
+// InvalidToken and trigger its refresh flow.
+func validateTokenExpiry(claims *auth.Claims) error {
+	if claims == nil || claims.ExpiresAt == nil {
+		return apperrors.New(apperrors.ErrUnauthorized, "invalid token")
+	}
+	if time.Now().After(claims.ExpiresAt.Time) {
+		return apperrors.New(apperrors.ErrUnauthorized, "token expired")
+	}
+	return nil
+}
+
+func parseToken(tokenString string, secret string) (*auth.Claims, error) {
+	parser := jwt.NewParser()
+	token, err := parser.ParseWithClaims(tokenString, &auth.Claims{}, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, errors.New("unexpected signing method")
+		}
+		return []byte(secret), nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	claims, ok := token.Claims.(*auth.Claims)
+	if !ok || !token.Valid {
+		return nil, errors.New("invalid token claims")
+	}
+	return claims, nil
+}
+
+func (h *EventsWSHandler) timeTrace(msg string, start time.Time) {
+	h.logger.Debug().Dur("duration", time.Since(start)).Msg(msg)
+}
+
+func (h *EventsWSHandler) validateTenant(g *gin.Context, claims *auth.Claims) bool {
+	tenant, err := h.app.tenantProvider.Get(g.Request.Context(), claims.TenantID, false)
+	if err != nil {
+		if errors.Is(err, ErrTenantNotFound) {
+			ErrorWithMessage(g, http.StatusNotFound, "invalid tenant", apperrors.ErrUnauthorized)
+			return false
+		}
+
+		h.logger.Warn().Err(err).Msg("failed to get tenant")
+		ErrorWithMessage(g, http.StatusInternalServerError, "failed to get tenant", apperrors.ErrInternalServerError)
+		return false
+	}
+
+	if !tenant.WalletEnabled() {
+		ErrorWithMessage(g, http.StatusForbidden, "invalid tenant", apperrors.ErrUnauthorized)
+		return false
+	}
+
+	return true
+}
+
+func (h *EventsWSHandler) validateGame(g *gin.Context, claims *auth.Claims) bool {
+	tenantGame, err := h.app.gameProvider.Get(g.Request.Context(), claims.TenantID, false)
+	if err != nil {
+		if errors.Is(err, ErrTenantGameNotFound) {
+			ErrorWithMessage(g, http.StatusNotFound, "invalid tenant", apperrors.ErrGameStatusError)
+			return false
+		}
+
+		ErrorWithMessage(g, http.StatusInternalServerError, "failed to get tenant game", apperrors.ErrInternalServerError)
+		return false
+	}
+
+	if !tenantGame.IsActive() || !tenantGame.AllowUsername(claims.Username) {
+		ErrorWithMessage(g, http.StatusForbidden, "invalid game status", apperrors.ErrGameStatusError)
+		return false
+	}
+
+	return true
+}
+
+func (h *EventsWSHandler) KickTenantPlayersCallback(ctx context.Context, tenantGame TenantGame) {
+	conns := h.connMgr.ListByTenant(tenantGame.TenantID)
+	for _, conn := range conns {
+		conn.CloseWithReason("game_disabled")
+	}
+}

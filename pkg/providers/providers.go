@@ -1,0 +1,298 @@
+package providers
+
+import (
+	"context"
+	"errors"
+	"time"
+
+	"github.com/shopspring/decimal"
+)
+
+// StateProvider interface for player state management
+type StateProvider interface {
+	GetPlayerState(ctx context.Context, userID, currencyID, gameCode string) (interface{}, error)
+	SavePlayerState(ctx context.Context, userID, currencyID, gameCode string, state interface{}) error
+	GetSpinState(ctx context.Context, sessionID, gameCode string) (interface{}, error)
+	SaveSpinState(ctx context.Context, sessionID, gameCode string, state interface{}) error
+	DeleteSpinState(ctx context.Context, sessionID, gameCode string) error
+}
+
+// WalletProvider interface for wallet operations
+type WalletProvider interface {
+	GetBalance(ctx context.Context, userID, currencyID string) (decimal.Decimal, error)
+	CheckBalance(ctx context.Context, productid, tenantID, username, currencyID string) (decimal.Decimal, error)
+	Withdraw(ctx context.Context, userID, currencyID string, amount decimal.Decimal) error
+	PlaceBets(ctx context.Context, productId, tenantID, username, currencyID string, amount decimal.Decimal, roundID string, transactionId string, gameCode string, ameName string) (decimal.Decimal, error)
+	Deposit(ctx context.Context, userID, currencyID string, amount decimal.Decimal) error
+	SettleBets(ctx context.Context, productId, tenantID, username, currencyID string, amount decimal.Decimal, payoutAmount decimal.Decimal, roundID string, transactionId string, gameCode string, gameName string) error
+	GetWalletUrl(ctx context.Context) string
+	WithTenant(ctx context.Context, provider TenantProvider, tenantID string) (WalletProvider, error)
+}
+
+// ContributeRequest represents a request to contribute to a jackpot pool
+type ContributeRequest struct {
+	PoolID     string          `json:"pool_id"`               // Pool ID to contribute to
+	Amount     decimal.Decimal `json:"amount"`                // Contribution amount
+	TenantID   string          `json:"tenant_id"`             // Tenant ID of the user
+	CurrencyID string          `json:"currency_id"`           // Currency ID of the session
+	GameCode   string          `json:"game_code"`             // Game code
+	UserID     string          `json:"user_id"`               // User ID making the contribution
+	SpinID     *string         `json:"spin_id,omitempty"`     // Optional: spin/round ID to group updates from the same spin
+	TotalPools *int            `json:"total_pools,omitempty"` // Optional: total number of pools for this spin (for flush when complete)
+}
+
+// ClaimRequest represents a request to claim a jackpot pool
+type ClaimRequest struct {
+	PoolID     string          `json:"pool_id"` // Pool ID to claim from
+	UserID     string          `json:"user_id"` // User ID claiming the jackpot
+	Username   string          `json:"username"`
+	TenantID   string          `json:"tenant_id"`
+	CurrencyID string          `json:"currency_id"`
+	GameCode   string          `json:"game_code"`            // Game code
+	InitValue  decimal.Decimal `json:"init_value,omitempty"` // Initial pool value for claim calculation
+}
+
+// RewardProvider interface for jackpot/reward operations
+type RewardProvider interface {
+	Contribute(ctx context.Context, req *ContributeRequest) error
+	Claim(ctx context.Context, req *ClaimRequest) (*JackpotClaim, error)
+	GetPool(ctx context.Context, poolID string, initValue decimal.Decimal) (*JackpotPool, error)
+}
+
+// JackpotPool represents a jackpot pool response
+type JackpotPool struct {
+	PoolID    string          `json:"pool_id"`
+	Amount    decimal.Decimal `json:"amount"`
+	UpdatedAt time.Time       `json:"updated_at"`
+}
+
+// JackpotClaim represents a jackpot claim response
+type JackpotClaim struct {
+	ClaimID    string          `json:"claim_id"`
+	PoolID     string          `json:"pool_id"`
+	TenantID   string          `json:"tenant_id"`
+	UserID     string          `json:"user_id"`
+	CurrencyID string          `json:"currency_id"`
+	Amount     decimal.Decimal `json:"amount"`
+	GameCode   string          `json:"game_code"`
+	Status     string          `json:"status"`
+	CreatedAt  time.Time       `json:"created_at"`
+	UpdatedAt  time.Time       `json:"updated_at"`
+}
+
+// BetType represents the type of bet history to retrieve
+type BetType string
+
+const (
+	BetTypeNormal   BetType = "normal"
+	BetTypeFreeSpin BetType = "free_spin"
+	BetTypeJackpot  BetType = "jackpot"
+)
+
+// LogProvider interface for logging game events
+type LogProvider interface {
+	LogSpin(ctx context.Context, log *SpinLog) (sessionID string, err error)
+	LogSpinError(ctx context.Context, log *SpinErrorLog) (sessionID string, err error)
+	LogJackpot(ctx context.Context, log *JackpotLog) (sessionID string, err error)
+	GetBetHistory(ctx context.Context, query *BetHistoryQuery) (*BetHistoryResponse, error)
+}
+
+// SpinLog represents a spin log entry to be saved
+type SpinLog struct {
+	SessionID         string        `json:"sessionId"`
+	TenantID          string        `json:"tenantId"`
+	UserID            string        `json:"userId"`
+	Username          string        `json:"username"`
+	GameCode          string        `json:"gameCode"`
+	BetAmount         float64       `json:"betAmount"`
+	Currency          string        `json:"currency"` // e.g. "USD", "VND"
+	WinAmount         float64       `json:"winAmount"`
+	SpinType          int           `json:"spinType"` // 0 = normal, 1 = free spin
+	IsGetJackpot      *bool         `json:"isGetJackpot"`
+	SpinResult        interface{}   `json:"spinResult"`
+	SplitRoundHistory bool          `json:"splitRoundHistory"`
+	SubReel           interface{}   `json:"subReel"`
+	Rounds            []interface{} `json:"rounds"`
+	Timestamp         time.Time     `json:"timestamp"`
+}
+
+// SpinErrorLog represents a spin error log entry to be saved
+type SpinErrorLog struct {
+	SessionID  string          `json:"sessionId"`
+	TenantID   string          `json:"tenantId"`
+	UserID     string          `json:"userId"`
+	Username   string          `json:"username"`
+	GameCode   string          `json:"gameCode"`
+	Currency   string          `json:"currency"` // e.g. "usd", "vnd"
+	BetAmount  decimal.Decimal `json:"betAmount"`
+	WinAmount  decimal.Decimal `json:"winAmount"`
+	SpinType   int             `json:"spinType"` // 0 = normal, 1 = free spin
+	Status     string          `json:"status"`
+	Error      string          `json:"error"`
+	SpinResult interface{}     `json:"spinResult"`
+	Timestamp  time.Time       `json:"timestamp"`
+}
+
+// JackpotLog represents a jackpot log entry to be saved
+type JackpotLog struct {
+	SessionID       string      `json:"sessionId"`
+	TenantID        string      `json:"tenantId"`
+	UserID          string      `json:"userId"`
+	Username        string      `json:"username"` // Display name for history
+	GameCode        string      `json:"gameCode"`
+	Name            string      `json:"name"`
+	Tier            string      `json:"tier"`      // "mini", "minor", "grand"
+	BetAmount       float64     `json:"betAmount"` // Bet amount when jackpot won
+	WinAmount       float64     `json:"winAmount"`
+	Currency        string      `json:"currency"` // e.g. "USD", "VND"
+	TotalWinJackpot float64     `json:"totalWinJackpot,omitempty"`
+	SpinType        int         `mapstructure:"spinType" json:"spinType"`
+	SpinResult      interface{} `json:"spinResult"`
+	Timestamp       time.Time   `json:"timestamp"`
+}
+
+// BetHistoryQuery represents query parameters for bet history
+type BetHistoryQuery struct {
+	TenantID string  `json:"tenantId"`
+	UserID   string  `json:"userId"`
+	GameCode string  `json:"gameCode"`
+	Type     BetType `json:"type"`
+	Page     int     `json:"page"`
+	Limit    int     `json:"limit"`
+}
+
+// Bet represents a single bet history item
+type Bet struct {
+	SessionID         string      `json:"sessionID"`
+	Time              time.Time   `json:"time"`
+	TotalBet          float64     `json:"totalBet"`
+	TotalWin          float64     `json:"totalWin"`
+	Currency          string      `json:"currency"`
+	TotalWinJackpot   float64     `json:"totalWinJackpot,omitempty"`
+	TenantID          *string     `json:"tenantID,omitempty"`
+	Username          *string     `json:"userName,omitempty"`
+	Name              *string     `json:"name,omitempty"`
+	JackpotType       *string     `json:"jackpotType,omitempty"`
+	IsFreeSpin        bool        `json:"isFreeSpin"`
+	Reels             any         `json:"reels,omitempty"`
+	WinLines          any         `json:"winLines,omitempty"`
+	SubReel           any         `json:"subReel,omitempty"`
+	SplitRoundHistory bool        `json:"-"`
+	Rounds            []GameRound `json:"rounds,omitempty"`
+	Round             any         `json:"round,omitempty"`
+	IsJackpot         any         `json:"isJackpot"`
+	ExtraData         any         `json:"extraData,omitempty"`
+	SpinType          int         `json:"spinType"`
+}
+
+type GameRound struct {
+	TotalBet       float64                `json:"totalBet,omitempty"`
+	Reels          any                    `json:"reels,omitempty"`
+	Winlines       any                    `json:"winlines,omitempty"`
+	TotalWin       float64                `json:"totalWin,omitempty"`
+	IsGetFreeSpin  *bool                  `json:"isGetFreeSpin,omitempty"`
+	ResultFreeSpin *int                   `json:"resultFreeSpin,omitempty"`
+	IsGetJackpot   *bool                  `json:"isGetJackpot,omitempty"`
+	JackpotTypes   []*string              `json:"jackpotTypes,omitempty"`
+	JackpotPrize   any                    `json:"jackpotPrize,omitempty"`
+	ExtraData      map[string]interface{} `json:"extraData,omitempty"`
+}
+
+// BetHistoryResponse represents the response for bet history
+type BetHistoryResponse struct {
+	Total int   `json:"total"`
+	Items []Bet `json:"items"`
+}
+
+var (
+	ErrTenantNotFound         = errors.New("tenant not found")
+	ErrTenantWalletNotEnabled = errors.New("tenant wallet not enabled")
+)
+
+// TenantProvider interface for tenant operations
+type TenantProvider interface {
+	Get(ctx context.Context, id string, skipCache bool) (*ResponseTenant, error)
+}
+
+// Tenant cloned from tenant-service
+type Tenant struct {
+	ID                string    `json:"id" bson:"_id"`
+	AuthVersion       int       `json:"auth_version" bson:"auth_version"`
+	Email             string    `json:"email" bson:"email"`
+	LobbyHomeURL      string    `json:"lobby_home_url" bson:"lobby_home_url"`
+	WalletCallbackURL string    `json:"wallet_callback_url" bson:"wallet_callback_url"`
+	WalletVersion     int       `json:"wallet_version" bson:"wallet_version"`
+	Currencies        []string  `json:"currencies,omitempty" bson:"currencies"`
+	WhitelistedIPs    []string  `json:"whitelisted_ips,omitempty" bson:"whitelisted_ips"`
+	Status            string    `json:"status" bson:"status"`
+	CreatedAt         time.Time `json:"created_at" bson:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at" bson:"updated_at"`
+}
+
+func (t *Tenant) WalletEnabled() bool {
+	return t.Status == "active"
+}
+
+type ResponseTenant struct {
+	Tenant
+
+	SecretKey string `json:"secret_key"`
+}
+
+var (
+	ErrTenantGameNotFound = errors.New("tenant game not found")
+)
+
+// GameProvider interface for game operations
+type GameProvider interface {
+	SetGameCode(code string)
+	Get(ctx context.Context, tenantID string, skipCache bool) (*TenantGame, error)
+	AddDisableGameCallback(ctx context.Context, callback func(context.Context, TenantGame))
+}
+
+type TenantGame struct {
+	ID                string         `json:"id" bson:"_id"`
+	CreatedAt         time.Time      `json:"created_at" bson:"created_at"`
+	UpdatedAt         time.Time      `json:"updated_at" bson:"updated_at"`
+	TenantID          string         `json:"tenant_id" bson:"tenant_id"`
+	GameCode          string         `json:"game_code" bson:"game_code"`
+	CustomGameCode    string         `json:"custom_game_code,omitempty" bson:"custom_game_code,omitempty"`
+	PlayURL           string         `json:"play_url" bson:"play_url"`
+	AndroidPlayURL    string         `json:"android_play_url" bson:"android_play_url"`
+	IOSPlayURL        string         `json:"ios_play_url" bson:"ios_play_url"`
+	Status            string         `json:"status" bson:"status"`
+	Rank              int            `json:"rank" bson:"rank"`
+	CurrencySetting   map[string]any `json:"currency_setting" bson:"currency_setting"`
+	LimitAccess       bool           `json:"limit_access" bson:"limit_access"`
+	UsernameWhitelist []string       `json:"username_whitelist" bson:"username_whitelist"`
+
+	// cache field for logic check
+	UsernameWhitelistMap map[string]bool `json:"username_whitelist_map,omitempty" bson:"-"`
+}
+
+func (g *TenantGame) IsActive() bool {
+	return g.Status == "active"
+}
+
+func (g *TenantGame) AllowUsername(username string) bool {
+	if !g.LimitAccess {
+		return true
+	}
+
+	if len(g.UsernameWhitelist) == 0 {
+		return false
+	}
+
+	if len(g.UsernameWhitelistMap) == 0 {
+		g.UsernameWhitelistMap = make(map[string]bool, len(g.UsernameWhitelist))
+		for _, allowUsername := range g.UsernameWhitelist {
+			g.UsernameWhitelistMap[allowUsername] = true
+		}
+	}
+
+	if ok := g.UsernameWhitelistMap[username]; !ok {
+		return false
+	}
+
+	return true
+}

@@ -1,0 +1,600 @@
+package server
+
+import (
+	"context"
+	goerrors "errors"
+	"strings"
+
+	"github.com/gin-gonic/gin"
+	"github.com/rs/zerolog"
+	"github.com/samber/lo"
+	"github.com/shopspring/decimal"
+
+	"gl.owvn.org/veuve/server/slot-game-module/auth"
+	"gl.owvn.org/veuve/server/slot-game-module/errors"
+	"gl.owvn.org/veuve/server/slot-game-module/game"
+)
+
+// GameHandler handles common HTTP requests for the game
+//
+// Flow: HTTP Request -> gameRoutes -> GameHandler -> GameService -> GameModule
+//
+// Responsibilities:
+// - Extract user info from JWT token
+// - Validate request parameters
+// - Call GameService for business logic
+// - Format and return HTTP responses
+//
+// Game-specific logic should be in GameModule, not here.
+type GameHandler struct {
+	app    *App
+	logger zerolog.Logger
+}
+
+// NewGameHandler creates a new game handler
+func NewGameHandler(app *App) *GameHandler {
+	return &GameHandler{
+		app:    app,
+		logger: app.logger.With().Str("handler", "game").Logger(),
+	}
+}
+
+// extractTenantID extracts tenant ID from gin context
+func (h *GameHandler) extractTenantID(c *gin.Context) string {
+	tenantID, ok := auth.GetTenantID(c)
+	if !ok {
+		return h.app.GetGame().DefaultTenantID(c)
+	}
+	return tenantID
+}
+
+// extractUserID extracts user ID from gin context
+func (h *GameHandler) extractUserID(c *gin.Context) (string, error) {
+	userID, ok := auth.GetUserID(c)
+	if !ok {
+		return "", errors.New(errors.ErrUnauthorized, "user_id not found in context")
+	}
+	return userID, nil
+}
+
+// extractCurrencyID extracts currency ID from gin context
+func (h *GameHandler) extractCurrencyID(c *gin.Context) string {
+	currencyID, ok := auth.GetCurrencyID(c)
+	if !ok {
+		return h.app.GetGame().DefaultCurrency(c)
+	}
+	return currencyID
+}
+
+// Authorize godoc
+// @Summary      Authorize game session
+// @Description  Validates JWT token, retrieves player state, balance, and game config
+// @Tags         game
+// @Accept       json
+// @Produce      json
+// @Param        game_code   path      string  true  "Game code"
+// @Success      200  {object}  server.SuccessResponse[game.AuthorizeResponse]
+// @Failure      401  {object}  server.ErrorResponse
+// @Failure      500  {object}  server.ErrorResponse
+// @Security     BearerAuth
+// @Router       /games/{game_code}/authorize-game [get]
+func (h *GameHandler) Authorize(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	gameModule := h.app.GetGame()
+	if gameModule == nil {
+		h.logger.Error().Msg("No game module registered")
+		InternalError(c, errors.New(errors.ErrGameModuleNotFound, "Game not configured"))
+		return
+	}
+
+	// Extract user ID from JWT token
+	userID, err := h.extractUserID(c)
+	if err != nil {
+		h.logger.Error().Err(err).Msg("Failed to extract user ID")
+		Unauthorized(c, errors.New(errors.ErrUnauthorized, "Invalid or missing authentication token"))
+		return
+	}
+
+	// Extract username and currency
+	tenantID := h.extractTenantID(c)
+	username, _ := auth.GetUsername(c)
+	currencyID := h.extractCurrencyID(c)
+
+	// Get game config
+	cfg, err := gameModule.GetConfig(ctx)
+	if err != nil {
+		h.logger.Error().Err(err).Msg("Failed to get game config")
+		InternalError(c, errors.New(errors.ErrInternalServerError, "Failed to retrieve game configuration"))
+		return
+	}
+
+	// Get tenant info
+	tenant, err := h.app.tenantProvider.Get(ctx, tenantID, false)
+	if err != nil {
+		h.logger.Error().Err(err).Msg("Failed to get tenant info")
+
+		if goerrors.Is(err, ErrTenantNotFound) {
+			Unauthorized(c, errors.New(errors.ErrUnauthorized, "Invalid tenant"))
+			return
+		}
+
+		InternalError(c, errors.Wrap(err, errors.ErrTenantError, "Failed to get tenant info"))
+		return
+	}
+
+	// TODO: require game provider
+	if h.app.gameProvider != nil && !h.checkGameStatus(c, ctx, tenantID, username) {
+		return
+	}
+
+	// Get player state - requires StateProvider
+	playerState, err := h.app.stateProvider.GetPlayerState(ctx, userID, h.extractCurrencyID(c), gameModule.GetGameCode())
+	if err != nil {
+		h.logger.Error().Err(err).Msg("Failed to get player state")
+		InternalError(c, errors.Wrap(err, errors.ErrPlayerStateError, "Failed to get player state"))
+		return
+	}
+
+	// rm freeSpins, BE logic is only stored in db
+	s, ok := playerState.(*game.PlayerState)
+	if ok {
+		s.FreeSpins = nil
+	}
+
+	// Get balance - requires WalletProvider
+	if h.app.walletProvider == nil {
+		h.logger.Error().Msg("Wallet provider not configured")
+		InternalError(c, errors.New(errors.ErrInternalServerError, "Wallet provider not configured"))
+		return
+	}
+
+	tenantWalletProvider, err := h.app.walletProvider.WithTenant(ctx, h.app.tenantProvider, tenantID)
+	if err != nil {
+		if goerrors.Is(err, ErrTenantNotFound) ||
+			goerrors.Is(err, ErrTenantWalletNotEnabled) {
+			Unauthorized(c, errors.New(errors.ErrUnauthorized, "Invalid tenant"))
+			return
+		}
+
+		InternalError(c, errors.New(errors.ErrTenantError, "Failed to get tenant info"))
+		return
+	}
+
+	balance, err := tenantWalletProvider.CheckBalance(ctx, gameModule.GetGameCode(), tenantID, username, currencyID)
+	if err != nil {
+		balance, err = tenantWalletProvider.GetBalance(ctx, userID, currencyID)
+		if err != nil {
+			h.logger.Error().Err(err).Msg("Failed to get balance")
+			InternalError(c, errors.Wrap(err, errors.ErrWalletError, "Failed to get balance"))
+			return
+		}
+	}
+
+	// Build response
+	response := game.AuthorizeResponse{
+		LastState:  s,
+		GameConfig: buildConfig(cfg, tenant),
+		Player: game.Player{
+			TenantID: tenantID,
+			UserID:   userID,
+			Username: username,
+			Balance:  balance,
+			Currency: currencyID,
+		},
+	}
+
+	OK(c, response)
+}
+
+// SpinRequest represents the spin request body
+// @Description Spin request payload
+type SpinRequest struct {
+
+	// Bet multiplier = Tier * Multiplier
+	Tier       float32 `json:"tier" binding:"required" example:"1.0"`
+	Multiplier float32 `json:"multiplier" binding:"required" example:"1.0"`
+
+	// Optional cheat payout for testing
+	CheatPayout *game.CheatPayout `json:"cheatPayout,omitempty"`
+	// Optional extra data for game-specific customization
+	ExtraData map[string]interface{} `json:"extraData,omitempty"`
+}
+
+// Spin godoc
+// @Summary      Execute a spin
+// @Description  Executes a slot spin with the given bet multiplier. Handles normal and free spins, wallet transactions, jackpot contributions, and logging.
+// @Tags         game
+// @Accept       json
+// @Produce      json
+// @Param        game_code   path      string       true  "Game code"
+// @Param        request     body      SpinRequest  true  "Spin request"
+// @Success      200      {object}  server.SuccessResponse[game.SpinResponse]
+// @Failure      400      {object}  server.ErrorResponse
+// @Failure      401      {object}  server.ErrorResponse
+// @Failure      500      {object}  server.ErrorResponse
+// @Security     BearerAuth
+// @Router       /games/{game_code}/spin [post]
+//
+// Flow:
+// 1. Extract user info from JWT (tenantID, userID, username, currencyID)
+// 2. Validate request (betMultiplier > 0)
+// 3. Get providers (StateProvider, WalletProvider, RewardProvider, LogProvider)
+// 4. Create GameService with providers
+// 5. Call GameService.ExecuteSpin() -> GameModule.PlayNormalSpin() or PlayFreeSpin()
+// 6. Format response and return
+func (h *GameHandler) Spin(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	gameModule := h.app.GetGame()
+	if gameModule == nil {
+		h.logger.Error().Msg("No game module registered")
+		InternalError(c, errors.New(errors.ErrGameModuleNotFound, "Game not configured"))
+		return
+	}
+
+	// Extract user ID from JWT token
+	userID, err := h.extractUserID(c)
+	if err != nil {
+		h.logger.Error().Err(err).Msg("Failed to extract user ID")
+		Unauthorized(c, errors.New(errors.ErrUnauthorized, "Invalid or missing authentication token"))
+		return
+	}
+
+	// Get username from JWT
+	username, _ := auth.GetUsername(c)
+	if len(username) == 0 {
+		BadRequest(c, errors.New(errors.ErrInvalidRequest, "Username not found in JWT"))
+		return
+	}
+
+	name, _ := auth.GetName(c)
+	if len(name) == 0 {
+		BadRequest(c, errors.New(errors.ErrInvalidRequest, "Name not found in JWT"))
+		return
+	}
+
+	cfg, err := h.app.gameModule.GetConfig(ctx)
+	if err != nil {
+		InternalError(c, errors.New(errors.ErrConfigError, "Fail to get game config"))
+		return
+	}
+
+	tier, mul := cfg.GetConfig().Tier, cfg.GetConfig().Multiplier
+	if len(tier) == 0 || len(mul) == 0 {
+		InternalError(c, errors.New(errors.ErrConfigError, "Bet setting not found"))
+		return
+	}
+
+	// Parse request body
+	var req SpinRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.logger.Error().Err(err).Msg("Failed to parse spin request")
+		BadRequest(c, errors.New(errors.ErrInvalidRequest, "Invalid request payload"))
+		return
+	}
+
+	// Validate bet multiplier
+	if !lo.Contains(tier, req.Tier) || !lo.Contains(mul, req.Multiplier) {
+		BadRequest(c, errors.New(errors.ErrInvalidRequest, "Bet setting not found"))
+		return
+	}
+
+	betMul := float32(decimal.NewFromFloat32(req.Tier).Mul(decimal.NewFromFloat32(req.Multiplier)).InexactFloat64())
+	currencyID := h.extractCurrencyID(c)
+	tenantID := h.extractTenantID(c)
+
+	// TODO: require game provider
+	if h.app.gameProvider != nil && !h.checkGameStatus(c, ctx, tenantID, username) {
+		return
+	}
+
+	tenantWalletProvider, err := h.app.walletProvider.WithTenant(ctx, h.app.tenantProvider, tenantID)
+	if err != nil {
+		if goerrors.Is(err, ErrTenantNotFound) ||
+			goerrors.Is(err, ErrTenantWalletNotEnabled) {
+			Unauthorized(c, errors.New(errors.ErrUnauthorized, "Invalid tenant"))
+			return
+		}
+
+		InternalError(c, errors.New(errors.ErrTenantError, "Failed to get tenant info"))
+		return
+	}
+
+	// Create game service with providers
+	gameService := h.app.newGameService(
+		gameModule,
+		h.app.stateProvider,
+		tenantWalletProvider,
+		h.app.rewardProvider,
+		h.app.logProvider,
+		h.app.tenantProvider,
+		h.app.gameProvider,
+		h.logger,
+	)
+
+	result, err := gameService.ExecuteSpinV2(ctx, &SpinServiceRequest{
+		TenantID:      tenantID,
+		UserID:        userID,
+		Username:      username,
+		Name:          name,
+		CurrencyID:    currencyID,
+		BetMultiplier: betMul,
+		Tier:          req.Tier,
+		Multiplier:    req.Multiplier,
+		CheatPayout:   req.CheatPayout,
+		ExtraData:     req.ExtraData,
+	})
+
+	if err != nil {
+		// Execute spin with full flow
+		/*/result2, err := gameService.ExecuteSpin(ctx, &SpinServiceRequest{
+			TenantID:      tenantID,
+			UserID:        userID,
+			Username:      username,
+			Name:          name,
+			CurrencyID:    currencyID,
+			BetMultiplier: betMul,
+			Tier:          req.Tier,
+			Multiplier:    req.Multiplier,
+			CheatPayout:   req.CheatPayout,
+			ExtraData:     req.ExtraData,
+		})*/
+		//if err != nil {
+		h.logger.Error().Err(err).
+			Str("user_id", userID).
+			Float32("bet_multiplier", betMul).
+			Str("name", name).
+			Msg("Failed to execute spin")
+		HandleAppError(c, err)
+		return
+		//}
+		//result = result2
+	}
+
+	// Convert to response format
+	response := result.SpinResult.ToSpinResponse()
+
+	h.logger.Debug().
+		Str("user_id", userID).
+		Str("game_code", gameModule.GetGameCode()).
+		Str("session_id", result.SessionID).
+		Float64("total_bet", result.SpinResult.TotalBet.InexactFloat64()).
+		Float64("total_win", result.SpinResult.TotalWin.InexactFloat64()).
+		Float64("ending_balance", result.SpinResult.EndingBalance.InexactFloat64()).
+		Int("spin_type", result.SpinResult.SpinType).
+		Msg("Spin executed")
+
+	OK(c, response)
+}
+
+// GameConfigResponse represents the game configuration response
+// @Description Game configuration
+type GameConfigResponse struct {
+	PayLine           int   `json:"payLine" example:"20"`
+	JackpotMultiplier int   `json:"jackpotMultiplier" example:"5000"`
+	ReelSize          []int `json:"reelSize" example:"3,3,3,3,3"`
+}
+
+// GetConfig godoc
+// @Summary      Get game configuration
+// @Description  Returns the game configuration (paylines, jackpot multiplier, reel size)
+// @Tags         game
+// @Accept       json
+// @Produce      json
+// @Param        game_code   path      string  true  "Game code"
+// @Success      200  {object}  server.SuccessResponse[GameConfigResponse]
+// @Failure      500  {object}  server.ErrorResponse
+// @Router       /games/{game_code}/config [get]
+func (h *GameHandler) GetConfig(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	gameModule := h.app.GetGame()
+	if gameModule == nil {
+		h.logger.Error().Msg("No game module registered")
+		InternalError(c, errors.New(errors.ErrGameModuleNotFound, "Game not configured"))
+		return
+	}
+	cfg, err := gameModule.GetConfig(ctx)
+	if err != nil {
+		h.logger.Error().Err(err).Msg("Failed to get game config")
+		InternalError(c, errors.New(errors.ErrInternalServerError, "Failed to retrieve game configuration"))
+		return
+	}
+
+	response := buildConfig(cfg, nil)
+
+	OK(c, response)
+}
+
+func buildConfig(conf game.ConfigNormalizer, tenant *ResponseTenant) map[string]interface{} {
+	n := conf.Normalize()
+	if _, exists := n["mul"]; !exists {
+		n["mul"] = conf.GetConfig().Multiplier
+	}
+	if _, exists := n["tier"]; !exists {
+		n["tier"] = conf.GetConfig().Tier
+	}
+	if tenant != nil {
+		n["lobbyHomeUrl"] = tenant.LobbyHomeURL
+	}
+	return n
+}
+
+// GetState godoc
+// @Summary      Get player state
+// @Description  Returns the current player state for the game
+// @Tags         game
+// @Accept       json
+// @Produce      json
+// @Param        game_code   path      string       true  "Game code"
+// @Success      200  {object}  server.SuccessResponse[game.PlayerState]
+// @Failure      401  {object}  server.ErrorResponse
+// @Failure      500  {object}  server.ErrorResponse
+// @Security     BearerAuth
+// @Router       /games/{game_code}/get-player-state [get]
+func (h *GameHandler) GetState(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	gameModule := h.app.GetGame()
+	if gameModule == nil {
+		h.logger.Error().Msg("No game module registered")
+		InternalError(c, errors.New(errors.ErrGameModuleNotFound, "Game not configured"))
+		return
+	}
+
+	userID, err := h.extractUserID(c)
+	if err != nil {
+		h.logger.Error().Err(err).Msg("Failed to extract user ID")
+		Unauthorized(c, errors.New(errors.ErrUnauthorized, "Invalid or missing authentication token"))
+		return
+	}
+
+	// Get player state - requires StateProvider
+	playerState, err := h.app.stateProvider.GetPlayerState(ctx, userID, h.extractCurrencyID(c), gameModule.GetGameCode())
+	if err != nil {
+		h.logger.Error().Err(err).Msg("Failed to get player state")
+		InternalError(c, errors.Wrap(err, errors.ErrPlayerStateError, "Failed to get player state"))
+		return
+	}
+
+	OK(c, playerState)
+}
+
+// BetHistoryQueryParams represents query parameters for bet history
+type BetHistoryQueryParams struct {
+	Type     BetType `form:"type" binding:"required"`
+	GameCode string  `form:"gameCode" binding:"required"`
+	Limit    int     `form:"limit"`
+	Page     int     `form:"page"`
+}
+
+// GetBetHistory godoc
+// @Summary      Get bet history
+// @Description  Returns the bet history for the current user (normal, free_spin, or jackpot)
+// @Tags         history
+// @Accept       json
+// @Produce      json
+// @Param        game_code   path      string  true  "Game code"
+// @Param        type       query     string  true   "Bet type (normal, free_spin, jackpot)"
+// @Param        gameCode   query     string  true   "Game code"
+// @Param        limit      query     int     true   "Items per page"
+// @Param        page       query     int     true   "Page number (0-based)"
+// @Success      200        {object}  server.SuccessResponse[BetHistoryResponse]
+// @Failure      400        {object}  server.ErrorResponse
+// @Failure      401        {object}  server.ErrorResponse
+// @Failure      500        {object}  server.ErrorResponse
+// @Security     BearerAuth
+// @Router       /games/{game_code}/bet-history [get]
+func (h *GameHandler) GetBetHistory(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	gameModule := h.app.GetGame()
+	if gameModule == nil {
+		h.logger.Error().Msg("No game module registered")
+		InternalError(c, errors.New(errors.ErrGameModuleNotFound, "Game not configured"))
+		return
+	}
+
+	// Parse query parameters
+	var params BetHistoryQueryParams
+	if err := c.ShouldBindQuery(&params); err != nil {
+		BadRequest(c, errors.New(errors.ErrInvalidRequest, err.Error()))
+		return
+	}
+
+	// Set default values for Limit and Page if not provided
+	if params.Limit <= 0 {
+		params.Limit = 20
+	}
+	if params.Limit > 100 {
+		params.Limit = 100
+	}
+	if params.Page < 0 {
+		params.Page = 0
+	}
+
+	// For jackpot history, we don't need userID (show all users)
+	var userID string
+	if params.Type != BetTypeJackpot {
+		var err error
+		userID, err = h.extractUserID(c)
+		if err != nil {
+			h.logger.Error().Err(err).Msg("Failed to extract user ID")
+			Unauthorized(c, errors.New(errors.ErrUnauthorized, "Invalid or missing authentication token"))
+			return
+		}
+	}
+
+	// Build query
+	query := &BetHistoryQuery{
+		TenantID: h.extractTenantID(c),
+		UserID:   userID,
+		//GameCode: params.GameCode,
+		GameCode: strings.TrimPrefix(params.GameCode, "amb-"), //TODO, hard code, improve later
+		Type:     params.Type,
+		Page:     params.Page,
+		Limit:    params.Limit,
+	}
+
+	// Get history
+	result, err := h.app.logProvider.GetBetHistory(ctx, query)
+	if err != nil {
+		h.logger.Error().Err(err).Msg("Failed to get bet history")
+		InternalError(c, errors.Wrap(err, errors.ErrInternalServerError, "Failed to get bet history"))
+		return
+	}
+
+	OK(c, result)
+}
+
+// AssetsToken issues a CloudFront signed-URL query string that grants the
+// authenticated player read access to game assets on the CDN.
+// The client appends the returned query to every asset URL:
+func (h *GameHandler) AssetsToken(c *gin.Context) {
+	signer := h.app.GetAssetSigner()
+	if signer == nil {
+		h.logger.Error().Msg("Asset token requested but CloudFront is not configured")
+		InternalError(c, errors.New(errors.ErrInternalServerError, "Asset access is not configured"))
+		return
+	}
+
+	// Empty prefix = access to the whole distribution (all games resources).
+	ttl := h.app.Config().CloudFront.TokenTTL
+	token, err := signer.SignPrefix("", ttl)
+	if err != nil {
+		h.logger.Error().Err(err).Msg("Failed to sign asset token")
+		InternalError(c, errors.New(errors.ErrInternalServerError, "Failed to issue asset token"))
+		return
+	}
+
+	// Tokens are per-user credentials; never let a proxy or CDN cache this response.
+	c.Header("Cache-Control", "no-store")
+
+	OK(c, token)
+}
+
+func (h *GameHandler) checkGameStatus(
+	c *gin.Context,
+	ctx context.Context,
+	tenantID string,
+	username string,
+) bool {
+	tenantGame, err := h.app.gameProvider.Get(ctx, tenantID, false)
+	if err != nil {
+		if goerrors.Is(err, ErrTenantGameNotFound) {
+			Unauthorized(c, errors.New(errors.ErrUnauthorized, "Invalid tenant"))
+			return false
+		}
+
+		InternalError(c, errors.New(errors.ErrTenantError, "Failed to get tenant game info"))
+		return false
+	}
+
+	if !tenantGame.IsActive() || !tenantGame.AllowUsername(username) {
+		Unauthorized(c, errors.New(errors.ErrUnauthorized, "Invalid game status"))
+		return false
+	}
+
+	return true
+}

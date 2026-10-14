@@ -1,0 +1,1089 @@
+package server
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/rs/zerolog"
+	"github.com/samber/lo"
+	"github.com/shopspring/decimal"
+
+	"gl.owvn.org/veuve/server/slot-game-module/errors"
+	"gl.owvn.org/veuve/server/slot-game-module/game"
+	"gl.owvn.org/veuve/server/slot-game-module/logging"
+	"gl.owvn.org/veuve/server/slot-game-module/pkg/providers"
+	"gl.owvn.org/veuve/server/slot-game-module/pkg/trace"
+)
+
+var SessionIDKey = sessionIDKey{}
+
+type sessionIDKey struct{}
+
+// SpinService defines the minimal contract for executing a spin flow.
+type SpinService interface {
+	ExecuteSpin(ctx context.Context, req *SpinServiceRequest) (*SpinServiceResponse, error)
+	ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest) (*SpinServiceResponse, error)
+}
+
+// GameService orchestrates the full spin flow
+//
+// Flow: gameRoutes -> gameHandler -> gameService -> gameModule
+//
+// The service:
+// 1. Validates requests
+// 2. Manages wallet transactions (withdraw/deposit)
+// 3. Calls game module for spin logic
+// 4. Handles jackpot contributions/wins
+// 5. Updates player state
+// 6. Logs game events
+//
+// Game modules receive ModuleContext in the context, allowing them to:
+// - Access logger
+// - Access providers (if needed for custom logic)
+// - Access other services
+type GameService struct {
+	gameModule     game.Module
+	stateProvider  providers.StateProvider
+	walletProvider providers.WalletProvider
+	rewardProvider providers.RewardProvider
+	logProvider    providers.LogProvider
+	tenantProvider providers.TenantProvider
+	gameProvider   providers.GameProvider
+	logger         logging.LoggerProvider
+}
+
+// NewGameService creates a new default game service
+func NewGameService(
+	gameModule game.Module,
+	stateProvider providers.StateProvider,
+	walletProvider providers.WalletProvider,
+	rewardProvider providers.RewardProvider,
+	logProvider providers.LogProvider,
+	tenantProvider providers.TenantProvider,
+	gameProvider providers.GameProvider,
+	logger zerolog.Logger,
+) *GameService {
+	return &GameService{
+		gameModule:     gameModule,
+		stateProvider:  stateProvider,
+		walletProvider: walletProvider,
+		rewardProvider: rewardProvider,
+		logProvider:    logProvider,
+		tenantProvider: tenantProvider,
+		gameProvider:   gameProvider,
+		logger:         logging.NewLoggerProvider(logger.With().Str("service", "game").Logger()),
+	}
+}
+
+// SpinRequest represents a spin request
+type SpinServiceRequest struct {
+	TenantID      string
+	UserID        string
+	Username      string
+	Name          string
+	CurrencyID    string
+	BetMultiplier float32
+	Tier          float32
+	Multiplier    float32
+	CheatPayout   *game.CheatPayout
+	ExtraData     map[string]interface{}
+}
+
+// SpinResponse represents a spin response
+type SpinServiceResponse struct {
+	SpinResult    *game.SpinResult
+	SessionID     string
+	EndingBalance decimal.Decimal
+}
+
+// ExecuteSpin orchestrates the entire spin flow
+//
+// Flow:
+// 1. Validate request
+// 2. Get game config
+// 3. Load player state
+// 4. Calculate total bet
+// 5. Execute spin (normal or free)
+// 6. Contribute to jackpot (progressive amount before spin)
+// 7. Claim jackpot if won
+// 8. Update wallet
+// 9. Log spin
+// 10. Save player state
+func (s *GameService) ExecuteSpin(ctx context.Context, req *SpinServiceRequest) (*SpinServiceResponse, error) {
+	// 1. Validate input
+	if err := s.validateSpinRequest(req); err != nil {
+		return nil, err
+	}
+	sessionID := uuid.New().String()
+	ctx = context.WithValue(ctx, SessionIDKey, sessionID)
+	ctx = trace.WithTraceID(ctx, sessionID)
+
+	gameCode := s.gameModule.GetGameCode()
+	logger := s.logger.For(ctx).With().
+		Str("game_code", gameCode).
+		Str("session_id", sessionID).
+		Any("spin_request", req).
+		Logger()
+
+	// 2. Get game config
+	cfg, err := s.gameModule.GetConfig(ctx)
+	if err != nil {
+		logger.Error().Err(err).Msg("failed to get game config")
+		return nil, errors.Wrap(err, errors.ErrInternalServerError, "failed to get game config")
+	}
+	gameConfig, err := game.GetConfigFromNormalizer(cfg)
+	if err != nil {
+		logger.Error().Err(err).Msg("invalid game config type")
+		return nil, errors.Wrap(err, errors.ErrInternalServerError, "invalid game config type")
+	}
+
+	// 3. Load player state
+	playerState, err := s.getPlayerState(ctx, req.UserID, req.CurrencyID, gameCode)
+	if err != nil {
+		logger.Error().Err(err).Msg("failed to get player state")
+		return nil, err
+	}
+
+	playerState.BetMultiplier = req.BetMultiplier
+	playerState.Tier = req.Tier
+	playerState.Mul = req.Multiplier
+	err = s.savePlayerState(ctx, req.UserID, req.CurrencyID, gameCode, playerState) //save bet multiplier
+	if err != nil {
+		logger.Error().Err(err).Msg("failed to save player state")
+	}
+
+	playerBalance, err := s.walletProvider.GetBalance(ctx, req.UserID, req.CurrencyID)
+	if err != nil {
+		logger.Error().Err(err).Msg("get balance error")
+		return nil, errors.New(errors.ErrInternalServerError, "get balance error")
+	}
+
+	// Set player state in ModuleContext so endusers can access and modify it
+	// Since playerState is a pointer, modifications by endusers are automatically reflected
+	game.SetPlayerStateForModule(ctx, playerState)
+
+	// Set extra data from spin request in ModuleContext so endusers can access it
+	game.SetSpinRequestExtraDataForModule(ctx, req.ExtraData)
+
+	// Set cheat payout from spin request in ModuleContext so endusers can access it
+	game.SetSpinRequestCheatPayoutForModule(ctx, req.CheatPayout)
+
+	// 4. Calculate total bet
+	var totalBet decimal.Decimal
+	if m, ok := s.gameModule.(game.GetTotalBet); ok {
+		tmpBet, err := m.GetTotalBet(ctx, req.BetMultiplier)
+		if err != nil {
+			logger.Error().Err(err).Msg("get multi total bet error")
+			return nil, errors.New(errors.ErrInternalServerError, "get multi total bet error")
+		}
+		totalBet = *tmpBet
+	} else {
+		totalBet = decimal.NewFromFloat32(req.BetMultiplier).Mul(decimal.NewFromInt(int64(gameConfig.PayLine)))
+	}
+
+	// 5. Determine spin type and execute
+	var (
+		isFreeSpin = playerState.IsFreeSpin && playerState.RemainingFreeSpin > 0
+		spinState  = &game.SpinState{
+			SessionID:  sessionID,
+			TenantID:   req.TenantID,
+			CurrencyID: req.CurrencyID,
+			UserID:     req.UserID,
+			Username:   req.Username,
+			TotalBet:   totalBet,
+			Status:     game.SpinStatusNew,
+			Timestamp:  time.Now().UTC(),
+		}
+		spinResult *game.SpinResult
+	)
+
+	if isFreeSpin {
+		// Execute free spin
+		spinResult, err = s.executeFreeSpin(ctx, req, playerState, spinState, gameConfig, totalBet)
+	} else {
+		// Execute normal spin
+		playerBalance = playerBalance.Sub(totalBet) //fake: pay for this spin.
+		spinResult, err = s.executeNormalSpin(ctx, req, playerState, spinState, gameConfig, totalBet)
+	}
+	if err != nil {
+		if spinState.Error == nil {
+			errMsg := err.Error()
+			spinState.Error = &errMsg
+		}
+
+		logErr := s.logSpinError(ctx, spinState)
+		if logErr == nil {
+			s.clearSpinStateAsync(ctx, spinState.SessionID, gameCode)
+		}
+
+		return nil, err
+	}
+
+	// Update timestamp before saving
+	// Note: Since playerState is a pointer, any modifications by endusers in PlayNormalSpin/PlayFreeSpin
+	// are automatically reflected here - no need to get state from ModuleContext again
+	t := time.Now()
+	playerState.UpdatedAt = &t
+
+	// 6. Get ending balance
+	spinResult.EndingBalance = playerBalance.Add(spinResult.TotalWin)
+
+	// 7. Log spin
+	if s.logProvider != nil {
+		var (
+			timestamp = time.Now().UTC()
+			log       = &SpinLog{
+				SessionID:         sessionID,
+				TenantID:          req.TenantID,
+				UserID:            req.UserID,
+				Username:          req.Username,
+				GameCode:          gameCode,
+				BetAmount:         spinResult.TotalBet.InexactFloat64(),
+				WinAmount:         spinResult.TotalWin.InexactFloat64(),
+				Currency:          req.CurrencyID,
+				SpinType:          spinResult.SpinType,
+				SpinResult:        spinResult,
+				SplitRoundHistory: spinResult.SplitRoundHistory,
+				Timestamp:         timestamp,
+			}
+		)
+
+		if spinResult.SplitRoundHistory {
+			log.SubReel = spinResult.SubReel
+			log.Rounds = make([]interface{}, len(spinResult.Rounds))
+			for i, round := range spinResult.Rounds {
+				log.Rounds[i] = round
+			}
+		}
+
+		sessionID, err = s.logProvider.LogSpin(ctx, log)
+		if err != nil {
+			logger.Err(err).Msg("Failed to log spin")
+		}
+
+		//log jackpot
+		if spinResult.IsGetJackpot != nil && *spinResult.IsGetJackpot {
+			for i, j := range spinResult.JackpotPrize {
+
+				sessionID, err = s.logProvider.LogJackpot(ctx, &JackpotLog{
+					TenantID:        req.TenantID,
+					UserID:          req.UserID,
+					Username:        req.Username,
+					Name:            req.Name,
+					GameCode:        gameCode,
+					Tier:            j.Tier,
+					BetAmount:       totalBet.InexactFloat64(),
+					WinAmount:       spinResult.TotalWin.InexactFloat64(),
+					TotalWinJackpot: j.Value.InexactFloat64(),
+					SpinType:        spinResult.SpinType,
+					Currency:        req.CurrencyID,
+					Timestamp:       time.Now().UTC().Add(time.Duration(i*1000) * time.Microsecond), // add 1ms for each jp log
+					SpinResult:      spinResult,
+				})
+
+				if err != nil {
+					logger.Error().Err(err).Msg("Failed to log jackpot")
+				}
+			}
+		}
+	}
+
+	// 8. Save player state
+	if err := s.savePlayerState(ctx, req.UserID, req.CurrencyID, gameCode, playerState); err != nil {
+		logger.Err(err).Msg("failed to save player state")
+		return nil, err
+	}
+
+	s.clearSpinStateAsync(ctx, spinState.SessionID, gameCode)
+
+	return &SpinServiceResponse{
+		SpinResult:    spinResult,
+		SessionID:     sessionID,
+		EndingBalance: spinResult.EndingBalance,
+	}, nil
+}
+
+// ExecuteSpin orchestrates the entire spin v2 flow
+//
+// Flow:
+// 1. Validate request
+// 2. Get game config
+// 3. Load player state
+// 4. Calculate total bet
+// 5. Execute spin (normal or free)
+// 6. Contribute to jackpot (progressive amount before spin)
+// 7. Claim jackpot if won
+// 8. Update wallet
+// 9. Log spin
+// 10. Save player state
+func (s *GameService) ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest) (*SpinServiceResponse, error) {
+	// 1. Validate input
+	if err := s.validateSpinRequest(req); err != nil {
+		return nil, err
+	}
+	sessionID := uuid.New().String()
+	ctx = context.WithValue(ctx, SessionIDKey, sessionID)
+	ctx = trace.WithTraceID(ctx, sessionID)
+
+	gameCode := s.gameModule.GetGameCode()
+	logger := s.logger.For(ctx).With().
+		Str("game_code", gameCode).
+		Str("session_id", sessionID).
+		Any("spin_request", req).
+		Logger()
+
+	// 2. Get game config
+	cfg, err := s.gameModule.GetConfig(ctx)
+	if err != nil {
+		logger.Error().Err(err).Msg("failed to get game config")
+		return nil, errors.Wrap(err, errors.ErrInternalServerError, "failed to get game config")
+	}
+	gameConfig, err := game.GetConfigFromNormalizer(cfg)
+	if err != nil {
+		logger.Error().Err(err).Msg("invalid game config type")
+		return nil, errors.Wrap(err, errors.ErrInternalServerError, "invalid game config type")
+	}
+
+	/*playerBalance, err := s.walletProvider.CheckBalance(ctx, gameCode, req.TenantID, req.Username, req.CurrencyID)
+	if err != nil {
+		logger.Error().Err(err).Msg("get balance error")
+		return nil, errors.New(errors.ErrInternalServerError, "get balance error")
+	}*/
+
+	// 3. Load player state
+	playerState, err := s.getPlayerState(ctx, req.UserID, req.CurrencyID, gameCode)
+	if err != nil {
+		logger.Error().Err(err).Msg("failed to get player state")
+		return nil, err
+	}
+
+	playerState.BetMultiplier = req.BetMultiplier
+	playerState.Tier = req.Tier
+	playerState.Mul = req.Multiplier
+	err = s.savePlayerState(ctx, req.UserID, req.CurrencyID, gameCode, playerState) //save bet multiplier
+	if err != nil {
+		logger.Error().Err(err).Msg("failed to save player state")
+	}
+
+	// Set player state in ModuleContext so endusers can access and modify it
+	// Since playerState is a pointer, modifications by endusers are automatically reflected
+	game.SetPlayerStateForModule(ctx, playerState)
+
+	// Set extra data from spin request in ModuleContext so endusers can access it
+	game.SetSpinRequestExtraDataForModule(ctx, req.ExtraData)
+
+	// Set cheat payout from spin request in ModuleContext so endusers can access it
+	game.SetSpinRequestCheatPayoutForModule(ctx, req.CheatPayout)
+
+	// 4. Calculate total bet
+	var totalBet decimal.Decimal
+	if m, ok := s.gameModule.(game.GetTotalBet); ok {
+		tmpBet, err := m.GetTotalBet(ctx, req.BetMultiplier)
+		if err != nil {
+			logger.Error().Err(err).Msg("get multi total bet error")
+			return nil, errors.New(errors.ErrInternalServerError, "get multi total bet error")
+		}
+		totalBet = *tmpBet
+	} else {
+		totalBet = decimal.NewFromFloat32(req.BetMultiplier).Mul(decimal.NewFromInt(int64(gameConfig.PayLine)))
+	}
+
+	// 5. Determine spin type and execute
+	var (
+		isFreeSpin = playerState.IsFreeSpin && playerState.RemainingFreeSpin > 0
+		spinState  = &game.SpinState{
+			SessionID:  sessionID,
+			TenantID:   req.TenantID,
+			CurrencyID: req.CurrencyID,
+			UserID:     req.UserID,
+			Username:   req.Username,
+			TotalBet:   totalBet,
+			Status:     game.SpinStatusNew,
+			Timestamp:  time.Now().UTC(),
+		}
+		spinResult *game.SpinResult
+	)
+
+	if isFreeSpin {
+		// Execute free spin
+		spinResult, err = s.executeFreeSpin(ctx, req, playerState, spinState, gameConfig, totalBet)
+	} else {
+		// Execute normal spin
+		//playerBalance = playerBalance.Sub(totalBet) //fake: pay for this spin.
+		spinResult, err = s.executeNormalSpin(ctx, req, playerState, spinState, gameConfig, totalBet)
+	}
+	if err != nil {
+		if spinState.Error == nil {
+			errMsg := err.Error()
+			spinState.Error = &errMsg
+		}
+
+		logErr := s.logSpinError(ctx, spinState)
+		if logErr == nil {
+			s.clearSpinStateAsync(ctx, spinState.SessionID, gameCode)
+		}
+
+		return nil, err
+	}
+
+	// Update timestamp before saving
+	// Note: Since playerState is a pointer, any modifications by endusers in PlayNormalSpin/PlayFreeSpin
+	// are automatically reflected here - no need to get state from ModuleContext again
+	t := time.Now()
+	playerState.UpdatedAt = &t
+
+	// 7. Get ending balance
+	// spinResult.EndingBalance = playerBalance.Add(spinResult.TotalWin)
+
+	// 8. Log spin
+	if s.logProvider != nil {
+		var (
+			timestamp = time.Now().UTC()
+			log       = &SpinLog{
+				SessionID:         sessionID,
+				TenantID:          req.TenantID,
+				UserID:            req.UserID,
+				Username:          req.Username,
+				GameCode:          gameCode,
+				BetAmount:         spinResult.TotalBet.InexactFloat64(),
+				WinAmount:         spinResult.TotalWin.InexactFloat64(),
+				Currency:          req.CurrencyID,
+				SpinType:          spinResult.SpinType,
+				SpinResult:        spinResult,
+				SplitRoundHistory: spinResult.SplitRoundHistory,
+				Timestamp:         timestamp,
+			}
+		)
+
+		if spinResult.SplitRoundHistory {
+			log.SubReel = spinResult.SubReel
+			log.Rounds = make([]interface{}, len(spinResult.Rounds))
+			for i, round := range spinResult.Rounds {
+				log.Rounds[i] = round
+			}
+		}
+
+		sessionID, err = s.logProvider.LogSpin(ctx, log)
+		if err != nil {
+			logger.Error().Err(err).Msg("Failed to log spin")
+		}
+
+		// log jackpot
+		if spinResult.IsGetJackpot != nil && *spinResult.IsGetJackpot {
+			for i, j := range spinResult.JackpotPrize {
+				sessionID, _ = s.logJackpot(ctx, logger, sessionID, req.TenantID, req.UserID, req.Username, req.Name, gameCode, j.Tier,
+					totalBet.InexactFloat64(), spinResult.TotalWin.InexactFloat64(), j.Value.InexactFloat64(),
+					spinResult.SpinType, req.CurrencyID, i, spinResult)
+			}
+		}
+
+		// For games having Mini/Minor/Major bonus, but it's not jackpot
+		// TODO : Should be added a new "action" which is called "bonus"
+		for i, j := range spinResult.BonusJackpotPrizes {
+			sameItems := decimal.NewFromInt(int64(j.SameItem))
+			eachWinBonus := spinResult.TotalWin.Div(sameItems)
+			eachWinJackpotBonus := j.Value.Div(sameItems)
+			for k := 0; k < j.SameItem; k++ {
+				sessionID, _ = s.logJackpot(ctx, logger, sessionID, req.TenantID, req.UserID, req.Username, req.Name, gameCode, j.Tier,
+					totalBet.InexactFloat64(), eachWinBonus.InexactFloat64(), eachWinJackpotBonus.InexactFloat64(),
+					spinResult.SpinType, req.CurrencyID, i, spinResult)
+			}
+		}
+	}
+
+	// 8. Save player state
+	if err := s.savePlayerState(ctx, req.UserID, req.CurrencyID, gameCode, playerState); err != nil {
+		logger.Err(err).Msg("failed to save player state")
+		return nil, err
+	}
+
+	s.clearSpinStateAsync(ctx, sessionID, gameCode)
+
+	return &SpinServiceResponse{
+		SpinResult:    spinResult,
+		SessionID:     sessionID,
+		EndingBalance: spinResult.EndingBalance,
+	}, nil
+}
+
+// validateSpinRequest validates the spin request
+func (s *GameService) validateSpinRequest(req *SpinServiceRequest) error {
+	if req.BetMultiplier <= 0 {
+		return errors.New(errors.ErrInvalidRequest, "bet multiplier must be greater than 0")
+	}
+	if req.UserID == "" {
+		return errors.New(errors.ErrInvalidRequest, "user ID is required")
+	}
+	if req.CurrencyID == "" {
+		return errors.New(errors.ErrInvalidRequest, "currency ID is required")
+	}
+	return nil
+}
+
+// getPlayerState gets player state from provider
+func (s *GameService) getPlayerState(ctx context.Context, userID, currencyID, gameCode string) (*game.PlayerState, error) {
+	stateInterface, err := s.stateProvider.GetPlayerState(ctx, userID, currencyID, gameCode)
+	if err != nil {
+		return nil, errors.Wrap(err, errors.ErrPlayerStateError, "failed to get player state")
+	}
+
+	// Convert interface to PlayerState
+	if ps, ok := stateInterface.(*game.PlayerState); ok {
+		return ps, nil
+	}
+
+	// Return default state if conversion fails
+	return game.NewPlayerState(), nil
+}
+
+// savePlayerState saves player state
+func (s *GameService) savePlayerState(ctx context.Context, userID, currencyID, gameCode string, state *game.PlayerState) error {
+	if err := s.stateProvider.SavePlayerState(ctx, userID, currencyID, gameCode, state); err != nil {
+		return errors.Wrap(err, errors.ErrPlayerStateError, "failed to save player state")
+	}
+	return nil
+}
+
+// TODO: use for retry
+//// getSpinState gets spin state from provider
+//func (s *GameService) getSpinState(ctx context.Context, sessionID, gameCode string) (*game.SpinState, error) {
+//	stateInterface, err := s.stateProvider.GetSpinState(ctx, sessionID, gameCode)
+//	if err != nil {
+//		return nil, errors.Wrap(err, errors.ErrPlayerStateError, "failed to get spin state")
+//	}
+//
+//	// Convert interface to PlayerState
+//	if ps, ok := stateInterface.(*game.SpinState); ok {
+//		return ps, nil
+//	}
+//
+//	err = fmt.Errorf("failed to parse spin state")
+//	return nil, errors.Wrap(err, errors.ErrPlayerStateError, "failed to parse spin state")
+//}
+
+// saveSpinState saves spin state
+func (s *GameService) saveSpinState(ctx context.Context, sessionID, gameCode string, state *game.SpinState) error {
+	if err := s.stateProvider.SaveSpinState(ctx, sessionID, gameCode, state); err != nil {
+		return errors.Wrap(err, errors.ErrPlayerStateError, "failed to save spin state")
+	}
+
+	return nil
+}
+
+// executeNormalSpin executes a normal spin with full flow
+func (s *GameService) executeNormalSpin(
+	ctx context.Context,
+	req *SpinServiceRequest,
+	playerState *game.PlayerState,
+	spinState *game.SpinState,
+	gameConfig *game.Config,
+	totalBet decimal.Decimal,
+) (*game.SpinResult, error) {
+
+	// 1. Withdraw bet from wallet
+	if s.walletProvider == nil {
+		return nil, errors.New(errors.ErrInternalServerError, "wallet provider not configured")
+	}
+
+	var (
+		gameCode = s.gameModule.GetGameCode()
+		gameName = s.gameModule.GetGameName()
+		err      error
+		logger   = s.logger.For(ctx).With().
+				Str("session_id", spinState.SessionID).
+				Str("tenant_id", req.TenantID).
+				Str("currency_id", req.CurrencyID).
+				Str("game_code", gameConfig.GameCode).
+				Str("user_id", req.UserID).
+				Str("spin_type", "normal").
+				Logger()
+	)
+
+	spinState.SpinType = 0
+
+	if err := s.saveSpinState(ctx, spinState.SessionID, gameCode, spinState); err != nil {
+		logger.Error().Err(err).Msg("Failed to save pre-spin state")
+
+		errMsg := err.Error()
+		spinState.Error = &errMsg
+
+		return nil, errors.Wrap(err, errors.ErrInternalServerError, "failed to save spin state")
+	}
+
+	start := time.Now()
+	balanceAfter, err := s.walletProvider.PlaceBets(ctx, gameCode, req.TenantID, req.Username, req.CurrencyID, totalBet, spinState.SessionID, spinState.SessionID, gameCode, gameName)
+	elapsed := time.Since(start)
+	s.logger.For(ctx).Debug().Int64("duration", elapsed.Milliseconds()).Msg("PlaceBets duration")
+	if err != nil {
+		logger.Error().
+			Err(err).
+			Str("total_bet", totalBet.String()).
+			Msg("Failed to place bets")
+
+		errMsg := err.Error()
+		spinState.Error = &errMsg
+
+		return nil, errors.Wrap(err, errors.GetCode(err), "failed to PlaceBets bet")
+	}
+
+	// 2. Execute spin
+	spinResult, spinErr := s.gameModule.PlayNormalSpin(ctx, req.BetMultiplier, req.CheatPayout)
+	if spinErr != nil {
+		logger.Error().
+			Err(spinErr).
+			Str("total_bet", totalBet.String()).
+			Float32("bet_multiplier", req.BetMultiplier).
+			Any("cheat_payout", req.CheatPayout).
+			Msg("Failed to execute spin")
+
+		errMsg := spinErr.Error()
+		spinState.Error = &errMsg
+
+		if refundErr := s.walletProvider.SettleBets(ctx, gameCode, req.TenantID, req.Username, req.CurrencyID, totalBet, totalBet, spinState.SessionID, spinState.SessionID, gameCode, gameName); refundErr != nil {
+			logger.Error().Err(refundErr).Msg("Failed to refund bet after spin error")
+			spinState.Status = game.SpinStatusSpinError
+		} else {
+			spinState.Status = game.SpinStatusRefunded
+		}
+	} else {
+		spinState.Status = game.SpinStatusPaying
+		spinState.SpinResult = spinResult
+	}
+
+	if err := s.saveSpinState(ctx, spinState.SessionID, gameCode, spinState); err != nil {
+		logger.Error().Err(err).Msg("Failed to save post-spin player state")
+		return nil, errors.Wrap(err, errors.ErrInternalServerError, "failed to save spin state")
+	}
+
+	if spinErr != nil {
+		return nil, errors.Wrap(spinErr, errors.ErrInternalServerError, "failed to execute spin")
+	}
+
+	// 3. Contribute to jackpot pools (before claiming)
+	// Progressive amount is calculated before spin, so we contribute first
+	// TODO: make sure contribute to jackpot is idempotent for retry
+	if err := s.contributeToJackpot(ctx, spinState.SessionID, req.TenantID, req.CurrencyID, req.UserID, gameCode, gameConfig, totalBet, spinResult); err != nil {
+		logger.Error().Err(err).Msg("Failed to contribute to jackpot")
+		// TODO: save contribute error log
+	}
+
+	// 4. Process jackpot win (if any)
+	if spinResult.IsGetJackpot != nil && *spinResult.IsGetJackpot {
+		// Claim jackpot
+		if err := s.processJackpotWin(ctx, spinResult, req.TenantID, req.UserID, req.Username, gameCode, req.CurrencyID, gameConfig, totalBet); err != nil {
+			logger.Error().Err(err).Msg("Failed to process jackpot win")
+
+			errMsg := err.Error()
+			spinState.Error = &errMsg
+
+			return nil, errors.Wrap(err, errors.ErrInternalServerError, "failed to claim jackpot")
+		}
+	}
+
+	// 5. Deposit winnings to wallet
+	payout := spinResult.TotalWin
+	if spinResult.TotalWin.Sign() <= 0 {
+		payout = decimal.Zero
+	}
+	spinResult.EndingBalance = balanceAfter.Add(payout)
+
+	start = time.Now()
+	err = s.walletProvider.SettleBets(ctx, gameCode, req.TenantID, req.Username, req.CurrencyID, totalBet, payout, spinState.SessionID, spinState.SessionID, gameCode, gameName)
+	elapsed = time.Since(start)
+	s.logger.For(ctx).Debug().Int64("duration", elapsed.Milliseconds()).Msg("SettleBets duration")
+	if err != nil {
+		logger.Error().
+			Err(err).
+			Str("total_bet", totalBet.String()).
+			Str("payout", payout.String()).
+			Msg("Failed to settle bets")
+
+		errMsg := err.Error()
+		spinState.Error = &errMsg
+
+		return nil, errors.Wrap(err, errors.ErrWalletError, "failed to SettleBets")
+	}
+
+	// Default state
+	//playerState.BetMultiplier = req.BetMultiplier
+	playerState.SpinResult = spinResult
+	spinState.Status = game.SpinStatusCompleted
+
+	if !playerState.IsFreeSpin {
+		// Reset player state
+		playerState.Reset()
+	}
+
+	// 6. Update player state if free spins triggered
+	// Note: playerState is a pointer, so modifications by endusers in PlayNormalSpin are already reflected
+	if spinResult.IsGetFreeSpin != nil && *spinResult.IsGetFreeSpin {
+		if spinResult.ResultFreeSpin != nil && *spinResult.ResultFreeSpin > 0 {
+			playerState.IsFreeSpin = true
+			playerState.RemainingFreeSpin = *spinResult.ResultFreeSpin
+			playerState.TotalWinFreeSpin = lo.ToPtr(spinResult.TotalWin)
+			playerState.SpinResultTriggerFG = spinResult
+			playedCount := 0
+			playerState.PlayedFreeSpin = &playedCount
+			playerState.IsLastFreeSpin = false
+
+			// Only store in the db
+			playerState.FreeSpins = spinResult.FreeSpinBets
+			spinResult.FreeSpinBets = nil
+
+		}
+	}
+
+	return spinResult, nil
+}
+
+// executeFreeSpin executes a free spin
+func (s *GameService) executeFreeSpin(
+	ctx context.Context,
+	req *SpinServiceRequest,
+	playerState *game.PlayerState,
+	spinState *game.SpinState,
+	gameConfig *game.Config,
+	totalBet decimal.Decimal,
+) (*game.SpinResult, error) {
+	if s.walletProvider == nil {
+		return nil, errors.New(errors.ErrInternalServerError, "wallet provider not configured")
+	}
+
+	var (
+		gameCode = s.gameModule.GetGameCode()
+		gameName = s.gameModule.GetGameName()
+		err      error
+		logger   = s.logger.For(ctx).With().
+				Str("session_id", spinState.SessionID).
+				Str("tenant_id", req.TenantID).
+				Str("currency_id", req.CurrencyID).
+				Str("game_code", gameConfig.GameCode).
+				Str("user_id", req.UserID).
+				Str("spin_type", "free").
+				Logger()
+	)
+
+	spinState.SpinType = 1
+
+	// Get the next pre-generated free spin result
+	// Note: playerState is a pointer, so modifications by endusers are automatically reflected
+	if playerState.PlayedFreeSpin == nil {
+		playedCount := 0
+		playerState.PlayedFreeSpin = &playedCount
+	}
+
+	playedIndex := *playerState.PlayedFreeSpin
+	if playedIndex >= len(playerState.FreeSpins) {
+		return nil, errors.New(errors.ErrInvalidRequest, "no more free spins available")
+	}
+
+	spinResult := playerState.FreeSpins[playedIndex]
+	spinState.Status = game.SpinStatusPaying
+	spinState.SpinResult = spinResult
+
+	if err := s.savePlayerState(ctx, req.UserID, req.CurrencyID, gameCode, playerState); err != nil {
+		logger.Error().Err(err).Msg("Failed to save post-spin player state")
+
+		errMsg := err.Error()
+		spinState.Error = &errMsg
+
+		return nil, errors.Wrap(err, errors.ErrInternalServerError, "failed to save spin state")
+	}
+
+	// Retrigger in free game
+	if spinResult.IsGetFreeSpin != nil && *spinResult.IsGetFreeSpin && spinResult.ResultFreeSpin != nil && *spinResult.ResultFreeSpin > 0 {
+		playerState.RemainingFreeSpin += *spinResult.ResultFreeSpin
+	}
+
+	// Process jackpot win (if any)
+	if spinResult.IsGetJackpot != nil && *spinResult.IsGetJackpot {
+		// Claim jackpot
+		if err := s.processJackpotWin(ctx, spinResult, req.TenantID, req.UserID, req.Username, gameCode, req.CurrencyID, gameConfig, totalBet); err != nil {
+			logger.Error().Err(err).Msg("Failed to process jackpot win")
+
+			errMsg := err.Error()
+			spinState.Error = &errMsg
+
+			return nil, errors.Wrap(err, errors.ErrInternalServerError, "failed to claim jackpot")
+		}
+	}
+
+	balanceAfter, err := s.walletProvider.PlaceBets(ctx, gameCode, req.TenantID, req.Username, req.CurrencyID, decimal.Zero, spinState.SessionID, spinState.SessionID, gameCode, gameName)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to place bets")
+
+		errMsg := err.Error()
+		spinState.Error = &errMsg
+
+		return nil, errors.Wrap(err, errors.ErrWalletError, "failed to deposit winnings")
+	}
+
+	err = s.walletProvider.SettleBets(ctx, gameCode, req.TenantID, req.Username, req.CurrencyID, decimal.Zero, spinResult.TotalWin, spinState.SessionID, spinState.SessionID, gameCode, gameName)
+	if err != nil {
+		logger.Error().Err(err).Msg("Failed to settle bets")
+
+		errMsg := err.Error()
+		spinState.Error = &errMsg
+
+		return nil, errors.Wrap(err, errors.ErrWalletError, "failed to deposit winnings")
+	}
+
+	// Update player state
+	*playerState.PlayedFreeSpin++
+	playerState.RemainingFreeSpin--
+	tmp := playerState.TotalWinFreeSpin.Add(spinResult.TotalWin)
+	playerState.TotalWinFreeSpin = &tmp
+
+	// Update spin result with free spin info
+	spinResult.RemainingFreeSpin = &playerState.RemainingFreeSpin
+	totalWinFS := playerState.TotalWinFreeSpin
+	spinResult.TotalWinFreeSpin = *totalWinFS
+	spinResult.EndingBalance = balanceAfter.Add(spinResult.TotalWin)
+
+	// Last spinResult for FG
+	playerState.SpinResult = spinResult
+
+	// Check if this is the last free spin
+	if playerState.RemainingFreeSpin == 0 {
+		isLast := true
+		spinResult.IsLastFreeSpin = &isLast
+		playerState.IsLastFreeSpin = true
+		spinResult.PlayedFreeSpin = playerState.PlayedFreeSpin
+
+		logger.Debug().
+			Float64("total_win", playerState.TotalWinFreeSpin.InexactFloat64()).
+			Msg("Free spins completed")
+
+		// Exit free spin
+		playerState.IsFreeSpin = false
+
+	}
+
+	return spinResult, nil
+}
+
+// contributeToJackpot contributes to jackpot pools
+// Uses custom JackpotHandler if implemented by game module, otherwise uses default logic
+func (s *GameService) contributeToJackpot(ctx context.Context, sessionID, tenantID, currency, userID, gameCode string, gameConfig *game.Config, totalBet decimal.Decimal, spinResult *game.SpinResult) error {
+	if s.rewardProvider == nil {
+		return nil
+	}
+
+	// Check if game module implements custom jackpot handler
+	if handler, ok := s.gameModule.(game.JackpotHandler); ok {
+		// Use custom jackpot handler
+		contributions, err := handler.GetContributions(ctx, tenantID, currency, spinResult, totalBet)
+		if err != nil {
+			return fmt.Errorf("failed to get jackpot contributions: %w", err)
+		}
+
+		if len(contributions) == 0 {
+			return nil
+		}
+
+		// Generate spin_id for this contribution batch
+		// All contributions from the same spin will share the same spin_id
+		totalPools := len(contributions)
+
+		// Process each contribution with the same spin_id and total_pools
+		for _, contrib := range contributions {
+			if err := s.rewardProvider.Contribute(ctx, &providers.ContributeRequest{
+				PoolID:     contrib.PoolID,
+				UserID:     userID,
+				Amount:     contrib.Amount,
+				GameCode:   gameCode,
+				SpinID:     &sessionID,
+				TotalPools: &totalPools,
+			}); err != nil {
+				s.logger.For(ctx).Error().Err(err).Str("pool", contrib.PoolID).Msg("Failed to contribute to jackpot pool")
+			}
+		}
+		return nil
+	}
+
+	// No default logic - games must implement JackpotHandler to contribute to jackpot pools
+	// This ensures games explicitly define their jackpot rules
+	s.logger.For(ctx).Debug().Str("game_code", gameCode).Msg("No jackpot contribution - game module does not implement JackpotHandler")
+	return nil
+}
+
+// processJackpotWin processes a jackpot win
+// Uses custom JackpotHandler if implemented by game module, otherwise uses default logic
+func (s *GameService) processJackpotWin(
+	ctx context.Context,
+	spinResult *game.SpinResult,
+	tenantID, userID, username, gameCode, currency string,
+	gameConfig *game.Config,
+	totalBet decimal.Decimal,
+) error {
+	if s.rewardProvider == nil {
+		return nil
+	}
+	jackpotWin := make([]*game.JackpotWin, 0, len(gameConfig.ReelSize))
+
+	// Check if game module implements custom jackpot handler
+	switch handler := s.gameModule.(type) {
+	case game.SingleJackpotWinHandler:
+		// Use custom single jackpot handler
+		jp, err := handler.GetWin(ctx, tenantID, currency, spinResult, totalBet)
+		if err != nil {
+			return fmt.Errorf("failed to get jackpot win: %w", err)
+		}
+		jackpotWin = append(jackpotWin, jp)
+
+	case game.MultipleJackpotWinHandler:
+		// Use custom multiple jackpot handler
+		jps, err := handler.GetWins(ctx, tenantID, currency, spinResult, totalBet)
+		if err != nil {
+			return fmt.Errorf("failed to get jackpot win: %w", err)
+		}
+		jackpotWin = append(jackpotWin, jps...)
+	}
+
+	if len(jackpotWin) == 0 {
+		s.logger.For(ctx).Warn().Str("game_code", gameCode).Msg("Jackpot win detected but game module does not implement JackpotHandler - skipping jackpot processing")
+		return nil
+	}
+
+	if len(jackpotWin) > 0 {
+		var jpPrize []game.JackpotPrize
+		tier := make([]string, 0, len(jackpotWin))
+		total := decimal.Zero
+		for _, i := range jackpotWin {
+			// Claim jackpot
+			claim, err := s.rewardProvider.Claim(ctx, &providers.ClaimRequest{
+				PoolID:     i.PoolID,
+				TenantID:   tenantID,
+				CurrencyID: currency,
+				UserID:     userID,
+				Username:   username,
+				GameCode:   gameCode,
+				InitValue:  i.InitValue,
+			})
+
+			if err != nil {
+				return err
+			}
+
+			// Update spin result with jackpot win
+			total = total.Add(claim.Amount)
+			spinResult.TotalWin = spinResult.TotalWin.Add(claim.Amount)
+
+			tier = append(tier, i.Tier)
+			p := game.JackpotPrize{
+				Tier:  i.Tier,
+				Value: claim.Amount,
+			}
+			jpPrize = append(jpPrize, p)
+
+			if spinResult.Rounds != nil && i.Round != nil {
+				spinResult.Rounds[*i.Round].JackpotPrize = append(spinResult.Rounds[*i.Round].JackpotPrize, p)
+				spinResult.Rounds[*i.Round].TotalWin = spinResult.Rounds[*i.Round].TotalWin.Add(p.Value)
+			}
+		}
+		spinResult.JackpotTypes = lo.ToSlicePtr(tier)
+		spinResult.TotalWinJackpot = total
+		spinResult.JackpotPrize = jpPrize
+	}
+
+	return nil
+
+}
+
+func (s *GameService) logJackpot(ctx context.Context, logger zerolog.Logger, sessionId, tenantID, userID, username, name, gameCode, tier string,
+	totalBet, totalWin, totalWinJackpot float64,
+	spinType int, currencyID string, index int, spinResult *game.SpinResult) (string, error) {
+	sessionID, err := s.logProvider.LogJackpot(ctx, &JackpotLog{
+		SessionID:       sessionId,
+		TenantID:        tenantID,
+		UserID:          userID,
+		Username:        username,
+		Name:            name,
+		GameCode:        gameCode,
+		Tier:            tier,
+		BetAmount:       totalBet,
+		WinAmount:       totalWin,
+		TotalWinJackpot: totalWinJackpot,
+		SpinType:        spinType,
+		Currency:        currencyID,
+		Timestamp:       time.Now().UTC().Add(time.Duration(index*1000) * time.Microsecond), // add 1ms for each jp log
+		SpinResult:      spinResult,
+	})
+	if err != nil {
+		logger.Err(err).Msg("Failed to log jackpot")
+	}
+
+	return sessionID, err
+}
+
+func (s *GameService) clearSpinStateAsync(ctx context.Context, sessionID, gameCode string) {
+	go func(ctx context.Context) {
+		err := s.stateProvider.DeleteSpinState(ctx, sessionID, gameCode)
+		if err != nil {
+			s.logger.For(ctx).Error().
+				Err(err).
+				Str("game_code", gameCode).
+				Str("session_id", sessionID).
+				Msg("Failed to clear spin state")
+		}
+	}(context.WithoutCancel(ctx))
+}
+
+func (s *GameService) logSpinError(
+	ctx context.Context,
+	spinState *game.SpinState,
+) error {
+	var (
+		gameCode = s.gameModule.GetGameCode()
+	)
+
+	if spinState == nil {
+		s.logger.For(ctx).Warn().
+			Str("game_code", gameCode).
+			Msg("Empty spin state")
+		return nil
+	}
+
+	if s.logProvider == nil {
+		s.logger.For(ctx).Warn().
+			Str("session_id", spinState.SessionID).
+			Str("user_id", spinState.UserID).
+			Str("username", spinState.Username).
+			Str("game_code", gameCode).
+			Any("spin_state", spinState).
+			Msg("No log provider to log spin error")
+		return nil
+	}
+
+	errorLog := &SpinErrorLog{
+		SessionID: spinState.SessionID,
+		TenantID:  spinState.TenantID,
+		UserID:    spinState.UserID,
+		Username:  spinState.Username,
+		GameCode:  gameCode,
+		BetAmount: spinState.TotalBet,
+		Currency:  spinState.CurrencyID,
+		SpinType:  spinState.SpinType,
+		Status:    string(spinState.Status),
+		Timestamp: time.Now(),
+	}
+
+	if spinState.SpinResult != nil {
+		errorLog.SpinResult = spinState.SpinResult
+		errorLog.WinAmount = spinState.SpinResult.TotalWin
+	}
+
+	if spinState.Error != nil {
+		errorLog.Error = *spinState.Error
+	}
+
+	_, err := s.logProvider.LogSpinError(ctx, errorLog)
+	if err != nil {
+		s.logger.For(ctx).Error().Err(err).Msg("Failed to log spin error")
+		return err
+	}
+
+	return nil
+}
