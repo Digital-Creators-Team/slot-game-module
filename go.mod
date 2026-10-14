@@ -1,4 +1,4 @@
-module gl.owvn.org/veuve/server/slot-game-module
+module gl.owvn.org/veuve/server/slot-game-module.git
 
 go 1.25.4
 
