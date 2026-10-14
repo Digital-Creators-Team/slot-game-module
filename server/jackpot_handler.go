@@ -50,9 +50,10 @@ func NewJackpotHandler(app *App, svc *jackpot.Service) *JackpotHandler {
 }
 
 type Response struct {
-	Type      string                `json:"type"`
-	Timestamp int64                 `json:"timestamp"`
-	Pools     map[string]PoolUpdate `json:"pools,omitempty"`
+	Type      string                 `json:"type"`
+	Timestamp int64                  `json:"timestamp"`
+	Pools     map[string]PoolUpdate  `json:"pools,omitempty"`
+	ExtraData map[string]interface{} `json:"extraData,omitempty"`
 }
 
 type PoolUpdate struct {
@@ -385,6 +386,20 @@ func (h *JackpotHandler) sendInitialPools(config *streamConfig, sender messageSe
 			Pools:     pools,
 		}); err != nil {
 			h.logger.Warn().Err(err).Int("pool_count", len(pools)).Msg("Failed to send initial pools")
+		}
+	} else {
+		// TODO : verify with function later
+		if gameModule.GetGameCode() == "crazy-fury" {
+			extraData := gameModule.GetExtraConfigBet(config.ctx, config.betMultiplier)
+			resp := &Response{
+				Type:      EventTypeConnected,
+				Timestamp: time.Now().Unix(),
+				ExtraData: extraData,
+			}
+			err := sender.Send(resp)
+			if err != nil {
+				h.logger.Warn().Err(err).Int("pool_count", len(pools)).Msg("Failed to send initial pools")
+			}
 		}
 	}
 

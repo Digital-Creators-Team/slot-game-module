@@ -491,7 +491,7 @@ func (h *EventsWSHandler) handleAuthorize(c *WSConn, claims *auth.Claims, req WS
 	// Special game which need int player state at the first time
 	// TODO : verify with function later
 	if gameModule.GetGameCode() == "crazy-fury" && s.ExtraData == nil {
-		firstExtraData := gameModule.InitExtraState(ctx)
+		firstExtraData := gameModule.GetExtraState(ctx)
 		s.ExtraData = firstExtraData
 		err = h.app.stateProvider.SavePlayerState(ctx, claims.UserID, claims.CurrencyID, gameModule.GetGameCode(), s)
 		if err != nil {
