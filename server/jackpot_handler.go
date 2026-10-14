@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"gl.owvn.org/veuve/server/slot-game-module/game"
-	"gl.owvn.org/veuve/server/slot-game-module/pkg/jackpot"
+	"gl.owvn.org/veuve/server/slot-game-module.git/game"
+	"gl.owvn.org/veuve/server/slot-game-module.git/pkg/jackpot"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"github.com/rs/zerolog"

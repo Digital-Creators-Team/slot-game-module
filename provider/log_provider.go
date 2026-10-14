@@ -13,11 +13,11 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
 
-	"gl.owvn.org/veuve/server/slot-game-module/config"
-	"gl.owvn.org/veuve/server/slot-game-module/events/kafka"
-	"gl.owvn.org/veuve/server/slot-game-module/logging"
-	"gl.owvn.org/veuve/server/slot-game-module/pkg/utils"
-	"gl.owvn.org/veuve/server/slot-game-module/server"
+	"gl.owvn.org/veuve/server/slot-game-module.git/config"
+	"gl.owvn.org/veuve/server/slot-game-module.git/events/kafka"
+	"gl.owvn.org/veuve/server/slot-game-module.git/logging"
+	"gl.owvn.org/veuve/server/slot-game-module.git/pkg/utils"
+	"gl.owvn.org/veuve/server/slot-game-module.git/server"
 )
 
 // SpinDetails represents spin log details for mapstructure decoding

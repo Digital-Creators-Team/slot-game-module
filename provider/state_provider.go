@@ -7,9 +7,9 @@ import (
 
 	"github.com/rs/zerolog"
 
-	coreredis "gl.owvn.org/veuve/server/slot-game-module/db/redis"
-	"gl.owvn.org/veuve/server/slot-game-module/game"
-	"gl.owvn.org/veuve/server/slot-game-module/logging"
+	coreredis "gl.owvn.org/veuve/server/slot-game-module.git/db/redis"
+	"gl.owvn.org/veuve/server/slot-game-module.git/game"
+	"gl.owvn.org/veuve/server/slot-game-module.git/logging"
 )
 
 // StateProvider implements server.StateProvider using Redis

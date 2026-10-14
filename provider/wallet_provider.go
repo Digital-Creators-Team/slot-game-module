@@ -14,11 +14,11 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
 
-	"gl.owvn.org/veuve/server/slot-game-module/config"
-	moduleerrors "gl.owvn.org/veuve/server/slot-game-module/errors"
-	"gl.owvn.org/veuve/server/slot-game-module/logging"
-	"gl.owvn.org/veuve/server/slot-game-module/pkg/utils"
-	"gl.owvn.org/veuve/server/slot-game-module/server"
+	"gl.owvn.org/veuve/server/slot-game-module.git/config"
+	moduleerrors "gl.owvn.org/veuve/server/slot-game-module.git/errors"
+	"gl.owvn.org/veuve/server/slot-game-module.git/logging"
+	"gl.owvn.org/veuve/server/slot-game-module.git/pkg/utils"
+	"gl.owvn.org/veuve/server/slot-game-module.git/server"
 )
 
 var ErrInsufficientFunds = errors.New("insufficient funds")

@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"gl.owvn.org/veuve/server/slot-game-module/pkg/providers"
+	"gl.owvn.org/veuve/server/slot-game-module.git/pkg/providers"
 	"github.com/rs/zerolog"
 	"github.com/samber/lo"
 	"github.com/shopspring/decimal"

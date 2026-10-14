@@ -10,11 +10,11 @@ import (
 	"github.com/samber/lo"
 	"github.com/shopspring/decimal"
 
-	"gl.owvn.org/veuve/server/slot-game-module/errors"
-	"gl.owvn.org/veuve/server/slot-game-module/game"
-	"gl.owvn.org/veuve/server/slot-game-module/logging"
-	"gl.owvn.org/veuve/server/slot-game-module/pkg/providers"
-	"gl.owvn.org/veuve/server/slot-game-module/pkg/trace"
+	"gl.owvn.org/veuve/server/slot-game-module.git/errors"
+	"gl.owvn.org/veuve/server/slot-game-module.git/game"
+	"gl.owvn.org/veuve/server/slot-game-module.git/logging"
+	"gl.owvn.org/veuve/server/slot-game-module.git/pkg/providers"
+	"gl.owvn.org/veuve/server/slot-game-module.git/pkg/trace"
 )
 
 var SessionIDKey = sessionIDKey{}

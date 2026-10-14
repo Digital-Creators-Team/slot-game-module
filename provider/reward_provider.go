@@ -9,11 +9,11 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/shopspring/decimal"
 
-	"gl.owvn.org/veuve/server/slot-game-module/config"
-	"gl.owvn.org/veuve/server/slot-game-module/logging"
-	"gl.owvn.org/veuve/server/slot-game-module/pkg/providers"
-	"gl.owvn.org/veuve/server/slot-game-module/pkg/utils"
-	"gl.owvn.org/veuve/server/slot-game-module/server"
+	"gl.owvn.org/veuve/server/slot-game-module.git/config"
+	"gl.owvn.org/veuve/server/slot-game-module.git/logging"
+	"gl.owvn.org/veuve/server/slot-game-module.git/pkg/providers"
+	"gl.owvn.org/veuve/server/slot-game-module.git/pkg/utils"
+	"gl.owvn.org/veuve/server/slot-game-module.git/server"
 )
 
 // RewardProvider implements server.RewardProvider using HTTP client

@@ -11,7 +11,7 @@ import (
 
 	"github.com/rs/zerolog"
 
-	"gl.owvn.org/veuve/server/slot-game-module/pkg/trace"
+	"gl.owvn.org/veuve/server/slot-game-module.git/pkg/trace"
 )
 
 var (

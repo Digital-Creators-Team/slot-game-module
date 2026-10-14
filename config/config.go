@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"gl.owvn.org/veuve/server/slot-game-module/logging"
+	"gl.owvn.org/veuve/server/slot-game-module.git/logging"
 	"github.com/spf13/viper"
 )
 

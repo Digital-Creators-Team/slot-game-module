@@ -1,8 +1,8 @@
 package server
 
 import (
-	"gl.owvn.org/veuve/server/slot-game-module/auth"
-	"gl.owvn.org/veuve/server/slot-game-module/game"
+	"gl.owvn.org/veuve/server/slot-game-module.git/auth"
+	"gl.owvn.org/veuve/server/slot-game-module.git/game"
 	"github.com/gin-gonic/gin"
 )
 

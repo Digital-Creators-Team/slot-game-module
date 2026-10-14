@@ -1,6 +1,6 @@
 package server
 
-import "gl.owvn.org/veuve/server/slot-game-module/pkg/providers"
+import "gl.owvn.org/veuve/server/slot-game-module.git/pkg/providers"
 
 // Re-export provider interfaces/types from pkg/providers to keep a single source of truth.
 type (

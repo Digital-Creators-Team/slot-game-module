@@ -1,6 +1,6 @@
 package game
 
-import "gl.owvn.org/veuve/server/slot-game-module/pkg/providers"
+import "gl.owvn.org/veuve/server/slot-game-module.git/pkg/providers"
 
 // Alias provider interfaces/types from pkg/providers to avoid duplication.
 type (

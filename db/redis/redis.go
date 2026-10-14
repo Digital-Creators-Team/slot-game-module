@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"gl.owvn.org/veuve/server/slot-game-module/config"
+	"gl.owvn.org/veuve/server/slot-game-module.git/config"
 	"github.com/go-redis/redis/v8"
 )
 
