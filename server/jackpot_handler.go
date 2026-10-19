@@ -349,6 +349,19 @@ func (h *JackpotHandler) sendInitialPools(config *streamConfig, sender messageSe
 	var currentPools []jackpot.Update
 	var err error
 
+	// TODO : verify with function later
+	if gameModule.GetGameCode() == "crazy-fury" {
+		err := sender.Send(&Response{
+			Type:      EventTypeConnected,
+			Timestamp: time.Now().Unix(),
+			ExtraData: gameModule.GetExtraConfigBet(config.ctx, config.betMultiplier),
+		})
+		if err != nil {
+			h.logger.Warn().Err(err)
+		}
+		return nil
+	}
+
 	if len(config.targetPoolIDs) > 0 {
 		var initValueGetter func(poolID string) (decimal.Decimal, error)
 		if handler, ok := gameModule.(game.JackpotHandler); ok {
@@ -363,20 +376,6 @@ func (h *JackpotHandler) sendInitialPools(config *streamConfig, sender messageSe
 
 	if err != nil {
 		h.logger.Error().Err(err).Msg("Failed to get current pools")
-		return nil
-	}
-
-	// TODO : verify with function later
-	if gameModule.GetGameCode() == "crazy-fury" {
-		err := sender.Send(&Response{
-			Type:      EventTypeConnected,
-			Timestamp: time.Now().Unix(),
-			ExtraData: gameModule.GetExtraConfigBet(config.ctx, config.betMultiplier),
-		})
-		if err != nil {
-			h.logger.Warn().Err(err)
-		}
-
 		return nil
 	}
 

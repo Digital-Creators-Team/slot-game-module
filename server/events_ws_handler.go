@@ -787,6 +787,20 @@ func (h *EventsWSHandler) subscribeJackpot(c *WSConn, tenantID string, currency 
 		return
 	}
 
+	// TODO : verify with function later
+	if gameModule.GetGameCode() == "crazy-fury" {
+		sender := &jackpotWSSender{conn: c}
+		err := sender.Send(&Response{
+			Type:      string(WSEventJackpotSubscribe),
+			Timestamp: time.Now().Unix(),
+			ExtraData: gameModule.GetExtraConfigBet(ctx, betMultiplier),
+		})
+		if err != nil {
+			h.logger.Warn().Err(err)
+		}
+		return
+	}
+
 	gameCode := gameModule.GetGameCode()
 	var targetPoolIDs []string
 	if handler, ok := gameModule.(game.JackpotHandler); ok {
