@@ -789,16 +789,17 @@ func (h *EventsWSHandler) subscribeJackpot(c *WSConn, tenantID string, currency 
 
 	// TODO : verify with function later
 	if gameModule.GetGameCode() == "crazy-fury" {
-		sender := &jackpotWSSender{conn: c}
-		err := sender.Send(&Response{
-			Type:      string(WSEventJackpotUpdated),
-			Timestamp: time.Now().Unix(),
-			ExtraData: gameModule.GetExtraConfigBet(ctx, betMultiplier),
-		})
-		if err != nil {
-			h.logger.Warn().Err(err)
-		}
-		return
+		fmt.Println("yyyyyyyyyyyyyyyyyyyyyyyyyyyyy")
+		// 	sender := &jackpotWSSender{conn: c}
+		// 	err := sender.Send(&Response{
+		// 		Type:      string(WSEventJackpotUpdated),
+		// 		Timestamp: time.Now().Unix(),
+		// 		ExtraData: gameModule.GetExtraConfigBet(ctx, betMultiplier),
+		// 	})
+		// 	if err != nil {
+		// 		h.logger.Warn().Err(err)
+		// 	}
+		// 	return
 	}
 
 	gameCode := gameModule.GetGameCode()

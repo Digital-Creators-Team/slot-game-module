@@ -406,6 +406,22 @@ func (h *JackpotHandler) sendInitialPools(config *streamConfig, sender messageSe
 }
 
 func (h *JackpotHandler) sendSnapshot(config *streamConfig, sender messageSender, lastSent map[string]jackpot.Update) {
+	gameModule := h.app.GetGame()
+
+	// TODO : verify with function later
+	if gameModule.GetGameCode() == "crazy-fury" {
+		fmt.Println("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
+		err := sender.Send(&Response{
+			Type:      EventTypeUpdated,
+			Timestamp: time.Now().Unix(),
+			ExtraData: gameModule.GetExtraConfigBet(config.ctx, config.betMultiplier),
+		})
+		if err != nil {
+			h.logger.Warn().Err(err)
+		}
+		return
+	}
+
 	if len(config.targetPoolIDs) == 0 {
 		return
 	}
@@ -413,7 +429,6 @@ func (h *JackpotHandler) sendSnapshot(config *streamConfig, sender messageSender
 		lastSent = make(map[string]jackpot.Update)
 	}
 
-	gameModule := h.app.GetGame()
 	var initValueGetter func(poolID string) (decimal.Decimal, error)
 	if handler, ok := gameModule.(game.JackpotHandler); ok {
 		initValueGetter = func(poolID string) (decimal.Decimal, error) {
