@@ -349,19 +349,6 @@ func (h *JackpotHandler) sendInitialPools(config *streamConfig, sender messageSe
 	var currentPools []jackpot.Update
 	var err error
 
-	// TODO : verify with function later
-	if gameModule.GetGameCode() == "crazy-fury" {
-		err := sender.Send(&Response{
-			Type:      EventTypeConnected,
-			Timestamp: time.Now().Unix(),
-			ExtraData: gameModule.GetExtraConfigBet(config.ctx, config.betMultiplier),
-		})
-		if err != nil {
-			h.logger.Warn().Err(err)
-		}
-		return nil
-	}
-
 	if len(config.targetPoolIDs) > 0 {
 		var initValueGetter func(poolID string) (decimal.Decimal, error)
 		if handler, ok := gameModule.(game.JackpotHandler); ok {
@@ -392,13 +379,25 @@ func (h *JackpotHandler) sendInitialPools(config *streamConfig, sender messageSe
 		}
 	}
 
-	if len(pools) > 0 {
-		if err := sender.Send(&Response{
+	// TODO : verify with function later
+	if gameModule.GetGameCode() == "crazy-fury" {
+		err := sender.Send(&Response{
 			Type:      EventTypeConnected,
 			Timestamp: time.Now().Unix(),
-			Pools:     pools,
-		}); err != nil {
-			h.logger.Warn().Err(err).Int("pool_count", len(pools)).Msg("Failed to send initial pools")
+			ExtraData: gameModule.GetExtraConfigBet(config.ctx, config.betMultiplier),
+		})
+		if err != nil {
+			h.logger.Warn().Err(err)
+		}
+	} else {
+		if len(pools) > 0 {
+			if err := sender.Send(&Response{
+				Type:      EventTypeConnected,
+				Timestamp: time.Now().Unix(),
+				Pools:     pools,
+			}); err != nil {
+				h.logger.Warn().Err(err).Int("pool_count", len(pools)).Msg("Failed to send initial pools")
+			}
 		}
 	}
 
@@ -468,13 +467,26 @@ func (h *JackpotHandler) sendSnapshot(config *streamConfig, sender messageSender
 		return
 	}
 
-	if err := sender.Send(&Response{
-		Type:      EventTypeUpdated,
-		Timestamp: time.Now().Unix(),
-		Pools:     pools,
-	}); err != nil {
-		h.logger.Warn().Err(err).Msg("Failed to send snapshot update, stopping stream")
-		return
+	// TODO : verify with function later
+	if gameModule.GetGameCode() == "crazy-fury" {
+		err := sender.Send(&Response{
+			Type:      EventTypeUpdated,
+			Timestamp: time.Now().Unix(),
+			ExtraData: gameModule.GetExtraConfigBet(config.ctx, config.betMultiplier),
+		})
+		if err != nil {
+			h.logger.Warn().Err(err)
+			return
+		}
+	} else {
+		if err := sender.Send(&Response{
+			Type:      EventTypeUpdated,
+			Timestamp: time.Now().Unix(),
+			Pools:     pools,
+		}); err != nil {
+			h.logger.Warn().Err(err).Msg("Failed to send snapshot update, stopping stream")
+			return
+		}
 	}
 
 	for _, pool := range currentPools {
