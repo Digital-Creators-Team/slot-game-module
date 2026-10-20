@@ -369,6 +369,7 @@ func (h *EventsWSHandler) handleMessage(c *WSConn, claims *auth.Claims, req WSRe
 
 	switch req.Type {
 	case WSEventJackpotSubscribe:
+		fmt.Println("aaaaaaaaaaaaaaaaaaaaaa")
 		h.handleJackpotSubscribe(c, claims, req)
 		//h.writeReply(c, req, path, okReply(http.StatusOK, map[string]bool{"ok": true}))
 		return
@@ -787,6 +788,8 @@ func (h *EventsWSHandler) subscribeJackpot(c *WSConn, tenantID string, currency 
 		return
 	}
 
+	fmt.Println("bbbbbbbbbbbbbbbbbbbbbb")
+
 	gameCode := gameModule.GetGameCode()
 	var targetPoolIDs []string
 	if handler, ok := gameModule.(game.JackpotHandler); ok {
@@ -797,9 +800,15 @@ func (h *EventsWSHandler) subscribeJackpot(c *WSConn, tenantID string, currency 
 		}
 		targetPoolIDs = poolIDs
 	}
+
+	fmt.Println("ccccccccccccccccccccccc")
+
 	isTargetPool := func(poolID string) bool {
 		return len(targetPoolIDs) == 0 || lo.Contains(targetPoolIDs, poolID)
 	}
+
+	fmt.Println("dddddddddddddddddd")
+
 	config := &streamConfig{
 		tenantID:      tenantID,
 		currency:      currency,
@@ -819,6 +828,8 @@ func (h *EventsWSHandler) subscribeJackpot(c *WSConn, tenantID string, currency 
 					Msg("panic recovered in jackpot stream")
 			}
 		}()
+
+		fmt.Println("eeeeeeeeeeeeeeee")
 		h.app.jackpotHandler.streamUpdates(config, sender)
 	}()
 }
