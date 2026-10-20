@@ -349,6 +349,20 @@ func (h *JackpotHandler) sendInitialPools(config *streamConfig, sender messageSe
 	var currentPools []jackpot.Update
 	var err error
 
+	// TODO : verify with function later
+	if gameModule.GetGameCode() == "crazy-fury" {
+		fmt.Println("1111111111111111111111")
+		err := sender.Send(&Response{
+			Type:      EventTypeConnected,
+			Timestamp: time.Now().Unix(),
+			ExtraData: gameModule.GetExtraConfigBet(config.ctx, config.betMultiplier),
+		})
+		if err != nil {
+			h.logger.Warn().Err(err)
+		}
+		return nil
+	}
+
 	if len(config.targetPoolIDs) > 0 {
 		var initValueGetter func(poolID string) (decimal.Decimal, error)
 		if handler, ok := gameModule.(game.JackpotHandler); ok {
@@ -386,20 +400,6 @@ func (h *JackpotHandler) sendInitialPools(config *streamConfig, sender messageSe
 			Pools:     pools,
 		}); err != nil {
 			h.logger.Warn().Err(err).Int("pool_count", len(pools)).Msg("Failed to send initial pools")
-		}
-	} else {
-		// TODO : verify with function later
-		if gameModule.GetGameCode() == "crazy-fury" {
-			fmt.Println("1111111111111111111111")
-			err := sender.Send(&Response{
-				Type:      EventTypeConnected,
-				Timestamp: time.Now().Unix(),
-				ExtraData: gameModule.GetExtraConfigBet(config.ctx, config.betMultiplier),
-			})
-			if err != nil {
-				h.logger.Warn().Err(err)
-			}
-			return nil
 		}
 	}
 

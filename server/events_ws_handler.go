@@ -767,6 +767,12 @@ func (h *EventsWSHandler) autoSubscribeJackpot(c *WSConn, claims *auth.Claims) {
 	if gameModule == nil {
 		return
 	}
+
+	// TODO : verify with function later
+	if gameModule.GetGameCode() == "crazy-fury" {
+		return
+	}
+
 	ctx, cancel := c.NewCtxWithTimeout(wsTimeout)
 	defer cancel()
 	state, err := h.app.stateProvider.GetPlayerState(ctx, claims.UserID, claims.CurrencyID, gameModule.GetGameCode())
