@@ -808,8 +808,6 @@ func (h *EventsWSHandler) subscribeJackpot(c *WSConn, tenantID string, currency 
 		return
 	}
 
-	fmt.Println("bbbbbbbbbbbbbbbbbbbbbb")
-
 	gameCode := gameModule.GetGameCode()
 	var targetPoolIDs []string
 	if handler, ok := gameModule.(game.JackpotHandler); ok {
@@ -821,13 +819,9 @@ func (h *EventsWSHandler) subscribeJackpot(c *WSConn, tenantID string, currency 
 		targetPoolIDs = poolIDs
 	}
 
-	fmt.Println("ccccccccccccccccccccccc")
-
 	isTargetPool := func(poolID string) bool {
 		return len(targetPoolIDs) == 0 || lo.Contains(targetPoolIDs, poolID)
 	}
-
-	fmt.Println("dddddddddddddddddd")
 
 	config := &streamConfig{
 		tenantID:      tenantID,
@@ -849,7 +843,6 @@ func (h *EventsWSHandler) subscribeJackpot(c *WSConn, tenantID string, currency 
 			}
 		}()
 
-		fmt.Println("eeeeeeeeeeeeeeee")
 		h.app.jackpotHandler.streamUpdates(config, sender)
 	}()
 }

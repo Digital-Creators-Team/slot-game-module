@@ -351,7 +351,6 @@ func (h *JackpotHandler) sendInitialPools(config *streamConfig, sender messageSe
 
 	// TODO : verify with function later
 	if gameModule.GetGameCode() == "crazy-fury" {
-		fmt.Println("1111111111111111111111")
 		err := sender.Send(&Response{
 			Type:      EventTypeConnected,
 			Timestamp: time.Now().Unix(),
