@@ -333,6 +333,7 @@ func (h *JackpotHandler) streamUpdates(config *streamConfig, sender messageSende
 			}
 		case update, ok := <-updates:
 			if !ok {
+				fmt.Println("xxxxxxxxxxxxxxxxxxxxxxxxxxx")
 				return
 			}
 			if update.PoolID != jackpot.FlushSignalPoolID {
