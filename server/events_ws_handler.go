@@ -369,7 +369,6 @@ func (h *EventsWSHandler) handleMessage(c *WSConn, claims *auth.Claims, req WSRe
 
 	switch req.Type {
 	case WSEventJackpotSubscribe:
-		fmt.Println("aaaaaaaaaaaaaaaaaaaaaa")
 		h.handleJackpotSubscribe(c, claims, req)
 		//h.writeReply(c, req, path, okReply(http.StatusOK, map[string]bool{"ok": true}))
 		return
@@ -745,7 +744,6 @@ func (h *EventsWSHandler) handleJackpotSubscribe(c *WSConn, claims *auth.Claims,
 	// TODO : verify with function later
 	gameModule := h.app.GetGame()
 	if gameModule.GetGameCode() == "crazy-fury" {
-		fmt.Println("2222222222222222222222222")
 		sender := &jackpotWSSender{conn: c}
 		err := sender.Send(&Response{
 			Type:      EventTypeUpdated,
