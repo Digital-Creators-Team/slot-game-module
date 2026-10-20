@@ -351,6 +351,7 @@ func (h *JackpotHandler) sendInitialPools(config *streamConfig, sender messageSe
 
 	// TODO : verify with function later
 	if gameModule.GetGameCode() == "crazy-fury" {
+		fmt.Println("1111111111111111111111")
 		err := sender.Send(&Response{
 			Type:      EventTypeConnected,
 			Timestamp: time.Now().Unix(),
@@ -410,7 +411,7 @@ func (h *JackpotHandler) sendSnapshot(config *streamConfig, sender messageSender
 
 	// TODO : verify with function later
 	if gameModule.GetGameCode() == "crazy-fury" {
-		fmt.Println("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
+		fmt.Println("2222222222222222222222222")
 		err := sender.Send(&Response{
 			Type:      EventTypeUpdated,
 			Timestamp: time.Now().Unix(),
