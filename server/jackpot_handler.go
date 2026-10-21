@@ -354,7 +354,7 @@ func (h *JackpotHandler) sendInitialPools(config *streamConfig, sender messageSe
 		err := sender.Send(&Response{
 			Type:      EventTypeConnected,
 			Timestamp: time.Now().Unix(),
-			ExtraData: gameModule.GetExtraConfigBet(config.ctx, config.betMultiplier),
+			ExtraData: gameModule.JackpotSubscribe(config.ctx, config.betMultiplier),
 		})
 		if err != nil {
 			h.logger.Warn().Err(err)

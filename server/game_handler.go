@@ -145,13 +145,18 @@ func (h *GameHandler) Authorize(c *gin.Context) {
 	// Special game which need int player state at the first time
 	// TODO : verify with function later
 	if gameModule.GetGameCode() == "crazy-fury" && s.ExtraData == nil {
-		firstExtraData := gameModule.GetExtraState(ctx)
-		s.ExtraData = firstExtraData
-		err = h.app.stateProvider.SavePlayerState(ctx, userID, currencyID, gameModule.GetGameCode(), s)
-		if err != nil {
-			h.logger.Error().Err(err).Msg("Failed to set player state")
-			InternalError(c, errors.Wrap(err, errors.ErrPlayerStateError, "Failed to set player state"))
-			return
+		firstExtraData, spinResulReset := gameModule.Authorize(ctx)
+		if firstExtraData != nil {
+			s.ExtraData = firstExtraData
+			if spinResulReset != nil {
+				s.SpinResult = spinResulReset
+			}
+			err = h.app.stateProvider.SavePlayerState(ctx, userID, currencyID, gameModule.GetGameCode(), s)
+			if err != nil {
+				h.logger.Error().Err(err).Msg("Failed to set player state")
+				InternalError(c, errors.Wrap(err, errors.ErrPlayerStateError, "Failed to set player state"))
+				return
+			}
 		}
 	}
 

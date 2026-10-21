@@ -71,9 +71,9 @@ type Module interface {
 
 	DefaultCurrency(ctx context.Context) string
 
-	GetExtraState(ctx context.Context) map[string]interface{}
+	Authorize(ctx context.Context) (map[string]interface{}, *SpinResult)
 
-	GetExtraConfigBet(ctx context.Context, betMultiplier float32) map[string]interface{}
+	JackpotSubscribe(ctx context.Context, betMultiplier float32) map[string]interface{}
 }
 
 // Other games may feature multiple game modes with varying base bets (pay_line)

@@ -491,11 +491,16 @@ func (h *EventsWSHandler) handleAuthorize(c *WSConn, claims *auth.Claims, req WS
 	// Special game which need int player state at the first time
 	// TODO : verify with function later
 	if gameModule.GetGameCode() == "crazy-fury" && s.ExtraData == nil {
-		firstExtraData := gameModule.GetExtraState(ctx)
-		s.ExtraData = firstExtraData
-		err = h.app.stateProvider.SavePlayerState(ctx, claims.UserID, claims.CurrencyID, gameModule.GetGameCode(), s)
-		if err != nil {
-			return &wsReply{status: http.StatusInternalServerError, err: apperrors.Wrap(err, apperrors.ErrPlayerStateError, "Failed to set first player state")}
+		firstExtraData, spinResulReset := gameModule.Authorize(ctx)
+		if firstExtraData != nil {
+			s.ExtraData = firstExtraData
+			if spinResulReset != nil {
+				s.SpinResult = spinResulReset
+			}
+			err = h.app.stateProvider.SavePlayerState(ctx, claims.UserID, claims.CurrencyID, gameModule.GetGameCode(), s)
+			if err != nil {
+				return &wsReply{status: http.StatusInternalServerError, err: apperrors.Wrap(err, apperrors.ErrPlayerStateError, "Failed to set first player state")}
+			}
 		}
 	}
 
@@ -748,7 +753,7 @@ func (h *EventsWSHandler) handleJackpotSubscribe(c *WSConn, claims *auth.Claims,
 		err := sender.Send(&Response{
 			Type:      EventTypeUpdated,
 			Timestamp: time.Now().Unix(),
-			ExtraData: gameModule.GetExtraConfigBet(c.Context(), betMultiplier),
+			ExtraData: gameModule.JackpotSubscribe(c.Context(), betMultiplier),
 		})
 		if err != nil {
 			h.logger.Warn().Err(err)
