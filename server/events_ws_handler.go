@@ -491,15 +491,14 @@ func (h *EventsWSHandler) handleAuthorize(c *WSConn, claims *auth.Claims, req WS
 	// Special game which need int player state at the first time
 	// TODO : verify with function later
 	if gameModule.GetGameCode() == "crazy-fury" && s.ExtraData == nil {
-		firstExtraData, spinResulReset := gameModule.Authorize(ctx)
-		if firstExtraData != nil {
-			s.ExtraData = firstExtraData
-			if spinResulReset != nil {
-				s.SpinResult = spinResulReset
-			}
-			err = h.app.stateProvider.SavePlayerState(ctx, claims.UserID, claims.CurrencyID, gameModule.GetGameCode(), s)
-			if err != nil {
-				return &wsReply{status: http.StatusInternalServerError, err: apperrors.Wrap(err, apperrors.ErrPlayerStateError, "Failed to set first player state")}
+		extraData, isReset := gameModule.Authorize(ctx)
+		if extraData != nil {
+			s.ExtraData = extraData
+			if isReset {
+				err = h.app.stateProvider.SavePlayerState(ctx, claims.UserID, claims.CurrencyID, gameModule.GetGameCode(), s)
+				if err != nil {
+					return &wsReply{status: http.StatusInternalServerError, err: apperrors.Wrap(err, apperrors.ErrPlayerStateError, "Failed to set first player state")}
+				}
 			}
 		}
 	}

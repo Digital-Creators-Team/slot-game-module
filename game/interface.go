@@ -71,7 +71,7 @@ type Module interface {
 
 	DefaultCurrency(ctx context.Context) string
 
-	Authorize(ctx context.Context) (map[string]interface{}, *SpinResult)
+	Authorize(ctx context.Context) (map[string]interface{}, bool)
 
 	JackpotSubscribe(ctx context.Context, betMultiplier float32) map[string]interface{}
 }
