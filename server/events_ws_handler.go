@@ -498,6 +498,7 @@ func (h *EventsWSHandler) handleAuthorize(c *WSConn, claims *auth.Claims, req WS
 			if mustUpdate {
 				if mustReset {
 					s.Reset()
+					s.SpinResult.ExtraData = extraData
 				}
 				err = h.app.stateProvider.SavePlayerState(ctx, claims.UserID, claims.CurrencyID, gameModule.GetGameCode(), s)
 				if err != nil {

@@ -152,6 +152,7 @@ func (h *GameHandler) Authorize(c *gin.Context) {
 			if mustUpdate {
 				if mustReset {
 					s.Reset()
+					s.SpinResult.ExtraData = extraData
 				}
 
 				err = h.app.stateProvider.SavePlayerState(ctx, userID, currencyID, gameModule.GetGameCode(), s)
