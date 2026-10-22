@@ -146,10 +146,14 @@ func (h *GameHandler) Authorize(c *gin.Context) {
 	// TODO : verify with function later
 	if gameModule.GetGameCode() == "crazy-fury" {
 		game.SetPlayerStateForModule(ctx, s)
-		extraData, isReset := gameModule.Authorize(ctx)
+		extraData, mustUpdate, mustReset := gameModule.Authorize(ctx)
 		if extraData != nil {
 			s.ExtraData = extraData
-			if isReset {
+			if mustUpdate {
+				if mustReset {
+					s.Reset()
+				}
+
 				err = h.app.stateProvider.SavePlayerState(ctx, userID, currencyID, gameModule.GetGameCode(), s)
 				if err != nil {
 					h.logger.Error().Err(err).Msg("Failed to set player state")

@@ -106,8 +106,8 @@ func (b *BaseModule) GenerateFreeSpins(ctx context.Context, betMultiplier float3
 	return nil, fmt.Errorf("GenerateFreeSpins must be implemented by game module")
 }
 
-func (b *BaseModule) Authorize(ctx context.Context) (map[string]interface{}, bool) {
-	return nil, false
+func (b *BaseModule) Authorize(ctx context.Context) (map[string]interface{}, bool, bool) {
+	return nil, false, false
 }
 
 func (b *BaseModule) JackpotSubscribe(ctx context.Context, betMultiplier float32) map[string]interface{} {
