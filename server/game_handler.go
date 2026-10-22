@@ -144,7 +144,7 @@ func (h *GameHandler) Authorize(c *gin.Context) {
 
 	// Special game which need int player state at the first time
 	// TODO : verify with function later
-	if gameModule.GetGameCode() == "crazy-fury" && s.ExtraData == nil {
+	if gameModule.GetGameCode() == "crazy-fury" {
 		extraData, isReset := gameModule.Authorize(ctx)
 		if extraData != nil {
 			s.ExtraData = extraData
