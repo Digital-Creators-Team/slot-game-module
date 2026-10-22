@@ -149,6 +149,24 @@ func (h *GameHandler) Authorize(c *gin.Context) {
 		return
 	}
 
+	if tenant.WalletVersion == 3 {
+		tenantToken, err := h.app.authProvider.ClaimUserTenantToken(ctx, userID)
+		if err != nil {
+			h.logger.Error().Err(err).Msg("Failed to claim tenant auth token")
+			InternalError(c, errors.New(errors.ErrInternalServerError, "Failed to claim tenant auth token"))
+			return
+		}
+
+		s.SecretExtraData[AuthMetadataTenantToken] = tenantToken
+
+		err = h.app.stateProvider.SavePlayerState(ctx, userID, currencyID, gameModule.GetGameCode(), s)
+		if err != nil {
+			h.logger.Error().Err(err).Msg("Failed to save player state")
+			InternalError(c, errors.New(errors.ErrInternalServerError, "Failed to save player state"))
+			return
+		}
+	}
+
 	tenantWalletProvider, err := h.app.walletProvider.WithTenant(ctx, h.app.tenantProvider, tenantID)
 	if err != nil {
 		if goerrors.Is(err, ErrTenantNotFound) ||
@@ -161,7 +179,7 @@ func (h *GameHandler) Authorize(c *gin.Context) {
 		return
 	}
 
-	balance, err := tenantWalletProvider.CheckBalance(ctx, gameModule.GetGameCode(), tenantID, username, currencyID)
+	balance, err := tenantWalletProvider.CheckBalance(ctx, gameModule.GetGameCode(), tenantID, username, currencyID, s.SecretExtraData[AuthMetadataTenantToken].(string))
 	if err != nil {
 		balance, err = tenantWalletProvider.GetBalance(ctx, userID, currencyID)
 		if err != nil {
@@ -172,6 +190,7 @@ func (h *GameHandler) Authorize(c *gin.Context) {
 	}
 
 	// Build response
+	s.ExtraData = nil
 	response := game.AuthorizeResponse{
 		LastState:  s,
 		GameConfig: buildConfig(cfg, tenant),
@@ -305,6 +324,7 @@ func (h *GameHandler) Spin(c *gin.Context) {
 	gameService := h.app.newGameService(
 		gameModule,
 		h.app.stateProvider,
+		h.app.authProvider,
 		tenantWalletProvider,
 		h.app.rewardProvider,
 		h.app.logProvider,

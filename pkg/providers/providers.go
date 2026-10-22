@@ -17,15 +17,23 @@ type StateProvider interface {
 	DeleteSpinState(ctx context.Context, sessionID, gameCode string) error
 }
 
+const (
+	AuthMetadataTenantToken = "tenant_token"
+)
+
+// AuthProvider interface for auth operations
+type AuthProvider interface {
+	ClaimUserTenantToken(ctx context.Context, userID string) (string, error)
+}
+
 // WalletProvider interface for wallet operations
 type WalletProvider interface {
 	GetBalance(ctx context.Context, userID, currencyID string) (decimal.Decimal, error)
-	CheckBalance(ctx context.Context, productid, tenantID, username, currencyID string) (decimal.Decimal, error)
+	CheckBalance(ctx context.Context, productid, tenantID, username, currencyID string, tenantToken string) (decimal.Decimal, error)
 	Withdraw(ctx context.Context, userID, currencyID string, amount decimal.Decimal) error
-	PlaceBets(ctx context.Context, productId, tenantID, username, currencyID string, amount decimal.Decimal, roundID string, transactionId string, gameCode string, ameName string) (decimal.Decimal, error)
+	PlaceBets(ctx context.Context, productId, tenantID, username, currencyID string, amount decimal.Decimal, roundID string, transactionId string, gameCode string, ameName string, tenantToken string) (string, decimal.Decimal, error)
 	Deposit(ctx context.Context, userID, currencyID string, amount decimal.Decimal) error
-	SettleBets(ctx context.Context, productId, tenantID, username, currencyID string, amount decimal.Decimal, payoutAmount decimal.Decimal, roundID string, transactionId string, gameCode string, gameName string) error
-	GetWalletUrl(ctx context.Context) string
+	SettleBets(ctx context.Context, productId, tenantID, username, currencyID string, amount decimal.Decimal, payoutAmount decimal.Decimal, roundID string, transactionId string, gameCode string, gameName string, tenantToken string, referenceBetID string) error
 	WithTenant(ctx context.Context, provider TenantProvider, tenantID string) (WalletProvider, error)
 }
 
@@ -236,11 +244,17 @@ func (t *Tenant) WalletEnabled() bool {
 type ResponseTenant struct {
 	Tenant
 
-	SecretKey string `json:"secret_key"`
+	SecretKey      string            `json:"secret_key"`
+	SecretMetadata map[string]string `json:"secret_metadata"`
 }
 
 var (
 	ErrTenantGameNotFound = errors.New("tenant game not found")
+)
+
+const (
+	TenantMetadataWalletClientID     = "wallet_client_id"
+	TenantMetadataWalletClientAPIKey = "wallet_client_api_key"
 )
 
 // GameProvider interface for game operations

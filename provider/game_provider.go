@@ -37,7 +37,7 @@ func NewGameProvider(
 	redisClient *coreredis.Client,
 ) server.GameProvider {
 	gameConfig := cfg.ExternalServices.GameService
-	timeout := cfg.ExternalServices.WalletService.Timeout
+	timeout := gameConfig.Timeout
 	if timeout == 0 {
 		timeout = 10 * time.Second
 	}

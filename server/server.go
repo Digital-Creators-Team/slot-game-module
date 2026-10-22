@@ -38,6 +38,7 @@ type App struct {
 	jackpotService     *jackpot.Service
 	jackpotFeedCancel  context.CancelFunc
 	stateProvider      providers.StateProvider
+	authProvider       providers.AuthProvider
 	walletProvider     providers.WalletProvider
 	rewardProvider     providers.RewardProvider
 	logProvider        providers.LogProvider
@@ -57,6 +58,7 @@ type Options struct {
 type GameServiceFactory func(
 	gameModule game.Module,
 	stateProvider providers.StateProvider,
+	authProvider providers.AuthProvider,
 	walletProvider providers.WalletProvider,
 	rewardProvider providers.RewardProvider,
 	logProvider providers.LogProvider,
@@ -92,6 +94,7 @@ func New(opts Options) *App {
 		gameServiceFactory: func(
 			gameModule game.Module,
 			stateProvider providers.StateProvider,
+			authProvider providers.AuthProvider,
 			walletProvider providers.WalletProvider,
 			rewardProvider providers.RewardProvider,
 			logProvider providers.LogProvider,
@@ -127,6 +130,11 @@ func New(opts Options) *App {
 // SetStateProvider sets the state provider for player state management
 func (a *App) SetStateProvider(provider StateProvider) {
 	a.stateProvider = provider
+}
+
+// SetAuthProvider sets the auth provider for auth operations
+func (a *App) SetAuthProvider(provider AuthProvider) {
+	a.authProvider = provider
 }
 
 // SetWalletProvider sets the wallet provider for balance operations
@@ -218,6 +226,7 @@ func (a *App) SetGameServiceFactory(factory GameServiceFactory) {
 func (a *App) newGameService(
 	gameModule game.Module,
 	stateProvider StateProvider,
+	authProvider AuthProvider,
 	walletProvider WalletProvider,
 	rewardProvider RewardProvider,
 	logProvider LogProvider,
@@ -226,7 +235,7 @@ func (a *App) newGameService(
 	logger zerolog.Logger,
 ) SpinService {
 	if a.gameServiceFactory != nil {
-		return a.gameServiceFactory(gameModule, stateProvider, walletProvider, rewardProvider, logProvider, tenantProvider, gameProvider, logger)
+		return a.gameServiceFactory(gameModule, stateProvider, authProvider, walletProvider, rewardProvider, logProvider, tenantProvider, gameProvider, logger)
 	}
 	return NewGameService(gameModule, stateProvider, walletProvider, rewardProvider, logProvider, tenantProvider, gameProvider, logger)
 }

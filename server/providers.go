@@ -5,6 +5,7 @@ import "github.com/Digital-Creators-Team/slot-game-module/pkg/providers"
 // Re-export provider interfaces/types from pkg/providers to keep a single source of truth.
 type (
 	StateProvider      = providers.StateProvider
+	AuthProvider       = providers.AuthProvider
 	WalletProvider     = providers.WalletProvider
 	RewardProvider     = providers.RewardProvider
 	TenantProvider     = providers.TenantProvider
@@ -28,6 +29,11 @@ const (
 	BetTypeNormal   = providers.BetTypeNormal
 	BetTypeFreeSpin = providers.BetTypeFreeSpin
 	BetTypeJackpot  = providers.BetTypeJackpot
+
+	AuthMetadataTenantToken = providers.AuthMetadataTenantToken
+
+	TenantMetadataWalletClientID     = providers.TenantMetadataWalletClientID
+	TenantMetadataWalletClientAPIKey = providers.TenantMetadataWalletClientAPIKey
 )
 
 var (

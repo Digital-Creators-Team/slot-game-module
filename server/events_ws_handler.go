@@ -492,6 +492,27 @@ func (h *EventsWSHandler) handleAuthorize(c *WSConn, claims *auth.Claims, req WS
 		return &wsReply{status: http.StatusInternalServerError, err: apperrors.New(apperrors.ErrInternalServerError, "Wallet provider not configured")}
 	}
 
+	if tenant.WalletVersion == 3 {
+		tenantToken, err := h.app.authProvider.ClaimUserTenantToken(ctx, claims.UserID)
+		if err != nil {
+			if r := h.timeoutReplyIfNeeded(ctx, err); r != nil {
+				return r
+			}
+
+			return &wsReply{status: http.StatusInternalServerError, err: apperrors.Wrap(err, apperrors.ErrUnauthorized, "Failed to claim tenant auth token")}
+		}
+
+		s.SecretExtraData[AuthMetadataTenantToken] = tenantToken
+
+		err = h.app.stateProvider.SavePlayerState(ctx, claims.UserID, claims.CurrencyID, gameModule.GetGameCode(), s)
+		if err != nil {
+			if r := h.timeoutReplyIfNeeded(ctx, err); r != nil {
+				return r
+			}
+			return &wsReply{status: http.StatusInternalServerError, err: apperrors.Wrap(err, apperrors.ErrPlayerStateError, "Failed to save player state")}
+		}
+	}
+
 	tenantWalletProvider, err := h.app.walletProvider.WithTenant(ctx, h.app.tenantProvider, claims.TenantID)
 	if err != nil {
 		if errors.Is(err, ErrTenantNotFound) ||
@@ -502,7 +523,7 @@ func (h *EventsWSHandler) handleAuthorize(c *WSConn, claims *auth.Claims, req WS
 		return &wsReply{status: http.StatusInternalServerError, err: apperrors.New(apperrors.ErrTenantError, "Failed to get tenant info")}
 	}
 
-	balance, err := tenantWalletProvider.CheckBalance(ctx, gameModule.GetGameCode(), claims.TenantID, claims.Username, claims.CurrencyID)
+	balance, err := tenantWalletProvider.CheckBalance(ctx, gameModule.GetGameCode(), claims.TenantID, claims.Username, claims.CurrencyID, s.SecretExtraData[AuthMetadataTenantToken].(string))
 	if err != nil {
 		if r := h.timeoutReplyIfNeeded(ctx, err); r != nil {
 			return r
@@ -510,6 +531,7 @@ func (h *EventsWSHandler) handleAuthorize(c *WSConn, claims *auth.Claims, req WS
 		return &wsReply{status: http.StatusInternalServerError, err: apperrors.Wrap(err, apperrors.ErrWalletError, "Failed to get balance")}
 	}
 
+	s.ExtraData = nil
 	response := game.AuthorizeResponse{
 		LastState:  s,
 		GameConfig: buildConfig(cfg, tenant),
@@ -580,6 +602,7 @@ func (h *EventsWSHandler) handleSpin(c *WSConn, claims *auth.Claims, req WSReque
 	gameService := h.app.newGameService(
 		gameModule,
 		h.app.stateProvider,
+		h.app.authProvider,
 		tenantWalletProvider,
 		h.app.rewardProvider,
 		h.app.logProvider,

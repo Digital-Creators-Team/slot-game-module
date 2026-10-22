@@ -588,10 +588,11 @@ func (s *GameService) executeNormalSpin(
 	}
 
 	var (
-		gameCode = s.gameModule.GetGameCode()
-		gameName = s.gameModule.GetGameName()
-		err      error
-		logger   = s.logger.For(ctx).With().
+		tenantToken = playerState.SecretExtraData[AuthMetadataTenantToken].(string)
+		gameCode    = s.gameModule.GetGameCode()
+		gameName    = s.gameModule.GetGameName()
+		err         error
+		logger      = s.logger.For(ctx).With().
 				Str("session_id", spinState.SessionID).
 				Str("tenant_id", req.TenantID).
 				Str("currency_id", req.CurrencyID).
@@ -613,7 +614,7 @@ func (s *GameService) executeNormalSpin(
 	}
 
 	start := time.Now()
-	balanceAfter, err := s.walletProvider.PlaceBets(ctx, gameCode, req.TenantID, req.Username, req.CurrencyID, totalBet, spinState.SessionID, spinState.SessionID, gameCode, gameName)
+	referenceBetID, balanceAfter, err := s.walletProvider.PlaceBets(ctx, gameCode, req.TenantID, req.Username, req.CurrencyID, totalBet, spinState.SessionID, spinState.SessionID, gameCode, gameName, tenantToken)
 	elapsed := time.Since(start)
 	s.logger.For(ctx).Debug().Int64("duration", elapsed.Milliseconds()).Msg("PlaceBets duration")
 	if err != nil {
@@ -628,6 +629,8 @@ func (s *GameService) executeNormalSpin(
 		return nil, errors.Wrap(err, errors.GetCode(err), "failed to PlaceBets bet")
 	}
 
+	spinState.ReferenceBetID = referenceBetID
+
 	// 2. Execute spin
 	spinResult, spinErr := s.gameModule.PlayNormalSpin(ctx, req.BetMultiplier, req.CheatPayout)
 	if spinErr != nil {
@@ -641,7 +644,7 @@ func (s *GameService) executeNormalSpin(
 		errMsg := spinErr.Error()
 		spinState.Error = &errMsg
 
-		if refundErr := s.walletProvider.SettleBets(ctx, gameCode, req.TenantID, req.Username, req.CurrencyID, totalBet, totalBet, spinState.SessionID, spinState.SessionID, gameCode, gameName); refundErr != nil {
+		if refundErr := s.walletProvider.SettleBets(ctx, gameCode, req.TenantID, req.Username, req.CurrencyID, totalBet, totalBet, spinState.SessionID, spinState.SessionID, gameCode, gameName, tenantToken, referenceBetID); refundErr != nil {
 			logger.Error().Err(refundErr).Msg("Failed to refund bet after spin error")
 			spinState.Status = game.SpinStatusSpinError
 		} else {
@@ -690,7 +693,7 @@ func (s *GameService) executeNormalSpin(
 	spinResult.EndingBalance = balanceAfter.Add(payout)
 
 	start = time.Now()
-	err = s.walletProvider.SettleBets(ctx, gameCode, req.TenantID, req.Username, req.CurrencyID, totalBet, payout, spinState.SessionID, spinState.SessionID, gameCode, gameName)
+	err = s.walletProvider.SettleBets(ctx, gameCode, req.TenantID, req.Username, req.CurrencyID, totalBet, payout, spinState.SessionID, spinState.SessionID, gameCode, gameName, tenantToken, referenceBetID)
 	elapsed = time.Since(start)
 	s.logger.For(ctx).Debug().Int64("duration", elapsed.Milliseconds()).Msg("SettleBets duration")
 	if err != nil {
@@ -752,10 +755,11 @@ func (s *GameService) executeFreeSpin(
 	}
 
 	var (
-		gameCode = s.gameModule.GetGameCode()
-		gameName = s.gameModule.GetGameName()
-		err      error
-		logger   = s.logger.For(ctx).With().
+		tenantToken = playerState.SecretExtraData[AuthMetadataTenantToken].(string)
+		gameCode    = s.gameModule.GetGameCode()
+		gameName    = s.gameModule.GetGameName()
+		err         error
+		logger      = s.logger.For(ctx).With().
 				Str("session_id", spinState.SessionID).
 				Str("tenant_id", req.TenantID).
 				Str("currency_id", req.CurrencyID).
@@ -810,7 +814,7 @@ func (s *GameService) executeFreeSpin(
 		}
 	}
 
-	balanceAfter, err := s.walletProvider.PlaceBets(ctx, gameCode, req.TenantID, req.Username, req.CurrencyID, decimal.Zero, spinState.SessionID, spinState.SessionID, gameCode, gameName)
+	referenceBetID, balanceAfter, err := s.walletProvider.PlaceBets(ctx, gameCode, req.TenantID, req.Username, req.CurrencyID, decimal.Zero, spinState.SessionID, spinState.SessionID, gameCode, gameName, tenantToken)
 	if err != nil {
 		logger.Error().Err(err).Msg("Failed to place bets")
 
@@ -820,7 +824,9 @@ func (s *GameService) executeFreeSpin(
 		return nil, errors.Wrap(err, errors.ErrWalletError, "failed to deposit winnings")
 	}
 
-	err = s.walletProvider.SettleBets(ctx, gameCode, req.TenantID, req.Username, req.CurrencyID, decimal.Zero, spinResult.TotalWin, spinState.SessionID, spinState.SessionID, gameCode, gameName)
+	spinState.ReferenceBetID = referenceBetID
+
+	err = s.walletProvider.SettleBets(ctx, gameCode, req.TenantID, req.Username, req.CurrencyID, decimal.Zero, spinResult.TotalWin, spinState.SessionID, spinState.SessionID, gameCode, gameName, tenantToken, referenceBetID)
 	if err != nil {
 		logger.Error().Err(err).Msg("Failed to settle bets")
 

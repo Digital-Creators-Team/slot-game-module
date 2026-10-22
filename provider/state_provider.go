@@ -50,6 +50,10 @@ func (p *StateProvider) GetPlayerState(ctx context.Context, userID, currencyID, 
 		state.ExtraData = make(map[string]interface{})
 	}
 
+	if state.SecretExtraData == nil {
+		state.SecretExtraData = make(map[string]interface{})
+	}
+
 	return &state, nil
 }
 
