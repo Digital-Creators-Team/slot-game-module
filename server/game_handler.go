@@ -179,7 +179,13 @@ func (h *GameHandler) Authorize(c *gin.Context) {
 		return
 	}
 
-	balance, err := tenantWalletProvider.CheckBalance(ctx, gameModule.GetGameCode(), tenantID, username, currencyID, s.SecretExtraData[AuthMetadataTenantToken].(string))
+	rawTenantToken := s.SecretExtraData[AuthMetadataTenantToken]
+	tenantToken := ""
+	if rawTenantToken != nil {
+		tenantToken = rawTenantToken.(string)
+	}
+
+	balance, err := tenantWalletProvider.CheckBalance(ctx, gameModule.GetGameCode(), tenantID, username, currencyID, tenantToken)
 	if err != nil {
 		balance, err = tenantWalletProvider.GetBalance(ctx, userID, currencyID)
 		if err != nil {
@@ -190,7 +196,7 @@ func (h *GameHandler) Authorize(c *gin.Context) {
 	}
 
 	// Build response
-	s.ExtraData = nil
+	s.SecretExtraData = nil
 	response := game.AuthorizeResponse{
 		LastState:  s,
 		GameConfig: buildConfig(cfg, tenant),

@@ -523,7 +523,13 @@ func (h *EventsWSHandler) handleAuthorize(c *WSConn, claims *auth.Claims, req WS
 		return &wsReply{status: http.StatusInternalServerError, err: apperrors.New(apperrors.ErrTenantError, "Failed to get tenant info")}
 	}
 
-	balance, err := tenantWalletProvider.CheckBalance(ctx, gameModule.GetGameCode(), claims.TenantID, claims.Username, claims.CurrencyID, s.SecretExtraData[AuthMetadataTenantToken].(string))
+	rawTenantToken := s.SecretExtraData[AuthMetadataTenantToken]
+	tenantToken := ""
+	if rawTenantToken != nil {
+		tenantToken = rawTenantToken.(string)
+	}
+
+	balance, err := tenantWalletProvider.CheckBalance(ctx, gameModule.GetGameCode(), claims.TenantID, claims.Username, claims.CurrencyID, tenantToken)
 	if err != nil {
 		if r := h.timeoutReplyIfNeeded(ctx, err); r != nil {
 			return r
@@ -531,7 +537,7 @@ func (h *EventsWSHandler) handleAuthorize(c *WSConn, claims *auth.Claims, req WS
 		return &wsReply{status: http.StatusInternalServerError, err: apperrors.Wrap(err, apperrors.ErrWalletError, "Failed to get balance")}
 	}
 
-	s.ExtraData = nil
+	s.SecretExtraData = nil
 	response := game.AuthorizeResponse{
 		LastState:  s,
 		GameConfig: buildConfig(cfg, tenant),
