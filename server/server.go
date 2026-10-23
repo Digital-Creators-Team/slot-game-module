@@ -443,6 +443,7 @@ func (a *App) RegisterCommonGameRoutes() {
 			gameRoutes.GET("/jackpot/updates", a.jackpotHandler.StreamUpdates, a.ModuleContextMiddleware())             // SSE endpoint
 			gameRoutes.GET("/jackpot/updates/ws", a.jackpotHandler.StreamUpdatesWebSocket, a.ModuleContextMiddleware()) // WebSocket endpoint
 			gameRoutes.GET("/events/ws", a.eventsWSHandler.Stream)
+			gameRoutes.POST("/verify-external-token", a.gameHandler.VerifyExternalToken)
 
 			// Protected routes (require JWT authentication)
 			authRoutes := gameRoutes.Group("")

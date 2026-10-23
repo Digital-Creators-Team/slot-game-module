@@ -268,6 +268,25 @@ func (p *PlayerState) GetSecretExtraData(k string) interface{} {
 	return p.SecretExtraData[k]
 }
 
+func (p *PlayerState) GetSecretExtraDataString(k string) string {
+	raw := p.GetSecretExtraData(k)
+	if raw == nil {
+		return ""
+	}
+
+	s, ok := raw.(string)
+	if !ok {
+		return ""
+	}
+
+	return s
+}
+
+type VerifyExternalTokenResponse struct {
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+}
+
 // Player represents player information
 type Player struct {
 	TenantID string          `json:"tenantID"`

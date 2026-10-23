@@ -492,27 +492,6 @@ func (h *EventsWSHandler) handleAuthorize(c *WSConn, claims *auth.Claims, req WS
 		return &wsReply{status: http.StatusInternalServerError, err: apperrors.New(apperrors.ErrInternalServerError, "Wallet provider not configured")}
 	}
 
-	if tenant.WalletVersion == 3 {
-		tenantToken, err := h.app.authProvider.ClaimUserTenantToken(ctx, claims.UserID)
-		if err != nil {
-			if r := h.timeoutReplyIfNeeded(ctx, err); r != nil {
-				return r
-			}
-
-			return &wsReply{status: http.StatusInternalServerError, err: apperrors.Wrap(err, apperrors.ErrUnauthorized, "Failed to claim tenant auth token")}
-		}
-
-		s.SetSecretExtraData(AuthMetadataTenantToken, tenantToken)
-
-		err = h.app.stateProvider.SavePlayerState(ctx, claims.UserID, claims.CurrencyID, gameModule.GetGameCode(), s)
-		if err != nil {
-			if r := h.timeoutReplyIfNeeded(ctx, err); r != nil {
-				return r
-			}
-			return &wsReply{status: http.StatusInternalServerError, err: apperrors.Wrap(err, apperrors.ErrPlayerStateError, "Failed to save player state")}
-		}
-	}
-
 	tenantWalletProvider, err := h.app.walletProvider.WithTenant(ctx, h.app.tenantProvider, claims.TenantID)
 	if err != nil {
 		if errors.Is(err, ErrTenantNotFound) ||

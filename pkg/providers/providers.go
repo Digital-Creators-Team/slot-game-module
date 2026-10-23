@@ -21,9 +21,35 @@ const (
 	AuthMetadataTenantToken = "tenant_token"
 )
 
+var (
+	ErrInvalidWalletAPIVersion = errors.New("invalid wallet api version")
+)
+
+type AuthUser struct {
+	ID        string    `json:"user_id" bson:"_id,omitempty"`
+	TenantID  string    `json:"tenant_id" bson:"tenant_id"`
+	Username  string    `json:"username" bson:"username" validate:"required,min=3"`
+	Name      string    `json:"name" bson:"name" validate:"required,min=3"`
+	CreatedAt time.Time `json:"created_at" bson:"created_at"`
+	UpdatedAt time.Time `json:"-" bson:"updated_at"`
+}
+
+type VerifyExternalTokenResponse struct {
+	TenantToken  string    `json:"tenant_token"`
+	User         *AuthUser `json:"user"`
+	CurrencyID   string    `json:"currency_id"`
+	AccessToken  string    `json:"access_token"`
+	RefreshToken string    `json:"refresh_token"`
+}
+
 // AuthProvider interface for auth operations
 type AuthProvider interface {
-	ClaimUserTenantToken(ctx context.Context, userID string) (string, error)
+	VerifyExternalToken(
+		ctx context.Context,
+		gameCode string,
+		tenant *ResponseTenant,
+		token string,
+	) (*VerifyExternalTokenResponse, error)
 }
 
 // WalletProvider interface for wallet operations

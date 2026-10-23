@@ -46,18 +46,52 @@ func NewAuthProvider(
 	return p
 }
 
-func (p *authProvider) ClaimUserTenantToken(ctx context.Context, userID string) (string, error) {
-	url := fmt.Sprintf("%s/api/v2/user/tenant-token/%s/claim", p.baseURL, userID)
+func (p *authProvider) VerifyExternalToken(
+	ctx context.Context,
+	gameCode string,
+	tenant *server.ResponseTenant,
+	token string,
+) (*server.VerifyExternalTokenResponse, error) {
+	switch tenant.WalletVersion {
+	case 3:
+		respV3, err := p.AuthV3(ctx, gameCode, tenant.ID, token)
+		if err != nil {
+			return nil, err
+		}
 
-	req, err := utils.MakeRequest[any](ctx, p.logger.For(ctx), url, nil)
+		return respV3, nil
+	default:
+		return nil, server.ErrInvalidWalletAPIVersion
+	}
+}
+
+type AuthV3Request struct {
+	TenantID string `json:"tenant_id" binding:"required"`
+	GameCode string `json:"game_code" binding:"required"`
+	ExToken  string `json:"ex_token" form:"ex-token" binding:"required"`
+}
+
+func (p *authProvider) AuthV3(
+	ctx context.Context,
+	gameCode string,
+	tenantID string,
+	token string,
+) (*server.VerifyExternalTokenResponse, error) {
+	url := fmt.Sprintf("%s/api/v3/user/auth", p.baseURL)
+
+	req, err := utils.MakeRequest(ctx, p.logger.For(ctx), url, &AuthV3Request{
+		TenantID: tenantID,
+		GameCode: gameCode,
+		ExToken:  token,
+	})
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	respData, err := utils.DoInternalRequest[string](p.logger.For(ctx), p.httpClient, req)
+	respData, err := utils.DoInternalRequest[server.VerifyExternalTokenResponse](p.logger.For(ctx), p.httpClient, req)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	return respData.Data, nil
+	return &respData.Data, nil
 }

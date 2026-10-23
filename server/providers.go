@@ -4,25 +4,27 @@ import "github.com/Digital-Creators-Team/slot-game-module/pkg/providers"
 
 // Re-export provider interfaces/types from pkg/providers to keep a single source of truth.
 type (
-	StateProvider      = providers.StateProvider
-	AuthProvider       = providers.AuthProvider
-	WalletProvider     = providers.WalletProvider
-	RewardProvider     = providers.RewardProvider
-	TenantProvider     = providers.TenantProvider
-	LogProvider        = providers.LogProvider
-	GameProvider       = providers.GameProvider
-	JackpotPool        = providers.JackpotPool
-	JackpotClaim       = providers.JackpotClaim
-	BetType            = providers.BetType
-	SpinLog            = providers.SpinLog
-	SpinErrorLog       = providers.SpinErrorLog
-	JackpotLog         = providers.JackpotLog
-	BetHistoryQuery    = providers.BetHistoryQuery
-	Bet                = providers.Bet
-	BetHistoryResponse = providers.BetHistoryResponse
-	GameRound          = providers.GameRound
-	ResponseTenant     = providers.ResponseTenant
-	TenantGame         = providers.TenantGame
+	StateProvider               = providers.StateProvider
+	AuthProvider                = providers.AuthProvider
+	WalletProvider              = providers.WalletProvider
+	RewardProvider              = providers.RewardProvider
+	TenantProvider              = providers.TenantProvider
+	LogProvider                 = providers.LogProvider
+	GameProvider                = providers.GameProvider
+	JackpotPool                 = providers.JackpotPool
+	JackpotClaim                = providers.JackpotClaim
+	BetType                     = providers.BetType
+	SpinLog                     = providers.SpinLog
+	SpinErrorLog                = providers.SpinErrorLog
+	JackpotLog                  = providers.JackpotLog
+	BetHistoryQuery             = providers.BetHistoryQuery
+	Bet                         = providers.Bet
+	BetHistoryResponse          = providers.BetHistoryResponse
+	GameRound                   = providers.GameRound
+	ResponseTenant              = providers.ResponseTenant
+	TenantGame                  = providers.TenantGame
+	AuthUser                    = providers.AuthUser
+	VerifyExternalTokenResponse = providers.VerifyExternalTokenResponse
 )
 
 const (
@@ -37,6 +39,8 @@ const (
 )
 
 var (
+	ErrInvalidWalletAPIVersion = providers.ErrInvalidWalletAPIVersion
+
 	ErrTenantNotFound         = providers.ErrTenantNotFound
 	ErrTenantWalletNotEnabled = providers.ErrTenantWalletNotEnabled
 	ErrTenantGameNotFound     = providers.ErrTenantGameNotFound
