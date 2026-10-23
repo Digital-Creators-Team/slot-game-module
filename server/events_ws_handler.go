@@ -502,7 +502,7 @@ func (h *EventsWSHandler) handleAuthorize(c *WSConn, claims *auth.Claims, req WS
 			return &wsReply{status: http.StatusInternalServerError, err: apperrors.Wrap(err, apperrors.ErrUnauthorized, "Failed to claim tenant auth token")}
 		}
 
-		s.SecretExtraData[AuthMetadataTenantToken] = tenantToken
+		s.SetSecretExtraData(AuthMetadataTenantToken, tenantToken)
 
 		err = h.app.stateProvider.SavePlayerState(ctx, claims.UserID, claims.CurrencyID, gameModule.GetGameCode(), s)
 		if err != nil {

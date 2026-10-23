@@ -236,6 +236,22 @@ func (p *PlayerState) Reset() {
 	p.UpdatedAt = &t
 }
 
+func (p *PlayerState) SetExtraData(k string, v interface{}) {
+	if p.ExtraData == nil {
+		p.ExtraData = make(map[string]interface{})
+	}
+
+	p.ExtraData[k] = v
+}
+
+func (p *PlayerState) SetSecretExtraData(k string, v interface{}) {
+	if p.SecretExtraData == nil {
+		p.SecretExtraData = make(map[string]interface{})
+	}
+
+	p.SecretExtraData[k] = v
+}
+
 // Player represents player information
 type Player struct {
 	TenantID string          `json:"tenantID"`

@@ -157,7 +157,7 @@ func (h *GameHandler) Authorize(c *gin.Context) {
 			return
 		}
 
-		s.SecretExtraData[AuthMetadataTenantToken] = tenantToken
+		s.SetSecretExtraData(AuthMetadataTenantToken, tenantToken)
 
 		err = h.app.stateProvider.SavePlayerState(ctx, userID, currencyID, gameModule.GetGameCode(), s)
 		if err != nil {
