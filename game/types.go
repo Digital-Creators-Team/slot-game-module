@@ -244,20 +244,20 @@ func (p *PlayerState) SetExtraData(k string, v interface{}) {
 	p.ExtraData[k] = v
 }
 
-func (p *PlayerState) SetSecretExtraData(k string, v interface{}) {
-	if p.SecretExtraData == nil {
-		p.SecretExtraData = make(map[string]interface{})
-	}
-
-	p.SecretExtraData[k] = v
-}
-
 func (p *PlayerState) GetExtraData(k string) interface{} {
 	if p.ExtraData == nil {
 		return nil
 	}
 
 	return p.ExtraData[k]
+}
+
+func (p *PlayerState) SetSecretExtraData(k string, v interface{}) {
+	if p.SecretExtraData == nil {
+		p.SecretExtraData = make(map[string]interface{})
+	}
+
+	p.SecretExtraData[k] = v
 }
 
 func (p *PlayerState) GetSecretExtraData(k string) interface{} {

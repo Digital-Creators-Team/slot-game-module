@@ -502,13 +502,7 @@ func (h *EventsWSHandler) handleAuthorize(c *WSConn, claims *auth.Claims, req WS
 		return &wsReply{status: http.StatusInternalServerError, err: apperrors.New(apperrors.ErrTenantError, "Failed to get tenant info")}
 	}
 
-	rawTenantToken := s.GetSecretExtraData(AuthMetadataTenantToken)
-	tenantToken := ""
-	if rawTenantToken != nil {
-		tenantToken = rawTenantToken.(string)
-	}
-
-	balance, err := tenantWalletProvider.CheckBalance(ctx, gameModule.GetGameCode(), claims.TenantID, claims.Username, claims.CurrencyID, tenantToken)
+	balance, err := tenantWalletProvider.CheckBalance(ctx, gameModule.GetGameCode(), claims.TenantID, claims.Username, claims.CurrencyID, s.GetSecretExtraDataString(AuthMetadataTenantToken))
 	if err != nil {
 		if r := h.timeoutReplyIfNeeded(ctx, err); r != nil {
 			return r
