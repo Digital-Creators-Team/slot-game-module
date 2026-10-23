@@ -104,17 +104,18 @@ const (
 )
 
 type SpinState struct {
-	SessionID  string          `json:"sessionID"`
-	TenantID   string          `json:"tenantID"`
-	CurrencyID string          `json:"currencyID"`
-	UserID     string          `json:"userID"`
-	Username   string          `json:"username"`
-	Status     SpinStatus      `json:"status"`
-	SpinType   int             `json:"spinType"` // 0 = normal, 1 = free spin
-	TotalBet   decimal.Decimal `json:"totalBet"`
-	SpinResult *SpinResult     `json:"spinResult,omitempty"`
-	Error      *string         `json:"error,omitempty"`
-	Timestamp  time.Time       `json:"timestamp"`
+	SessionID      string          `json:"sessionID"`
+	TenantID       string          `json:"tenantID"`
+	CurrencyID     string          `json:"currencyID"`
+	UserID         string          `json:"userID"`
+	Username       string          `json:"username"`
+	Status         SpinStatus      `json:"status"`
+	SpinType       int             `json:"spinType"` // 0 = normal, 1 = free spin
+	ReferenceBetID string          `json:"referenceBetID"`
+	TotalBet       decimal.Decimal `json:"totalBet"`
+	SpinResult     *SpinResult     `json:"spinResult,omitempty"`
+	Error          *string         `json:"error,omitempty"`
+	Timestamp      time.Time       `json:"timestamp"`
 }
 
 // SpinResponse represents the API response for a spin
@@ -190,7 +191,8 @@ type PlayerState struct {
 	SpinResult          *SpinResult            `json:"spinResult,omitempty"`
 	SpinResultTriggerFG *SpinResult            `json:"spinResultTriggerFG,omitempty"`
 	UpdatedAt           *time.Time             `json:"updatedAt,omitempty"`
-	ExtraData           map[string]interface{} `json:"extraData,omitempty"` // Custom data for game-specific use
+	ExtraData           map[string]interface{} `json:"extraData,omitempty"`       // Custom data for game-specific use
+	SecretExtraData     map[string]interface{} `json:"secretExtraData,omitempty"` // Server-only data, delete before returning state object
 }
 
 // ToJSON serializes PlayerState to JSON
@@ -207,6 +209,9 @@ func PlayerStateFromJSON(data []byte) (*PlayerState, error) {
 	// Initialize ExtraData if nil (for backward compatibility with old states)
 	if state.ExtraData == nil {
 		state.ExtraData = make(map[string]interface{})
+	}
+	if state.SecretExtraData == nil {
+		state.SecretExtraData = make(map[string]interface{})
 	}
 	return &state, nil
 }
@@ -229,6 +234,57 @@ func (p *PlayerState) Reset() {
 	// p.ExtraData = make(map[string]interface{})
 	t := time.Now()
 	p.UpdatedAt = &t
+}
+
+func (p *PlayerState) SetExtraData(k string, v interface{}) {
+	if p.ExtraData == nil {
+		p.ExtraData = make(map[string]interface{})
+	}
+
+	p.ExtraData[k] = v
+}
+
+func (p *PlayerState) GetExtraData(k string) interface{} {
+	if p.ExtraData == nil {
+		return nil
+	}
+
+	return p.ExtraData[k]
+}
+
+func (p *PlayerState) SetSecretExtraData(k string, v interface{}) {
+	if p.SecretExtraData == nil {
+		p.SecretExtraData = make(map[string]interface{})
+	}
+
+	p.SecretExtraData[k] = v
+}
+
+func (p *PlayerState) GetSecretExtraData(k string) interface{} {
+	if p.SecretExtraData == nil {
+		return nil
+	}
+
+	return p.SecretExtraData[k]
+}
+
+func (p *PlayerState) GetSecretExtraDataString(k string) string {
+	raw := p.GetSecretExtraData(k)
+	if raw == nil {
+		return ""
+	}
+
+	s, ok := raw.(string)
+	if !ok {
+		return ""
+	}
+
+	return s
+}
+
+type VerifyExternalTokenResponse struct {
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
 }
 
 // Player represents player information
