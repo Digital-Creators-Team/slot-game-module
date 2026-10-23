@@ -523,7 +523,7 @@ func (h *EventsWSHandler) handleAuthorize(c *WSConn, claims *auth.Claims, req WS
 		return &wsReply{status: http.StatusInternalServerError, err: apperrors.New(apperrors.ErrTenantError, "Failed to get tenant info")}
 	}
 
-	rawTenantToken := s.SecretExtraData[AuthMetadataTenantToken]
+	rawTenantToken := s.GetSecretExtraData(AuthMetadataTenantToken)
 	tenantToken := ""
 	if rawTenantToken != nil {
 		tenantToken = rawTenantToken.(string)

@@ -588,7 +588,7 @@ func (s *GameService) executeNormalSpin(
 	}
 
 	var (
-		tenantToken = playerState.SecretExtraData[AuthMetadataTenantToken].(string)
+		tenantToken = ""
 		gameCode    = s.gameModule.GetGameCode()
 		gameName    = s.gameModule.GetGameName()
 		err         error
@@ -601,6 +601,10 @@ func (s *GameService) executeNormalSpin(
 				Str("spin_type", "normal").
 				Logger()
 	)
+
+	if temp := playerState.GetSecretExtraData(AuthMetadataTenantToken); temp != nil {
+		tenantToken = temp.(string)
+	}
 
 	spinState.SpinType = 0
 
@@ -755,7 +759,7 @@ func (s *GameService) executeFreeSpin(
 	}
 
 	var (
-		tenantToken = playerState.SecretExtraData[AuthMetadataTenantToken].(string)
+		tenantToken = ""
 		gameCode    = s.gameModule.GetGameCode()
 		gameName    = s.gameModule.GetGameName()
 		err         error
@@ -770,6 +774,9 @@ func (s *GameService) executeFreeSpin(
 	)
 
 	spinState.SpinType = 1
+	if temp := playerState.GetSecretExtraData(AuthMetadataTenantToken); temp != nil {
+		tenantToken = temp.(string)
+	}
 
 	// Get the next pre-generated free spin result
 	// Note: playerState is a pointer, so modifications by endusers are automatically reflected

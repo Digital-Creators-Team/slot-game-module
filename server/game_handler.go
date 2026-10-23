@@ -179,7 +179,7 @@ func (h *GameHandler) Authorize(c *gin.Context) {
 		return
 	}
 
-	rawTenantToken := s.SecretExtraData[AuthMetadataTenantToken]
+	rawTenantToken := s.GetSecretExtraData(AuthMetadataTenantToken)
 	tenantToken := ""
 	if rawTenantToken != nil {
 		tenantToken = rawTenantToken.(string)

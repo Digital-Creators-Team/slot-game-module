@@ -271,6 +271,7 @@ type TenantGame struct {
 	TenantID          string         `json:"tenant_id" bson:"tenant_id"`
 	GameCode          string         `json:"game_code" bson:"game_code"`
 	CustomGameCode    string         `json:"custom_game_code,omitempty" bson:"custom_game_code,omitempty"`
+	ExternalID        string         `json:"external_id" bson:"external_id"`
 	PlayURL           string         `json:"play_url" bson:"play_url"`
 	AndroidPlayURL    string         `json:"android_play_url" bson:"android_play_url"`
 	IOSPlayURL        string         `json:"ios_play_url" bson:"ios_play_url"`
