@@ -217,23 +217,32 @@ func (p *WalletProvider) PlaceBets(
 }
 
 // Withdraw deducts amount from player balance
-func (p *WalletProvider) PlaceBetsV2(ctx context.Context, baseURL, gameCode, userName, currencyID string, amount decimal.Decimal, roundID string, transactionID string) (string, decimal.Decimal, error) {
+func (p *WalletProvider) PlaceBetsV2(
+	ctx context.Context,
+	baseURL string,
+	productID string,
+	userName string,
+	currencyID string,
+	amount decimal.Decimal,
+	roundID string,
+	transactionID string,
+) (string, decimal.Decimal, error) {
 	url := fmt.Sprintf("%s/placeBets", baseURL)
 
 	requestBody := map[string]interface{}{
 		"id":              uuid.New().String(),
 		"timestampMillis": time.Now().UnixMilli(),
-		"productId":       gameCode,
+		"productId":       productID,
 		"username":        userName,
 		"currency":        currencyID,
 		"txns": []map[string]interface{}{
 			{
 				"id":          transactionID,
-				"gameCode":    gameCode,
+				"gameCode":    productID,
 				"status":      "OPEN",
 				"roundId":     roundID,
 				"betAmount":   amount.InexactFloat64(), // docs is int, now using float
-				"playInfo":    gameCode,
+				"playInfo":    productID,
 				"isFreespins": false,
 			},
 		},
@@ -337,25 +346,35 @@ func (p *WalletProvider) SettleBets(
 	}
 }
 
-func (p *WalletProvider) SettleBetsV2(ctx context.Context, baseURL, gameCode, username, currencyID string, betAmount decimal.Decimal, payoutAmount decimal.Decimal, roundID string, transactionID string) (string, decimal.Decimal, error) {
+func (p *WalletProvider) SettleBetsV2(
+	ctx context.Context,
+	baseURL string,
+	productID string,
+	username string,
+	currencyID string,
+	betAmount decimal.Decimal,
+	payoutAmount decimal.Decimal,
+	roundID string,
+	transactionID string,
+) (string, decimal.Decimal, error) {
 	url := fmt.Sprintf("%s/settleBets", baseURL)
 
 	requestBody := map[string]interface{}{
 		"id":              uuid.New().String(),
 		"timestampMillis": time.Now().UnixMilli(),
-		"productId":       gameCode,
+		"productId":       productID,
 		"username":        username,
 		"currency":        currencyID,
 		"txns": []map[string]interface{}{
 			{
 				"id":              transactionID,
-				"gameCode":        gameCode,
+				"gameCode":        productID,
 				"status":          "SETTLED",
 				"roundId":         roundID,
 				"betAmount":       betAmount.InexactFloat64(), // docs is int, now using float
 				"payoutAmount":    payoutAmount.InexactFloat64(),
 				"winlost":         payoutAmount.InexactFloat64() - betAmount.InexactFloat64(),
-				"playInfo":        gameCode,
+				"playInfo":        productID,
 				"turnOver":        betAmount.InexactFloat64(),
 				"isSingleState":   false,
 				"transactionType": "BY_TRANSACTION",
