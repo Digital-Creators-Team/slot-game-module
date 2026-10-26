@@ -283,12 +283,9 @@ func (h *GameHandler) Authorize(c *gin.Context) {
 		s.GetServerDataString(AuthMetadataTenantToken),
 	)
 	if err != nil {
-		balance, err = tenantWalletProvider.GetBalance(ctx, userID, currencyID)
-		if err != nil {
-			h.logger.Error().Err(err).Msg("Failed to get balance")
-			InternalError(c, errors.Wrap(err, errors.ErrWalletError, "Failed to get balance"))
-			return
-		}
+		h.logger.Error().Err(err).Msg("Failed to get balance")
+		InternalError(c, errors.Wrap(err, errors.ErrWalletError, "Failed to get balance"))
+		return
 	}
 
 	// Build response
