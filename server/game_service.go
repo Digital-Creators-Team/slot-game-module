@@ -588,7 +588,7 @@ func (s *GameService) executeNormalSpin(
 	}
 
 	var (
-		tenantToken = playerState.GetSecretExtraDataString(AuthMetadataTenantToken)
+		tenantToken = playerState.GetServerDataString(AuthMetadataTenantToken)
 		gameCode    = s.gameModule.GetGameCode()
 		gameName    = s.gameModule.GetGameName()
 		err         error
@@ -755,7 +755,7 @@ func (s *GameService) executeFreeSpin(
 	}
 
 	var (
-		tenantToken = playerState.GetSecretExtraDataString(AuthMetadataTenantToken)
+		tenantToken = playerState.GetServerDataString(AuthMetadataTenantToken)
 		gameCode    = s.gameModule.GetGameCode()
 		gameName    = s.gameModule.GetGameName()
 		err         error

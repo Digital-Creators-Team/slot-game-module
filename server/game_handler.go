@@ -155,7 +155,7 @@ func (h *GameHandler) VerifyExternalToken(c *gin.Context) {
 		return
 	}
 
-	s.SetSecretExtraData(AuthMetadataTenantToken, verifyResp.TenantToken)
+	s.SetServerData(AuthMetadataTenantToken, verifyResp.TenantToken)
 
 	err = h.app.stateProvider.SavePlayerState(ctx, user.ID, verifyResp.CurrencyID, gameModule.GetGameCode(), s)
 	if err != nil {
@@ -269,7 +269,7 @@ func (h *GameHandler) Authorize(c *gin.Context) {
 		return
 	}
 
-	balance, err := tenantWalletProvider.CheckBalance(ctx, gameModule.GetGameCode(), tenantID, username, currencyID, s.GetSecretExtraDataString(AuthMetadataTenantToken))
+	balance, err := tenantWalletProvider.CheckBalance(ctx, gameModule.GetGameCode(), tenantID, username, currencyID, s.GetServerDataString(AuthMetadataTenantToken))
 	if err != nil {
 		balance, err = tenantWalletProvider.GetBalance(ctx, userID, currencyID)
 		if err != nil {
@@ -282,7 +282,7 @@ func (h *GameHandler) Authorize(c *gin.Context) {
 	// Build response
 	// remove server-only data
 	s.FreeSpins = nil
-	s.SecretExtraData = nil
+	s.ServerData = nil
 	response := game.AuthorizeResponse{
 		LastState:  s,
 		GameConfig: buildConfig(cfg, tenant),

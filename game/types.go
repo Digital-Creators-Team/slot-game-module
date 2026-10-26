@@ -191,8 +191,8 @@ type PlayerState struct {
 	SpinResult          *SpinResult            `json:"spinResult,omitempty"`
 	SpinResultTriggerFG *SpinResult            `json:"spinResultTriggerFG,omitempty"`
 	UpdatedAt           *time.Time             `json:"updatedAt,omitempty"`
-	ExtraData           map[string]interface{} `json:"extraData,omitempty"`       // Custom data for game-specific use
-	SecretExtraData     map[string]interface{} `json:"secretExtraData,omitempty"` // Server-only data, delete before returning state object
+	ExtraData           map[string]interface{} `json:"extraData,omitempty"`  // Custom data for game-specific use
+	ServerData          map[string]interface{} `json:"serverData,omitempty"` // Server-only data, delete before returning state object
 }
 
 // ToJSON serializes PlayerState to JSON
@@ -210,8 +210,8 @@ func PlayerStateFromJSON(data []byte) (*PlayerState, error) {
 	if state.ExtraData == nil {
 		state.ExtraData = make(map[string]interface{})
 	}
-	if state.SecretExtraData == nil {
-		state.SecretExtraData = make(map[string]interface{})
+	if state.ServerData == nil {
+		state.ServerData = make(map[string]interface{})
 	}
 	return &state, nil
 }
@@ -252,24 +252,24 @@ func (p *PlayerState) GetExtraData(k string) interface{} {
 	return p.ExtraData[k]
 }
 
-func (p *PlayerState) SetSecretExtraData(k string, v interface{}) {
-	if p.SecretExtraData == nil {
-		p.SecretExtraData = make(map[string]interface{})
+func (p *PlayerState) SetServerData(k string, v interface{}) {
+	if p.ServerData == nil {
+		p.ServerData = make(map[string]interface{})
 	}
 
-	p.SecretExtraData[k] = v
+	p.ServerData[k] = v
 }
 
-func (p *PlayerState) GetSecretExtraData(k string) interface{} {
-	if p.SecretExtraData == nil {
+func (p *PlayerState) GetServerData(k string) interface{} {
+	if p.ServerData == nil {
 		return nil
 	}
 
-	return p.SecretExtraData[k]
+	return p.ServerData[k]
 }
 
-func (p *PlayerState) GetSecretExtraDataString(k string) string {
-	raw := p.GetSecretExtraData(k)
+func (p *PlayerState) GetServerDataString(k string) string {
+	raw := p.GetServerData(k)
 	if raw == nil {
 		return ""
 	}
@@ -282,11 +282,6 @@ func (p *PlayerState) GetSecretExtraDataString(k string) string {
 	return s
 }
 
-type VerifyExternalTokenResponse struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-}
-
 // Player represents player information
 type Player struct {
 	TenantID string          `json:"tenantID"`
@@ -294,6 +289,11 @@ type Player struct {
 	Username string          `json:"username"`
 	Balance  decimal.Decimal `json:"balance"`
 	Currency string          `json:"currency"`
+}
+
+type VerifyExternalTokenResponse struct {
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
 }
 
 // AuthorizeResponse represents the authorize game response
