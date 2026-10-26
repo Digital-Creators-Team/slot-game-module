@@ -65,7 +65,7 @@ func (p *authProvider) VerifyExternalToken(
 	}
 }
 
-type AuthV3Request struct {
+type VerifyExternalTokenV3Request struct {
 	TenantID string `json:"tenant_id" binding:"required"`
 	GameCode string `json:"game_code" binding:"required"`
 	ExToken  string `json:"ex_token" form:"ex-token" binding:"required"`
@@ -77,9 +77,9 @@ func (p *authProvider) AuthV3(
 	tenantID string,
 	token string,
 ) (*server.VerifyExternalTokenResponse, error) {
-	url := fmt.Sprintf("%s/api/v3/user/auth", p.baseURL)
+	url := fmt.Sprintf("%s/api/v3/user/verify-external-token", p.baseURL)
 
-	req, err := utils.MakeRequest(ctx, p.logger.For(ctx), url, &AuthV3Request{
+	req, err := utils.MakeRequest(ctx, p.logger.For(ctx), url, &VerifyExternalTokenV3Request{
 		TenantID: tenantID,
 		GameCode: gameCode,
 		ExToken:  token,
