@@ -484,8 +484,11 @@ func (h *EventsWSHandler) handleAuthorize(c *WSConn, claims *auth.Claims, req WS
 	}
 
 	s, ok := playerState.(*game.PlayerState)
-	if ok {
-		s.FreeSpins = nil
+	if !ok {
+		if r := h.timeoutReplyIfNeeded(ctx, err); r != nil {
+			return r
+		}
+		return &wsReply{status: http.StatusInternalServerError, err: apperrors.Wrap(err, apperrors.ErrPlayerStateError, "Failed to read player state")}
 	}
 
 	if h.app.walletProvider == nil {
@@ -510,6 +513,8 @@ func (h *EventsWSHandler) handleAuthorize(c *WSConn, claims *auth.Claims, req WS
 		return &wsReply{status: http.StatusInternalServerError, err: apperrors.Wrap(err, apperrors.ErrWalletError, "Failed to get balance")}
 	}
 
+	// remove server-only data
+	s.FreeSpins = nil
 	s.SecretExtraData = nil
 	response := game.AuthorizeResponse{
 		LastState:  s,
