@@ -221,7 +221,7 @@ func (p *WalletProvider) PlaceBetsV2(
 	ctx context.Context,
 	baseURL string,
 	productID string,
-	userName string,
+	username string,
 	currencyID string,
 	amount decimal.Decimal,
 	roundID string,
@@ -233,7 +233,7 @@ func (p *WalletProvider) PlaceBetsV2(
 		"id":              uuid.New().String(),
 		"timestampMillis": time.Now().UnixMilli(),
 		"productId":       productID,
-		"username":        userName,
+		"username":        username,
 		"currency":        currencyID,
 		"txns": []map[string]interface{}{
 			{
