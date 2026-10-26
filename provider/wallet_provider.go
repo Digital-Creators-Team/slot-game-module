@@ -203,7 +203,7 @@ func (p *WalletProvider) PlaceBets(
 	tenantToken string,
 ) (string, decimal.Decimal, error) {
 	if p.tenant == nil {
-		return p.PlaceBetsV2(ctx, p.baseURL, "", gameCode, username, currencyID, amount, roundID, betID)
+		return p.PlaceBetsV2(ctx, p.baseURL, gameCode, username, currencyID, amount, roundID, betID)
 	}
 
 	switch p.tenant.WalletVersion {
@@ -212,19 +212,18 @@ func (p *WalletProvider) PlaceBets(
 	case 2:
 		fallthrough
 	default:
-		return p.PlaceBetsV2(ctx, p.tenant.WalletCallbackURL, p.tenant.ID, gameCode, username, currencyID, amount, roundID, betID)
+		return p.PlaceBetsV2(ctx, p.tenant.WalletCallbackURL, gameCode, username, currencyID, amount, roundID, betID)
 	}
 }
 
 // Withdraw deducts amount from player balance
-func (p *WalletProvider) PlaceBetsV2(ctx context.Context, baseURL, tenantID, gameCode, userName, currencyID string, amount decimal.Decimal, roundID string, transactionID string) (string, decimal.Decimal, error) {
+func (p *WalletProvider) PlaceBetsV2(ctx context.Context, baseURL, gameCode, userName, currencyID string, amount decimal.Decimal, roundID string, transactionID string) (string, decimal.Decimal, error) {
 	url := fmt.Sprintf("%s/placeBets", baseURL)
 
 	requestBody := map[string]interface{}{
 		"id":              uuid.New().String(),
 		"timestampMillis": time.Now().UnixMilli(),
 		"productId":       gameCode,
-		"tenantId":        tenantID,
 		"username":        userName,
 		"currency":        currencyID,
 		"txns": []map[string]interface{}{
@@ -325,7 +324,7 @@ func (p *WalletProvider) SettleBets(
 	tenantToken string,
 ) (string, decimal.Decimal, error) {
 	if p.tenant == nil {
-		return p.SettleBetsV2(ctx, p.baseURL, "", gameCode, username, currencyID, betAmount, payoutAmount, roundID, betID)
+		return p.SettleBetsV2(ctx, p.baseURL, gameCode, username, currencyID, betAmount, payoutAmount, roundID, betID)
 	}
 
 	switch p.tenant.WalletVersion {
@@ -334,18 +333,17 @@ func (p *WalletProvider) SettleBets(
 	case 2:
 		fallthrough
 	default:
-		return p.SettleBetsV2(ctx, p.tenant.WalletCallbackURL, p.tenant.ID, gameCode, username, currencyID, betAmount, payoutAmount, roundID, betID)
+		return p.SettleBetsV2(ctx, p.tenant.WalletCallbackURL, gameCode, username, currencyID, betAmount, payoutAmount, roundID, betID)
 	}
 }
 
-func (p *WalletProvider) SettleBetsV2(ctx context.Context, baseURL, tenantID, gameCode, username, currencyID string, betAmount decimal.Decimal, payoutAmount decimal.Decimal, roundID string, transactionID string) (string, decimal.Decimal, error) {
+func (p *WalletProvider) SettleBetsV2(ctx context.Context, baseURL, gameCode, username, currencyID string, betAmount decimal.Decimal, payoutAmount decimal.Decimal, roundID string, transactionID string) (string, decimal.Decimal, error) {
 	url := fmt.Sprintf("%s/settleBets", baseURL)
 
 	requestBody := map[string]interface{}{
 		"id":              uuid.New().String(),
 		"timestampMillis": time.Now().UnixMilli(),
 		"productId":       gameCode,
-		"tenantId":        tenantID,
 		"username":        username,
 		"currency":        currencyID,
 		"txns": []map[string]interface{}{
@@ -445,7 +443,7 @@ func (p *WalletProvider) CancelBets(
 	tenantToken string,
 ) (string, decimal.Decimal, error) {
 	if p.tenant == nil {
-		return p.SettleBetsV2(ctx, p.baseURL, "", gameCode, username, currencyID, betAmount, payoutAmount, roundID, betID)
+		return p.SettleBetsV2(ctx, p.baseURL, gameCode, username, currencyID, betAmount, payoutAmount, roundID, betID)
 	}
 
 	switch p.tenant.WalletVersion {
@@ -454,7 +452,7 @@ func (p *WalletProvider) CancelBets(
 	case 2:
 		fallthrough
 	default:
-		return p.SettleBetsV2(ctx, p.tenant.WalletCallbackURL, p.tenant.ID, gameCode, username, currencyID, betAmount, payoutAmount, roundID, betID)
+		return p.SettleBetsV2(ctx, p.tenant.WalletCallbackURL, gameCode, username, currencyID, betAmount, payoutAmount, roundID, betID)
 	}
 }
 
