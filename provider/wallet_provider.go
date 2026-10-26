@@ -304,12 +304,12 @@ func (p *WalletProvider) PlaceBetsV3(
 	respV3, err := zeusClient.PlaceBets(
 		ctx,
 		tenantToken,
-		zeusClient.NewRequestID(),
+		zeusClient.NewRequestID(), // TODO: use pre-generated key for idempotence
 		betID,
 		roundID,
 		sessionID,
 		amount,
-		nil,
+		nil, // TODO: send bet details
 	)
 	if err != nil {
 		return "", decimal.Zero, err
@@ -435,11 +435,11 @@ func (p *WalletProvider) SettleBetsV3(
 	resp, err := zeusClient.SettleBets(
 		ctx,
 		tenantToken,
-		zeusClient.NewRequestID(),
+		zeusClient.NewRequestID(), // TODO: use pre-generated key for idempotence
 		betID,
 		referenceBetID,
 		payoutAmount,
-		nil,
+		nil, // TODO: send bet details
 	)
 	if err != nil {
 		return "", decimal.Zero, err
@@ -487,7 +487,7 @@ func (p *WalletProvider) CancelBetsV3(
 	resp, err := zeusClient.CancelBets(
 		ctx,
 		tenantToken,
-		zeusClient.NewRequestID(),
+		zeusClient.NewRequestID(), // TODO: use pre-generated key for idempotence
 		betID,
 		referenceBetID,
 	)
