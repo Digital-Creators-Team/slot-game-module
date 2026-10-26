@@ -54,7 +54,7 @@ func (p *authProvider) VerifyExternalToken(
 ) (*server.VerifyExternalTokenResponse, error) {
 	switch tenant.WalletVersion {
 	case 3:
-		respV3, err := p.AuthV3(ctx, gameCode, tenant.ID, token)
+		respV3, err := p.VerifyExternalTokenV3RequestV3(ctx, gameCode, tenant.ID, token)
 		if err != nil {
 			return nil, err
 		}
@@ -71,7 +71,7 @@ type VerifyExternalTokenV3Request struct {
 	ExToken  string `json:"ex_token" form:"ex-token" binding:"required"`
 }
 
-func (p *authProvider) AuthV3(
+func (p *authProvider) VerifyExternalTokenV3RequestV3(
 	ctx context.Context,
 	gameCode string,
 	tenantID string,
