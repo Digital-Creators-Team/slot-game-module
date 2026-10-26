@@ -189,7 +189,7 @@ func (p *WalletProvider) CheckBalanceV3(
 	return respV3.AvailableBalance, nil
 }
 
-// PlaceBets place bets
+// PlaceBets places bets based on wallet version
 func (p *WalletProvider) PlaceBets(
 	ctx context.Context,
 	gameCode string,
@@ -318,6 +318,7 @@ func (p *WalletProvider) PlaceBetsV3(
 	return respV3.ReferenceBetID, respV3.BalanceAfter, nil
 }
 
+// SettleBets settle bets based on wallet version
 func (p *WalletProvider) SettleBets(
 	ctx context.Context,
 	gameCode string,
