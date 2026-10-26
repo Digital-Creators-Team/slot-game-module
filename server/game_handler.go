@@ -82,7 +82,7 @@ type VerifyExternalTokenRequest struct {
 // @Success      200  {object}  server.SuccessResponse[game.VerifyExternalTokenResponse]
 // @Failure      401  {object}  server.ErrorResponse
 // @Failure      500  {object}  server.ErrorResponse
-// @Router       /games/{game_code}/authorize-token [post]
+// @Router       /games/{game_code}/verify-external-token [post]
 func (h *GameHandler) VerifyExternalToken(c *gin.Context) {
 	ctx := c.Request.Context()
 
