@@ -274,7 +274,14 @@ func (h *GameHandler) Authorize(c *gin.Context) {
 		return
 	}
 
-	balance, err := tenantWalletProvider.CheckBalance(ctx, gameModule.GetGameCode(), tenantID, username, currencyID, s.GetServerDataString(AuthMetadataTenantToken))
+	balance, err := tenantWalletProvider.CheckBalance(
+		ctx,
+		gameModule.GetGameCode(),
+		userID,
+		username,
+		currencyID,
+		s.GetServerDataString(AuthMetadataTenantToken),
+	)
 	if err != nil {
 		balance, err = tenantWalletProvider.GetBalance(ctx, userID, currencyID)
 		if err != nil {

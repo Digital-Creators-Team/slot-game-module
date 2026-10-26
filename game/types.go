@@ -98,7 +98,7 @@ const (
 	SpinStatusNew       SpinStatus = "new"
 	SpinStatusStale     SpinStatus = "stale"
 	SpinStatusSpinError SpinStatus = "spinError"
-	SpinStatusRefunded  SpinStatus = "refunded"
+	SpinStatusCanceled  SpinStatus = "canceled"
 	SpinStatusPaying    SpinStatus = "paying"
 	SpinStatusCompleted SpinStatus = "completed"
 )
