@@ -130,7 +130,12 @@ func (h *GameHandler) VerifyExternalToken(c *gin.Context) {
 			return
 		}
 
-		InternalError(c, errors.Wrap(err, errors.ErrInternalServerError, "Failed to verify external token"))
+		if goerrors.Is(err, ErrInvalidTenantAuthToken) {
+			Unauthorized(c, errors.New(errors.ErrUnauthorized, "Invalid token"))
+			return
+		}
+
+		InternalError(c, errors.Wrap(err, errors.ErrInternalServerError, "Failed to verify token"))
 		return
 	}
 

@@ -23,6 +23,7 @@ const (
 
 var (
 	ErrInvalidWalletAPIVersion = errors.New("invalid wallet api version")
+	ErrInvalidTenantAuthToken  = errors.New("invalid tenant auth token")
 )
 
 type AuthUser struct {

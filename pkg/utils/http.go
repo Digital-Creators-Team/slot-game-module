@@ -29,7 +29,33 @@ type ErrorDetail struct {
 type ErrorResponse struct {
 	StatusCode int         `json:"status_code"`
 	IsSuccess  bool        `json:"is_success"`
-	Error      ErrorDetail `json:"error,omitempty"`
+	Detail     ErrorDetail `json:"error,omitempty"`
+}
+
+func (e *ErrorResponse) Error() string {
+	msg := "unknown error"
+	if e.Detail.ErrorMessage != "" {
+		msg = e.Detail.ErrorMessage
+	}
+
+	if e.Detail.ErrorCode != 0 {
+		return fmt.Sprintf("[%d] %s: [%d] %s",
+			e.StatusCode,
+			e.Detail.Path,
+			e.Detail.ErrorCode,
+			msg,
+		)
+	}
+
+	return fmt.Sprintf("[%d] %s: %s",
+		e.StatusCode,
+		e.Detail.Path,
+		msg,
+	)
+}
+
+func (e *ErrorResponse) Unwrap() error {
+	return ErrServiceError
 }
 
 type InternalResponse[T any] struct {
@@ -94,7 +120,7 @@ func DoInternalRequest[T any](
 	if errors.Is(err, ErrServiceError) {
 		errorData, _ := Unmarshal[InternalResponse[any]](rawBytes)
 		if errorData != nil {
-			if !errorData.IsSuccess || errorData.Error.ErrorMessage != "" {
+			if !errorData.IsSuccess || errorData.Detail.ErrorMessage != "" {
 				// skip the next error check to return the service error message
 				err = nil
 				errorResponse = errorData.ErrorResponse
@@ -105,21 +131,16 @@ func DoInternalRequest[T any](
 		return nil, err
 	}
 
-	if !errorResponse.IsSuccess || errorResponse.Error.ErrorMessage != "" {
+	if !errorResponse.IsSuccess || errorResponse.Detail.ErrorMessage != "" {
 		logger.Error().
 			Ctx(req.Context()).
-			Err(ErrServiceError).
+			Err(&errorResponse).
 			Str("url", req.URL.String()).
-			Str("error_message", errorResponse.Error.ErrorMessage).
-			Int("error_code", errorResponse.Error.ErrorCode).
+			Str("error_message", errorResponse.Detail.ErrorMessage).
+			Int("error_code", errorResponse.Detail.ErrorCode).
 			Msg("failed to call service")
 
-		errMsg := "unknown error"
-		if errorResponse.Error.ErrorMessage != "" {
-			errMsg = errorResponse.Error.ErrorMessage
-		}
-
-		return nil, fmt.Errorf("%w: %s", ErrServiceError, errMsg)
+		return nil, &errorResponse
 	}
 
 	if respData == nil {
@@ -160,21 +181,32 @@ func DoRequest[T any](
 			Err(err).
 			Str("url", req.URL.String()).
 			Msg("failed to read response")
+
 		return nil, nil, fmt.Errorf("failed to read response: %w", err)
 	}
 
 	if resp.StatusCode != http.StatusOK &&
 		resp.StatusCode != http.StatusCreated &&
 		resp.StatusCode != http.StatusAccepted {
+
+		errorResponse := ErrorResponse{
+			StatusCode: resp.StatusCode,
+			IsSuccess:  false,
+			Detail: ErrorDetail{
+				Path: req.URL.String(),
+			},
+		}
+
 		logger.Error().
 			Ctx(req.Context()).
-			Err(ErrServiceError).
+			Err(&errorResponse).
 			Str("url", req.URL.String()).
 			Str("status", resp.Status).
 			Int("status_code", resp.StatusCode).
 			Bytes("raw_response", respBody).
 			Msg("response status error")
-		return respBody, nil, fmt.Errorf("%w: status %d", ErrServiceError, resp.StatusCode)
+
+		return respBody, nil, &errorResponse
 	}
 
 	respData, err := Unmarshal[T](respBody)
@@ -185,6 +217,7 @@ func DoRequest[T any](
 			Str("url", req.URL.String()).
 			Bytes("raw_response", respBody).
 			Msg("failed to unmarshal response")
+
 		return respBody, nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
 
@@ -200,4 +233,13 @@ func Unmarshal[T any](rawBytes []byte) (*T, error) {
 	}
 
 	return &data, nil
+}
+
+func AsErrorResponse(err error) (*ErrorResponse, bool) {
+	var resp *ErrorResponse
+	if errors.As(err, &resp) {
+		return resp, true
+	}
+
+	return nil, false
 }

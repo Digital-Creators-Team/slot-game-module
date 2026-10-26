@@ -56,6 +56,13 @@ func (p *authProvider) VerifyExternalToken(
 	case 3:
 		respV3, err := p.VerifyExternalTokenV3RequestV3(ctx, gameCode, tenant.ID, token)
 		if err != nil {
+			if errResp, ok := utils.AsErrorResponse(err); ok {
+				switch errResp.StatusCode {
+				case http.StatusUnauthorized:
+					return nil, server.ErrInvalidTenantAuthToken
+				}
+			}
+
 			return nil, err
 		}
 

@@ -40,6 +40,7 @@ const (
 
 var (
 	ErrInvalidWalletAPIVersion = providers.ErrInvalidWalletAPIVersion
+	ErrInvalidTenantAuthToken  = providers.ErrInvalidTenantAuthToken
 
 	ErrTenantNotFound         = providers.ErrTenantNotFound
 	ErrTenantWalletNotEnabled = providers.ErrTenantWalletNotEnabled
