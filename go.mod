@@ -3,7 +3,7 @@ module github.com/Digital-Creators-Team/slot-game-module
 go 1.25.4
 
 require (
-	github.com/Digital-Creators-Team/zeus-integration-sdk v0.5.0
+	github.com/Digital-Creators-Team/zeus-integration-sdk v0.7.2
 	github.com/gin-gonic/gin v1.11.0
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/golang-jwt/jwt/v5 v5.3.1
