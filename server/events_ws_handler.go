@@ -628,21 +628,6 @@ func (h *EventsWSHandler) handleSpin(c *WSConn, claims *auth.Claims, req WSReque
 		return &wsReply{status: http.StatusInternalServerError, err: err}
 	}
 
-	// TODO : verify with function later
-	if gameModule.GetGameCode() == "crazy-fury" {
-		if result.SpinResult.IsMustSendWS != nil && *result.SpinResult.IsMustSendWS {
-			sender := &jackpotWSSender{conn: c}
-			err := sender.Send(&Response{
-				Type:      EventTypeUpdated,
-				Timestamp: time.Now().Unix(),
-				ExtraData: gameModule.JackpotSubscribe(c.Context(), betMul),
-			})
-			if err != nil {
-				h.logger.Warn().Err(err)
-			}
-		}
-	}
-
 	response := result.SpinResult.ToSpinResponse()
 	return &wsReply{status: http.StatusOK, data: response}
 }
