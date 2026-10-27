@@ -25,26 +25,27 @@ import (
 
 // App represents the game service application
 type App struct {
-	engine             *gin.Engine
-	config             *config.Config
-	logger             zerolog.Logger
-	gameModule         game.Module
-	gameServiceFactory GameServiceFactory
-	httpServer         *http.Server
-	onShutdown         []func()
-	gameHandler        *GameHandler
-	jackpotHandler     *JackpotHandler
-	eventsWSHandler    *EventsWSHandler
-	jackpotService     *jackpot.Service
-	jackpotFeedCancel  context.CancelFunc
-	stateProvider      providers.StateProvider
-	walletProvider     providers.WalletProvider
-	rewardProvider     providers.RewardProvider
-	logProvider        providers.LogProvider
-	tenantProvider     providers.TenantProvider
-	gameProvider       providers.GameProvider
-	wsConnManager      *WSConnManager
-	assetSigner        *cfsign.Signer
+	engine                  *gin.Engine
+	config                  *config.Config
+	logger                  zerolog.Logger
+	gameModule              game.Module
+	gameServiceFactory      GameServiceFactory
+	httpServer              *http.Server
+	onShutdown              []func()
+	gameHandler             *GameHandler
+	jackpotHandler          *JackpotHandler
+	eventsWSHandler         *EventsWSHandler
+	jackpotService          *jackpot.Service
+	jackpotFeedCancel       context.CancelFunc
+	stateProvider           providers.StateProvider
+	walletProvider          providers.WalletProvider
+	rewardProvider          providers.RewardProvider
+	logProvider             providers.LogProvider
+	tenantProvider          providers.TenantProvider
+	gameProvider            providers.GameProvider
+	eventsWSHandlerProvider providers.EventsWSHandlerProvider
+	wsConnManager           *WSConnManager
+	assetSigner             *cfsign.Signer
 }
 
 // Options holds server configuration options
@@ -164,6 +165,10 @@ func (a *App) SetGameProvider(provider GameProvider) {
 
 		a.gameProvider.AddDisableGameCallback(context.Background(), a.eventsWSHandler.KickTenantPlayersCallback)
 	}
+}
+
+func (a *App) SetEventsWSHandlerProvider(provider EventsWSHandlerProvider) {
+	a.eventsWSHandlerProvider = provider
 }
 
 func (a *App) SetRedisClient(client *dbredis.Client) {
@@ -394,6 +399,10 @@ func (a *App) GetAssetSigner() *cfsign.Signer {
 
 func (a *App) GetEventsWSHandler() *EventsWSHandler {
 	return a.eventsWSHandler
+}
+
+func (a *App) GetEventsWSHandlerProvider() providers.EventsWSHandlerProvider {
+	return a.eventsWSHandlerProvider
 }
 
 func (a *App) healthCheck(c *gin.Context) {
