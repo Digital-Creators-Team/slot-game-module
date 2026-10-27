@@ -87,6 +87,19 @@ func (m *WSConnManager) ListByTenant(tenantID string) []*WSConn {
 	return conns
 }
 
+func (m *WSConnManager) GetByUserID(userID string) (*WSConn, bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	for _, conn := range m.conns {
+		if conn.UserID == userID {
+			return conn, true
+		}
+	}
+
+	return nil, false
+}
+
 func (m *WSConnManager) Close() {
 	m.closeOnce.Do(func() {
 		close(m.closeCh)

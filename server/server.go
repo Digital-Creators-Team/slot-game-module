@@ -392,6 +392,10 @@ func (a *App) GetAssetSigner() *cfsign.Signer {
 	return a.assetSigner
 }
 
+func (a *App) GetEventsWSHandler() *EventsWSHandler {
+	return a.eventsWSHandler
+}
+
 func (a *App) healthCheck(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"status":    "healthy",
