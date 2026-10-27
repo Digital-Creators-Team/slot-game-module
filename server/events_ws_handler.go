@@ -631,7 +631,15 @@ func (h *EventsWSHandler) handleSpin(c *WSConn, claims *auth.Claims, req WSReque
 	// TODO : verify with function later
 	if gameModule.GetGameCode() == "crazy-fury" {
 		if result.SpinResult.IsMustSendWS != nil && *result.SpinResult.IsMustSendWS {
-			h.SendExtraJackpotSubscribe(c.Context(), claims.UserID, betMul)
+			sender := &jackpotWSSender{conn: c}
+			err := sender.Send(&Response{
+				Type:      EventTypeUpdated,
+				Timestamp: time.Now().Unix(),
+				ExtraData: gameModule.JackpotSubscribe(c.Context(), betMul),
+			})
+			if err != nil {
+				h.logger.Warn().Err(err)
+			}
 		}
 	}
 
@@ -761,7 +769,15 @@ func (h *EventsWSHandler) handleJackpotSubscribe(c *WSConn, claims *auth.Claims,
 	// TODO : verify with function later
 	gameModule := h.app.GetGame()
 	if gameModule.GetGameCode() == "crazy-fury" {
-		h.SendExtraJackpotSubscribe(c.Context(), claims.UserID, betMultiplier)
+		sender := &jackpotWSSender{conn: c}
+		err := sender.Send(&Response{
+			Type:      EventTypeUpdated,
+			Timestamp: time.Now().Unix(),
+			ExtraData: gameModule.JackpotSubscribe(c.Context(), betMultiplier),
+		})
+		if err != nil {
+			h.logger.Warn().Err(err)
+		}
 		return
 	}
 
@@ -938,28 +954,4 @@ func (h *EventsWSHandler) KickTenantPlayersCallback(ctx context.Context, tenantG
 	for _, conn := range conns {
 		conn.CloseWithReason("game_disabled")
 	}
-}
-
-func (h *EventsWSHandler) SendExtraJackpotSubscribe(ctx context.Context, userID string, betMultiplier float32) error {
-	conn, ok := h.connMgr.GetByUserID(userID)
-	if !ok {
-		return errors.New("not found ws connection")
-	}
-
-	// TODO : verify with function later
-	gameModule := h.app.GetGame()
-	if gameModule.GetGameCode() == "crazy-fury" {
-		sender := &jackpotWSSender{conn: conn}
-		err := sender.Send(&Response{
-			Type:      EventTypeUpdated,
-			Timestamp: time.Now().Unix(),
-			ExtraData: gameModule.JackpotSubscribe(ctx, betMultiplier),
-		})
-		if err != nil {
-			h.logger.Warn().Err(err)
-			return err
-		}
-	}
-
-	return nil
 }
