@@ -312,6 +312,16 @@ func (p *WalletProvider) PlaceBetsV3(
 		nil, // TODO: send bet details
 	)
 	if err != nil {
+		if apiErr, ok := zeussdk.AsAPIError(err); ok {
+			switch apiErr.Code() {
+			case zeussdk.ErrCodeInvalidInput:
+				return "", decimal.Zero, ErrInsufficientFunds
+				// TODO: return credential error
+				//case zeussdk.ErrCodeInvalidCredentials:
+				//	return "", decimal.Zero, ErrInvalidCredentials
+			}
+		}
+
 		return "", decimal.Zero, err
 	}
 
