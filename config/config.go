@@ -55,6 +55,7 @@ type JWTConfig struct {
 
 // ExternalServicesConfig holds external service configurations
 type ExternalServicesConfig struct {
+	AuthService   ServiceConfig       `mapstructure:"auth_service"`
 	WalletService ServiceConfig       `mapstructure:"wallet_service"`
 	RewardService ServiceConfig       `mapstructure:"reward_service"`
 	LogService    ServiceConfig       `mapstructure:"log_service"`

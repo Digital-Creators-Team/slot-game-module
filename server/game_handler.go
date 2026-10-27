@@ -66,6 +66,117 @@ func (h *GameHandler) extractCurrencyID(c *gin.Context) string {
 	return currencyID
 }
 
+type VerifyExternalTokenRequest struct {
+	TenantID string `json:"tenant_id"`
+	Token    string `json:"token" binding:"required"`
+}
+
+// VerifyExternalToken godoc
+// @Summary      Verify external token
+// @Description  Verify external token from tenant
+// @Tags         game
+// @Accept       json
+// @Produce      json
+// @Param        game_code   path      string  true  "Game code"
+// @Param        request     body      VerifyExternalTokenRequest  true  "Request"
+// @Success      200  {object}  server.SuccessResponse[game.VerifyExternalTokenResponse]
+// @Failure      401  {object}  server.ErrorResponse
+// @Failure      500  {object}  server.ErrorResponse
+// @Router       /games/{game_code}/verify-external-token [post]
+func (h *GameHandler) VerifyExternalToken(c *gin.Context) {
+	ctx := c.Request.Context()
+
+	gameModule := h.app.GetGame()
+	if gameModule == nil {
+		h.logger.Error().Msg("No game module registered")
+		InternalError(c, errors.New(errors.ErrGameModuleNotFound, "Game not configured"))
+		return
+	}
+
+	gameCode := gameModule.GetGameCode()
+	// Parse request body
+	var req VerifyExternalTokenRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.logger.Error().Err(err).Msg("Failed to parse verify external token request")
+		BadRequest(c, errors.New(errors.ErrInvalidRequest, "Invalid request payload"))
+		return
+	}
+
+	tenantID := req.TenantID
+	if tenantID == "" {
+		tenantID = gameModule.DefaultTenantID(ctx)
+	}
+
+	// Get tenant info
+	tenant, err := h.app.tenantProvider.Get(ctx, tenantID, false)
+	if err != nil {
+		h.logger.Error().Err(err).Msg("Failed to get tenant info")
+
+		if goerrors.Is(err, ErrTenantNotFound) {
+			Unauthorized(c, errors.New(errors.ErrUnauthorized, "Invalid tenant"))
+			return
+		}
+
+		InternalError(c, errors.Wrap(err, errors.ErrTenantError, "Failed to get tenant info"))
+		return
+	}
+
+	verifyResp, err := h.app.authProvider.VerifyExternalToken(ctx, gameCode, tenant, req.Token)
+	if err != nil {
+		h.logger.Error().Err(err).Msg("Failed to verify external token")
+
+		if goerrors.Is(err, ErrInvalidWalletAPIVersion) {
+			Unauthorized(c, errors.New(errors.ErrUnauthorized, "Invalid tenant"))
+			return
+		}
+
+		if goerrors.Is(err, ErrInvalidTenantAuthToken) {
+			Unauthorized(c, errors.New(errors.ErrUnauthorized, "Invalid token"))
+			return
+		}
+
+		InternalError(c, errors.Wrap(err, errors.ErrInternalServerError, "Failed to verify token"))
+		return
+	}
+
+	user := verifyResp.User
+
+	if !h.checkGameStatus(c, ctx, tenantID, user.Username) {
+		return
+	}
+
+	// Get player state - requires StateProvider
+	playerState, err := h.app.stateProvider.GetPlayerState(ctx, user.ID, verifyResp.CurrencyID, gameCode)
+	if err != nil {
+		h.logger.Error().Err(err).Msg("Failed to get player state")
+		InternalError(c, errors.Wrap(err, errors.ErrPlayerStateError, "Failed to get player state"))
+		return
+	}
+
+	s, ok := playerState.(*game.PlayerState)
+	if !ok {
+		h.logger.Error().Err(err).Msg("Failed to read player state")
+		InternalError(c, errors.Wrap(err, errors.ErrPlayerStateError, "Failed to read player state"))
+		return
+	}
+
+	s.SetServerData(AuthMetadataTenantToken, verifyResp.TenantToken)
+
+	err = h.app.stateProvider.SavePlayerState(ctx, user.ID, verifyResp.CurrencyID, gameModule.GetGameCode(), s)
+	if err != nil {
+		h.logger.Error().Err(err).Msg("Failed to save player state")
+		InternalError(c, errors.New(errors.ErrInternalServerError, "Failed to save player state"))
+		return
+	}
+
+	response := game.VerifyExternalTokenResponse{
+		AccessToken:  verifyResp.AccessToken,
+		RefreshToken: verifyResp.RefreshToken,
+	}
+
+	OK(c, response)
+}
+
 // Authorize godoc
 // @Summary      Authorize game session
 // @Description  Validates JWT token, retrieves player state, balance, and game config
@@ -138,8 +249,10 @@ func (h *GameHandler) Authorize(c *gin.Context) {
 
 	// rm freeSpins, BE logic is only stored in db
 	s, ok := playerState.(*game.PlayerState)
-	if ok {
-		s.FreeSpins = nil
+	if !ok {
+		h.logger.Error().Err(err).Msg("Failed to read player state")
+		InternalError(c, errors.Wrap(err, errors.ErrPlayerStateError, "Failed to read player state"))
+		return
 	}
 
 	// Get balance - requires WalletProvider
@@ -161,7 +274,7 @@ func (h *GameHandler) Authorize(c *gin.Context) {
 		return
 	}
 
-	balance, err := tenantWalletProvider.CheckBalance(ctx, gameModule.GetGameCode(), tenantID, username, currencyID)
+	balance, err := tenantWalletProvider.CheckBalance(ctx, gameModule.GetGameCode(), tenantID, username, currencyID, s.GetServerDataString(AuthMetadataTenantToken))
 	if err != nil {
 		balance, err = tenantWalletProvider.GetBalance(ctx, userID, currencyID)
 		if err != nil {
@@ -172,6 +285,9 @@ func (h *GameHandler) Authorize(c *gin.Context) {
 	}
 
 	// Build response
+	// remove server-only data
+	s.FreeSpins = nil
+	s.ServerData = nil
 	response := game.AuthorizeResponse{
 		LastState:  s,
 		GameConfig: buildConfig(cfg, tenant),
@@ -305,6 +421,7 @@ func (h *GameHandler) Spin(c *gin.Context) {
 	gameService := h.app.newGameService(
 		gameModule,
 		h.app.stateProvider,
+		h.app.authProvider,
 		tenantWalletProvider,
 		h.app.rewardProvider,
 		h.app.logProvider,

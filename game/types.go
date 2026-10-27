@@ -104,17 +104,18 @@ const (
 )
 
 type SpinState struct {
-	SessionID  string          `json:"sessionID"`
-	TenantID   string          `json:"tenantID"`
-	CurrencyID string          `json:"currencyID"`
-	UserID     string          `json:"userID"`
-	Username   string          `json:"username"`
-	Status     SpinStatus      `json:"status"`
-	SpinType   int             `json:"spinType"` // 0 = normal, 1 = free spin
-	TotalBet   decimal.Decimal `json:"totalBet"`
-	SpinResult *SpinResult     `json:"spinResult,omitempty"`
-	Error      *string         `json:"error,omitempty"`
-	Timestamp  time.Time       `json:"timestamp"`
+	SessionID      string          `json:"sessionID"`
+	TenantID       string          `json:"tenantID"`
+	CurrencyID     string          `json:"currencyID"`
+	UserID         string          `json:"userID"`
+	Username       string          `json:"username"`
+	Status         SpinStatus      `json:"status"`
+	SpinType       int             `json:"spinType"` // 0 = normal, 1 = free spin
+	ReferenceBetID string          `json:"referenceBetID"`
+	TotalBet       decimal.Decimal `json:"totalBet"`
+	SpinResult     *SpinResult     `json:"spinResult,omitempty"`
+	Error          *string         `json:"error,omitempty"`
+	Timestamp      time.Time       `json:"timestamp"`
 }
 
 // SpinResponse represents the API response for a spin
@@ -190,7 +191,8 @@ type PlayerState struct {
 	SpinResult          *SpinResult            `json:"spinResult,omitempty"`
 	SpinResultTriggerFG *SpinResult            `json:"spinResultTriggerFG,omitempty"`
 	UpdatedAt           *time.Time             `json:"updatedAt,omitempty"`
-	ExtraData           map[string]interface{} `json:"extraData,omitempty"` // Custom data for game-specific use
+	ExtraData           map[string]interface{} `json:"extraData,omitempty"`  // Custom data for game-specific use
+	ServerData          map[string]interface{} `json:"serverData,omitempty"` // Server-only data, delete before returning state object
 }
 
 // ToJSON serializes PlayerState to JSON
@@ -207,6 +209,9 @@ func PlayerStateFromJSON(data []byte) (*PlayerState, error) {
 	// Initialize ExtraData if nil (for backward compatibility with old states)
 	if state.ExtraData == nil {
 		state.ExtraData = make(map[string]interface{})
+	}
+	if state.ServerData == nil {
+		state.ServerData = make(map[string]interface{})
 	}
 	return &state, nil
 }
@@ -231,6 +236,52 @@ func (p *PlayerState) Reset() {
 	p.UpdatedAt = &t
 }
 
+func (p *PlayerState) SetExtraData(k string, v interface{}) {
+	if p.ExtraData == nil {
+		p.ExtraData = make(map[string]interface{})
+	}
+
+	p.ExtraData[k] = v
+}
+
+func (p *PlayerState) GetExtraData(k string) interface{} {
+	if p.ExtraData == nil {
+		return nil
+	}
+
+	return p.ExtraData[k]
+}
+
+func (p *PlayerState) SetServerData(k string, v interface{}) {
+	if p.ServerData == nil {
+		p.ServerData = make(map[string]interface{})
+	}
+
+	p.ServerData[k] = v
+}
+
+func (p *PlayerState) GetServerData(k string) interface{} {
+	if p.ServerData == nil {
+		return nil
+	}
+
+	return p.ServerData[k]
+}
+
+func (p *PlayerState) GetServerDataString(k string) string {
+	raw := p.GetServerData(k)
+	if raw == nil {
+		return ""
+	}
+
+	s, ok := raw.(string)
+	if !ok {
+		return ""
+	}
+
+	return s
+}
+
 // Player represents player information
 type Player struct {
 	TenantID string          `json:"tenantID"`
@@ -238,6 +289,11 @@ type Player struct {
 	Username string          `json:"username"`
 	Balance  decimal.Decimal `json:"balance"`
 	Currency string          `json:"currency"`
+}
+
+type VerifyExternalTokenResponse struct {
+	AccessToken  string `json:"accessToken"`
+	RefreshToken string `json:"refreshToken"`
 }
 
 // AuthorizeResponse represents the authorize game response

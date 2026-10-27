@@ -17,15 +17,50 @@ type StateProvider interface {
 	DeleteSpinState(ctx context.Context, sessionID, gameCode string) error
 }
 
+const (
+	AuthMetadataTenantToken = "tenant_token"
+)
+
+var (
+	ErrInvalidWalletAPIVersion = errors.New("invalid wallet api version")
+	ErrInvalidTenantAuthToken  = errors.New("invalid tenant auth token")
+)
+
+type AuthUser struct {
+	ID        string    `json:"user_id" bson:"_id,omitempty"`
+	TenantID  string    `json:"tenant_id" bson:"tenant_id"`
+	Username  string    `json:"username" bson:"username" validate:"required,min=3"`
+	Name      string    `json:"name" bson:"name" validate:"required,min=3"`
+	CreatedAt time.Time `json:"created_at" bson:"created_at"`
+	UpdatedAt time.Time `json:"-" bson:"updated_at"`
+}
+
+type VerifyExternalTokenResponse struct {
+	TenantToken  string    `json:"tenant_token"`
+	User         *AuthUser `json:"user"`
+	CurrencyID   string    `json:"currency_id"`
+	AccessToken  string    `json:"access_token"`
+	RefreshToken string    `json:"refresh_token"`
+}
+
+// AuthProvider interface for auth operations
+type AuthProvider interface {
+	VerifyExternalToken(
+		ctx context.Context,
+		gameCode string,
+		tenant *ResponseTenant,
+		token string,
+	) (*VerifyExternalTokenResponse, error)
+}
+
 // WalletProvider interface for wallet operations
 type WalletProvider interface {
 	GetBalance(ctx context.Context, userID, currencyID string) (decimal.Decimal, error)
-	CheckBalance(ctx context.Context, productid, tenantID, username, currencyID string) (decimal.Decimal, error)
+	CheckBalance(ctx context.Context, productid, tenantID, username, currencyID string, tenantToken string) (decimal.Decimal, error)
 	Withdraw(ctx context.Context, userID, currencyID string, amount decimal.Decimal) error
-	PlaceBets(ctx context.Context, productId, tenantID, username, currencyID string, amount decimal.Decimal, roundID string, transactionId string, gameCode string, ameName string) (decimal.Decimal, error)
+	PlaceBets(ctx context.Context, productId, tenantID, username, currencyID string, amount decimal.Decimal, roundID string, transactionId string, gameCode string, ameName string, tenantToken string) (string, decimal.Decimal, error)
 	Deposit(ctx context.Context, userID, currencyID string, amount decimal.Decimal) error
-	SettleBets(ctx context.Context, productId, tenantID, username, currencyID string, amount decimal.Decimal, payoutAmount decimal.Decimal, roundID string, transactionId string, gameCode string, gameName string) error
-	GetWalletUrl(ctx context.Context) string
+	SettleBets(ctx context.Context, productId, tenantID, username, currencyID string, amount decimal.Decimal, payoutAmount decimal.Decimal, roundID string, transactionId string, gameCode string, gameName string, tenantToken string, referenceBetID string) error
 	WithTenant(ctx context.Context, provider TenantProvider, tenantID string) (WalletProvider, error)
 }
 
@@ -236,11 +271,17 @@ func (t *Tenant) WalletEnabled() bool {
 type ResponseTenant struct {
 	Tenant
 
-	SecretKey string `json:"secret_key"`
+	SecretKey      string            `json:"secret_key"`
+	SecretMetadata map[string]string `json:"secret_metadata"`
 }
 
 var (
 	ErrTenantGameNotFound = errors.New("tenant game not found")
+)
+
+const (
+	TenantMetadataWalletClientID     = "wallet_client_id"
+	TenantMetadataWalletClientAPIKey = "wallet_client_api_key"
 )
 
 // GameProvider interface for game operations
@@ -257,6 +298,7 @@ type TenantGame struct {
 	TenantID          string         `json:"tenant_id" bson:"tenant_id"`
 	GameCode          string         `json:"game_code" bson:"game_code"`
 	CustomGameCode    string         `json:"custom_game_code,omitempty" bson:"custom_game_code,omitempty"`
+	ExternalID        string         `json:"external_id" bson:"external_id"`
 	PlayURL           string         `json:"play_url" bson:"play_url"`
 	AndroidPlayURL    string         `json:"android_play_url" bson:"android_play_url"`
 	IOSPlayURL        string         `json:"ios_play_url" bson:"ios_play_url"`
