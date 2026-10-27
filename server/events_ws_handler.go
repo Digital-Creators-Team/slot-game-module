@@ -631,6 +631,7 @@ func (h *EventsWSHandler) handleSpin(c *WSConn, claims *auth.Claims, req WSReque
 	// TODO : verify with function later
 	if gameModule.GetGameCode() == "crazy-fury" {
 		if result.SpinResult.MustSendAfterSpin != nil && *result.SpinResult.MustSendAfterSpin {
+			fmt.Println("xxxxxxxxxxxxxMustSendAfterSpinxxxxxxxxxxxxxxxxxxxx")
 			sender := &jackpotWSSender{conn: c}
 			err := sender.Send(&Response{
 				Type:      EventTypeUpdated,
