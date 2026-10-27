@@ -60,8 +60,31 @@ func NewWalletProvider(cfg *config.Config, logger zerolog.Logger) *WalletProvide
 	}
 }
 
-// GetBalance retrieves player balance from wallet service
-func (p *WalletProvider) GetBalance(ctx context.Context, userID, currencyID string) (decimal.Decimal, error) {
+// CheckBalance retrieves player balance from wallet service
+func (p *WalletProvider) CheckBalance(
+	ctx context.Context,
+	gameCode string,
+	userID string,
+	username string,
+	currencyID string,
+	tenantToken string,
+) (decimal.Decimal, error) {
+	if p.tenant == nil {
+		return p.CheckBalanceV2(ctx, p.baseURL, gameCode, username, currencyID)
+	}
+
+	switch p.tenant.WalletVersion {
+	case 2:
+		return p.CheckBalanceV2(ctx, p.tenant.WalletCallbackURL, gameCode, username, currencyID)
+	case 3:
+		return p.CheckBalanceV3(ctx, tenantToken)
+	default:
+		return p.GetBalanceV1(ctx, userID, currencyID)
+	}
+}
+
+// GetBalanceV1 retrieves player balance from wallet service
+func (p *WalletProvider) GetBalanceV1(ctx context.Context, userID, currencyID string) (decimal.Decimal, error) {
 	url := fmt.Sprintf("%s/wallet/balance?user_id=%s&currency_id=%s", p.baseURL, userID, currencyID)
 
 	req, err := utils.MakeRequest[any](ctx, p.logger.For(ctx), url, nil)
@@ -91,27 +114,21 @@ func (p *WalletProvider) GetBalance(ctx context.Context, userID, currencyID stri
 	return decimal.NewFromFloat(result.Data.Balance), nil
 }
 
-// CheckBalance retrieves player balance from wallet service
-func (p *WalletProvider) CheckBalance(ctx context.Context, productId, tenantID, username, currencyID string, tenantToken string) (decimal.Decimal, error) {
-	// TODO: standardize tenant api version check
-	if p.tenant != nil && p.tenant.WalletVersion == 3 {
-		respV3, err := p.newZeusClient(ctx).CheckBalance(ctx, tenantToken)
-		if err != nil {
-			return decimal.Zero, err
-		}
-
-		return respV3.AvailableBalance, nil
-	}
-
-	url := fmt.Sprintf("%s/checkBalance", p.baseURL)
+func (p *WalletProvider) CheckBalanceV2(
+	ctx context.Context,
+	baseURL string,
+	productID string,
+	username string,
+	currencyID string,
+) (decimal.Decimal, error) {
+	url := fmt.Sprintf("%s/checkBalance", baseURL)
 
 	id := uuid.NewString()
 	requestBody := map[string]any{
 		"id":              id,
 		"timestampMillis": time.Now().UnixNano() / 1000000,
-		"productId":       productId,
+		"productId":       productID,
 		"currency":        currencyID,
-		"tenantId":        tenantID,
 		"username":        username,
 	}
 
@@ -160,82 +177,72 @@ func (p *WalletProvider) CheckBalance(ctx context.Context, productId, tenantID, 
 	return decimal.NewFromFloat(result.Balance), nil
 }
 
-// Withdraw deducts amount from player balance
-func (p *WalletProvider) Withdraw(ctx context.Context, userID, currencyID string, amount decimal.Decimal) error {
-	url := fmt.Sprintf("%s/wallet/withdraw", p.baseURL)
-
-	requestBody := map[string]interface{}{
-		"user_id":     userID,
-		"currency_id": currencyID,
-		"amount":      amount.InexactFloat64(), // Convert to float64 for external service
-	}
-
-	req, err := utils.MakeRequest(ctx, p.logger.For(ctx), url, &requestBody)
+func (p *WalletProvider) CheckBalanceV3(
+	ctx context.Context,
+	tenantToken string,
+) (decimal.Decimal, error) {
+	respV3, err := p.newZeusClient(ctx).CheckBalance(ctx, tenantToken)
 	if err != nil {
-		return err
+		return decimal.Zero, err
 	}
 
-	resp, err := p.httpClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("failed to withdraw: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
+	return respV3.AvailableBalance, nil
+}
 
-	if resp.StatusCode == http.StatusOK {
-		return nil
+// PlaceBets places bets based on wallet version
+func (p *WalletProvider) PlaceBets(
+	ctx context.Context,
+	gameCode string,
+	userID string,
+	username string,
+	currencyID string,
+	amount decimal.Decimal,
+	sessionID string,
+	roundID string,
+	betID string,
+	tenantToken string,
+) (string, decimal.Decimal, error) {
+	if p.tenant == nil {
+		return p.PlaceBetsV2(ctx, p.baseURL, gameCode, username, currencyID, amount, roundID, betID)
 	}
-	var errResp ErrorResponse
-	if err := json.NewDecoder(resp.Body).Decode(&errResp); err != nil {
-		return fmt.Errorf("withdraw failed with status %d", resp.StatusCode)
-	}
-	switch strings.ToLower(errResp.Error.ErrorMessage) {
-	case ErrInsufficientFunds.Error():
-		return ErrInsufficientFunds
+
+	switch p.tenant.WalletVersion {
+	case 3:
+		return p.PlaceBetsV3(ctx, betID, roundID, sessionID, amount, tenantToken)
+	case 2:
+		fallthrough
 	default:
-		return fmt.Errorf("withdraw failed: %s", errResp.Error.ErrorMessage)
+		return p.PlaceBetsV2(ctx, p.tenant.WalletCallbackURL, gameCode, username, currencyID, amount, roundID, betID)
 	}
 }
 
 // Withdraw deducts amount from player balance
-func (p *WalletProvider) PlaceBets(ctx context.Context, productId, tenantID, userName, currencyID string, amount decimal.Decimal, roundID string, transactionId string, gameCode string, gameName string, tenantToken string) (string, decimal.Decimal, error) {
-	// TODO: standardize tenant api version check
-	if p.tenant != nil && p.tenant.WalletVersion == 3 {
-		zeusClient := p.newZeusClient(ctx)
-
-		respV3, err := zeusClient.PlaceBets(
-			ctx,
-			tenantToken,
-			zeusClient.NewRequestID(),
-			transactionId,
-			roundID,
-			transactionId,
-			amount,
-			nil,
-		)
-		if err != nil {
-			return "", decimal.Zero, err
-		}
-
-		return respV3.ReferenceBetID, respV3.BalanceAfter, nil
-	}
-
-	url := fmt.Sprintf("%s/placeBets", p.baseURL)
+func (p *WalletProvider) PlaceBetsV2(
+	ctx context.Context,
+	baseURL string,
+	productID string,
+	username string,
+	currencyID string,
+	amount decimal.Decimal,
+	roundID string,
+	transactionID string,
+) (string, decimal.Decimal, error) {
+	url := fmt.Sprintf("%s/placeBets", baseURL)
 
 	requestBody := map[string]interface{}{
 		"id":              uuid.New().String(),
 		"timestampMillis": time.Now().UnixMilli(),
-		"productId":       productId,
-		"tenantId":        tenantID,
-		"username":        userName,
+		"productId":       productID,
+		"username":        username,
 		"currency":        currencyID,
 		"txns": []map[string]interface{}{
 			{
-				"id":          transactionId,
-				"gameCode":    gameCode,
+				"id":          transactionID,
+				"gameCode":    productID,
 				"status":      "OPEN",
 				"roundId":     roundID,
 				"betAmount":   amount.InexactFloat64(), // docs is int, now using float
-				"playInfo":    gameName,
+				"playInfo":    productID,
 				"isFreespins": false,
 			},
 		},
@@ -284,6 +291,259 @@ func (p *WalletProvider) PlaceBets(ctx context.Context, productId, tenantID, use
 	return "", decimal.Zero, fmt.Errorf("withdraw failed: %d", result.StatusCode)
 }
 
+func (p *WalletProvider) PlaceBetsV3(
+	ctx context.Context,
+	betID string,
+	roundID string,
+	sessionID string,
+	amount decimal.Decimal,
+	tenantToken string,
+) (string, decimal.Decimal, error) {
+	zeusClient := p.newZeusClient(ctx)
+
+	respV3, err := zeusClient.PlaceBets(
+		ctx,
+		tenantToken,
+		zeusClient.NewRequestID(), // TODO: use pre-generated key for idempotence
+		betID,
+		roundID,
+		sessionID,
+		amount,
+		nil, // TODO: send bet details
+	)
+	if err != nil {
+		if apiErr, ok := zeussdk.AsAPIError(err); ok {
+			switch apiErr.Code() {
+			case zeussdk.ErrCodeInvalidInput:
+				return "", decimal.Zero, ErrInsufficientFunds
+				// TODO: return credential error
+				//case zeussdk.ErrCodeInvalidCredentials:
+				//	return "", decimal.Zero, ErrInvalidCredentials
+			}
+		}
+
+		return "", decimal.Zero, err
+	}
+
+	return respV3.ReferenceBetID, respV3.BalanceAfter, nil
+}
+
+// SettleBets settle bets based on wallet version
+func (p *WalletProvider) SettleBets(
+	ctx context.Context,
+	gameCode string,
+	userID string,
+	username string,
+	currencyID string,
+	betAmount decimal.Decimal,
+	payoutAmount decimal.Decimal,
+	sessionID string,
+	roundID string,
+	betID string,
+	referenceBetID string,
+	tenantToken string,
+) (string, decimal.Decimal, error) {
+	if p.tenant == nil {
+		return p.SettleBetsV2(ctx, p.baseURL, gameCode, username, currencyID, betAmount, payoutAmount, roundID, betID)
+	}
+
+	switch p.tenant.WalletVersion {
+	case 3:
+		return p.SettleBetsV3(ctx, payoutAmount, betID, referenceBetID, tenantToken)
+	case 2:
+		fallthrough
+	default:
+		return p.SettleBetsV2(ctx, p.tenant.WalletCallbackURL, gameCode, username, currencyID, betAmount, payoutAmount, roundID, betID)
+	}
+}
+
+func (p *WalletProvider) SettleBetsV2(
+	ctx context.Context,
+	baseURL string,
+	productID string,
+	username string,
+	currencyID string,
+	betAmount decimal.Decimal,
+	payoutAmount decimal.Decimal,
+	roundID string,
+	transactionID string,
+) (string, decimal.Decimal, error) {
+	url := fmt.Sprintf("%s/settleBets", baseURL)
+
+	requestBody := map[string]interface{}{
+		"id":              uuid.New().String(),
+		"timestampMillis": time.Now().UnixMilli(),
+		"productId":       productID,
+		"username":        username,
+		"currency":        currencyID,
+		"txns": []map[string]interface{}{
+			{
+				"id":              transactionID,
+				"gameCode":        productID,
+				"status":          "SETTLED",
+				"roundId":         roundID,
+				"betAmount":       betAmount.InexactFloat64(), // docs is int, now using float
+				"payoutAmount":    payoutAmount.InexactFloat64(),
+				"winlost":         payoutAmount.InexactFloat64() - betAmount.InexactFloat64(),
+				"playInfo":        productID,
+				"turnOver":        betAmount.InexactFloat64(),
+				"isSingleState":   false,
+				"transactionType": "BY_TRANSACTION",
+				"isFreespins":     betAmount.Equal(decimal.Zero),
+			},
+		},
+	}
+
+	p.logger.For(ctx).Debug().Str("url", url).Any("request", requestBody).Msg("settle bets request")
+
+	req, err := utils.MakeRequest(ctx, p.logger.For(ctx), url, &requestBody)
+	if err != nil {
+		return "", decimal.Zero, err
+	}
+
+	resp, err := p.httpClient.Do(req)
+	if err != nil {
+		return "", decimal.Zero, fmt.Errorf("failed to deposit: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	var result struct {
+		ID            string          `json:"id"`
+		StatusCode    int             `json:"statusCode"`
+		ProductID     string          `json:"productId"`
+		BalanceBefore decimal.Decimal `json:"balanceBefore"`
+		BalanceAfter  decimal.Decimal `json:"balanceAfter"`
+	}
+
+	//var errResp ErrorResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", decimal.Zero, fmt.Errorf("failed to decode response body: %w", err)
+	}
+
+	p.logger.For(ctx).Debug().Any("result", result).Msg("settle bets result")
+
+	if resp.StatusCode != http.StatusOK {
+		return "", decimal.Zero, fmt.Errorf("settle bets response status %d", resp.StatusCode)
+	}
+
+	if result.StatusCode != (int)(moduleerrors.Success) {
+		return "", decimal.Zero, fmt.Errorf("wallet service returned status %d", result.StatusCode)
+	}
+
+	return "", result.BalanceAfter, nil
+}
+
+func (p *WalletProvider) SettleBetsV3(
+	ctx context.Context,
+	payoutAmount decimal.Decimal,
+	betID string,
+	referenceBetID string,
+	tenantToken string,
+) (string, decimal.Decimal, error) {
+	zeusClient := p.newZeusClient(ctx)
+
+	resp, err := zeusClient.SettleBets(
+		ctx,
+		tenantToken,
+		zeusClient.NewRequestID(), // TODO: use pre-generated key for idempotence
+		betID,
+		referenceBetID,
+		payoutAmount,
+		nil, // TODO: send bet details
+	)
+	if err != nil {
+		return "", decimal.Zero, err
+	}
+
+	return resp.ReferenceBetID, resp.BalanceAfter, nil
+}
+
+func (p *WalletProvider) CancelBets(
+	ctx context.Context,
+	gameCode string,
+	userID string,
+	username string,
+	currencyID string,
+	betAmount decimal.Decimal,
+	payoutAmount decimal.Decimal,
+	sessionID string,
+	roundID string,
+	betID string,
+	referenceBetID string,
+	tenantToken string,
+) (string, decimal.Decimal, error) {
+	if p.tenant == nil {
+		return p.SettleBetsV2(ctx, p.baseURL, gameCode, username, currencyID, betAmount, payoutAmount, roundID, betID)
+	}
+
+	switch p.tenant.WalletVersion {
+	case 3:
+		return p.CancelBetsV3(ctx, betID, referenceBetID, tenantToken)
+	case 2:
+		fallthrough
+	default:
+		return p.SettleBetsV2(ctx, p.tenant.WalletCallbackURL, gameCode, username, currencyID, betAmount, payoutAmount, roundID, betID)
+	}
+}
+
+func (p *WalletProvider) CancelBetsV3(
+	ctx context.Context,
+	betID string,
+	referenceBetID string,
+	tenantToken string,
+) (string, decimal.Decimal, error) {
+	zeusClient := p.newZeusClient(ctx)
+
+	resp, err := zeusClient.CancelBets(
+		ctx,
+		tenantToken,
+		zeusClient.NewRequestID(), // TODO: use pre-generated key for idempotence
+		betID,
+		referenceBetID,
+	)
+	if err != nil {
+		return "", decimal.Zero, err
+	}
+
+	return resp.ReferenceBetID, resp.BalanceAfter, nil
+}
+
+// Withdraw deducts amount from player balance
+func (p *WalletProvider) Withdraw(ctx context.Context, userID, currencyID string, amount decimal.Decimal) error {
+	url := fmt.Sprintf("%s/wallet/withdraw", p.baseURL)
+
+	requestBody := map[string]interface{}{
+		"user_id":     userID,
+		"currency_id": currencyID,
+		"amount":      amount.InexactFloat64(), // Convert to float64 for external service
+	}
+
+	req, err := utils.MakeRequest(ctx, p.logger.For(ctx), url, &requestBody)
+	if err != nil {
+		return err
+	}
+
+	resp, err := p.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to withdraw: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode == http.StatusOK {
+		return nil
+	}
+	var errResp ErrorResponse
+	if err := json.NewDecoder(resp.Body).Decode(&errResp); err != nil {
+		return fmt.Errorf("withdraw failed with status %d", resp.StatusCode)
+	}
+	switch strings.ToLower(errResp.Error.ErrorMessage) {
+	case ErrInsufficientFunds.Error():
+		return ErrInsufficientFunds
+	default:
+		return fmt.Errorf("withdraw failed: %s", errResp.Error.ErrorMessage)
+	}
+}
+
 // Deposit adds amount to player balance
 func (p *WalletProvider) Deposit(ctx context.Context, userID, currencyID string, amount decimal.Decimal) error {
 	url := fmt.Sprintf("%s/wallet/deposit", p.baseURL)
@@ -307,93 +567,6 @@ func (p *WalletProvider) Deposit(ctx context.Context, userID, currencyID string,
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("deposit failed with status %d", resp.StatusCode)
-	}
-
-	return nil
-}
-
-func (p *WalletProvider) SettleBets(ctx context.Context, productId, tenantID, username, currencyID string, amount decimal.Decimal, payoutAmount decimal.Decimal, roundID string, transactionId string, gameCode string, gameName string, tenantToken string, referenceBetID string) error {
-	// TODO: standardize tenant api version check
-	if p.tenant != nil && p.tenant.WalletVersion == 3 {
-		zeusClient := p.newZeusClient(ctx)
-
-		_, err := zeusClient.SettleBets(
-			ctx,
-			tenantToken,
-			zeusClient.NewRequestID(),
-			transactionId,
-			referenceBetID,
-			payoutAmount,
-			nil,
-		)
-		if err != nil {
-			return err
-		}
-
-		return nil
-	}
-
-	url := fmt.Sprintf("%s/settleBets", p.baseURL)
-
-	requestBody := map[string]interface{}{
-		"id":              uuid.New().String(),
-		"timestampMillis": time.Now().UnixMilli(),
-		"productId":       productId,
-		"tenantId":        tenantID,
-		"username":        username,
-		"currency":        currencyID,
-		"txns": []map[string]interface{}{
-			{
-				"id":              transactionId,
-				"gameCode":        gameCode,
-				"status":          "SETTLED",
-				"roundId":         roundID,
-				"betAmount":       amount.InexactFloat64(), // docs is int, now using float
-				"payoutAmount":    payoutAmount.InexactFloat64(),
-				"winlost":         payoutAmount.InexactFloat64() - amount.InexactFloat64(),
-				"playInfo":        gameName,
-				"turnOver":        amount.InexactFloat64(),
-				"isSingleState":   false,
-				"transactionType": "BY_TRANSACTION",
-				"isFreespins":     amount.Equal(decimal.Zero),
-			},
-		},
-	}
-
-	p.logger.For(ctx).Debug().Str("url", url).Any("request", requestBody).Msg("settle bets request")
-
-	req, err := utils.MakeRequest(ctx, p.logger.For(ctx), url, &requestBody)
-	if err != nil {
-		return err
-	}
-
-	resp, err := p.httpClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("failed to deposit: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	var result struct {
-		ID            string  `json:"id"`
-		StatusCode    int     `json:"statusCode"`
-		ProductId     string  `json:"productId"`
-		BalanceBefore float64 `json:"balanceBefore"` // External service returns float64
-		BalanceAfter  float64 `json:"balanceAfter"`
-	}
-
-	//var errResp ErrorResponse
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return fmt.Errorf("failed to decode response body: %w", err)
-	}
-
-	p.logger.For(ctx).Debug().Any("result", result).Msg("settle bets result")
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("settle bets response status %d", resp.StatusCode)
-	}
-
-	if result.StatusCode != (int)(moduleerrors.Success) {
-		return fmt.Errorf("wallet service returned status %d", result.StatusCode)
 	}
 
 	return nil

@@ -55,12 +55,56 @@ type AuthProvider interface {
 
 // WalletProvider interface for wallet operations
 type WalletProvider interface {
-	GetBalance(ctx context.Context, userID, currencyID string) (decimal.Decimal, error)
-	CheckBalance(ctx context.Context, productid, tenantID, username, currencyID string, tenantToken string) (decimal.Decimal, error)
+	CheckBalance(
+		ctx context.Context,
+		gameCode string,
+		userID string,
+		username string,
+		currencyID string,
+		tenantToken string,
+	) (decimal.Decimal, error)
+	PlaceBets(
+		ctx context.Context,
+		gameCode string,
+		userID string,
+		username string,
+		currencyID string,
+		amount decimal.Decimal,
+		sessionID string,
+		roundID string,
+		betID string,
+		tenantToken string,
+	) (string, decimal.Decimal, error)
+	SettleBets(
+		ctx context.Context,
+		gameCode string,
+		userID string,
+		username string,
+		currencyID string,
+		betAmount decimal.Decimal,
+		payoutAmount decimal.Decimal,
+		sessionID string,
+		roundID string,
+		betID string,
+		referenceBetID string,
+		tenantToken string,
+	) (string, decimal.Decimal, error)
+	CancelBets(
+		ctx context.Context,
+		gameCode string,
+		userID string,
+		username string,
+		currencyID string,
+		betAmount decimal.Decimal,
+		payoutAmount decimal.Decimal,
+		sessionID string,
+		roundID string,
+		betID string,
+		referenceBetID string,
+		tenantToken string,
+	) (string, decimal.Decimal, error)
 	Withdraw(ctx context.Context, userID, currencyID string, amount decimal.Decimal) error
-	PlaceBets(ctx context.Context, productId, tenantID, username, currencyID string, amount decimal.Decimal, roundID string, transactionId string, gameCode string, ameName string, tenantToken string) (string, decimal.Decimal, error)
 	Deposit(ctx context.Context, userID, currencyID string, amount decimal.Decimal) error
-	SettleBets(ctx context.Context, productId, tenantID, username, currencyID string, amount decimal.Decimal, payoutAmount decimal.Decimal, roundID string, transactionId string, gameCode string, gameName string, tenantToken string, referenceBetID string) error
 	WithTenant(ctx context.Context, provider TenantProvider, tenantID string) (WalletProvider, error)
 }
 
