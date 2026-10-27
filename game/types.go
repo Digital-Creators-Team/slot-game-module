@@ -90,6 +90,9 @@ type SpinResult struct {
 	SpinType           int                    `json:"spinType"`            // 0 = normal, 1 = free spin
 	SubReel            []int                  `json:"subReel,omitempty"`   // For games with sub reel (e.g., parrot treasure)
 	ExtraData          map[string]interface{} `json:"extraData,omitempty"` // Custom data for game-specific use
+
+	// Custom data for game-specific use
+	IsMustSendWS *bool `json:"isMustSendWS,omitempty"`
 }
 
 type SpinStatus string

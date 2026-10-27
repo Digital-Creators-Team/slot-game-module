@@ -296,7 +296,3 @@ func (g *TenantGame) AllowUsername(username string) bool {
 
 	return true
 }
-
-type EventsWSHandlerProvider interface {
-	SendExtraJackpotSubscribe(ctx context.Context, userID string, betMultiplier float32) error
-}

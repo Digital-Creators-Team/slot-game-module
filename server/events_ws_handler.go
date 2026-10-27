@@ -628,6 +628,13 @@ func (h *EventsWSHandler) handleSpin(c *WSConn, claims *auth.Claims, req WSReque
 		return &wsReply{status: http.StatusInternalServerError, err: err}
 	}
 
+	// TODO : verify with function later
+	if gameModule.GetGameCode() == "crazy-fury" {
+		if result.SpinResult.IsMustSendWS != nil && *result.SpinResult.IsMustSendWS {
+			h.SendExtraJackpotSubscribe(c.Context(), claims.UserID, betMul)
+		}
+	}
+
 	response := result.SpinResult.ToSpinResponse()
 	return &wsReply{status: http.StatusOK, data: response}
 }
