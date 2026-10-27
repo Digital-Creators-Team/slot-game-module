@@ -92,7 +92,7 @@ type SpinResult struct {
 	ExtraData          map[string]interface{} `json:"extraData,omitempty"` // Custom data for game-specific use
 
 	// Custom data for game-specific use
-	IsMustSendWS *bool `json:"isMustSendWS,omitempty"`
+	MustSendAfterSpin *bool `json:"mustSendAfterSpin,omitempty"`
 }
 
 type SpinStatus string
