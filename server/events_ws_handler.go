@@ -769,9 +769,21 @@ func (h *EventsWSHandler) handleJackpotSubscribe(c *WSConn, claims *auth.Claims,
 	// TODO : verify with function later
 	gameModule := h.app.GetGame()
 	if gameModule.GetGameCode() == "crazy-fury" {
+		ctx, cancel := c.NewCtxWithTimeout(wsTimeout)
+		defer cancel()
+
+		evenType := EventTypeConnected
+		state, stateErr := h.app.stateProvider.GetPlayerState(ctx, claims.UserID, claims.CurrencyID, gameModule.GetGameCode())
+		if stateErr == nil {
+			ps, ok := state.(*game.PlayerState)
+			if ok && ps != nil && ps.BetMultiplier > 0 {
+				evenType = EventTypeUpdated
+			}
+		}
+
 		sender := &jackpotWSSender{conn: c}
 		err := sender.Send(&Response{
-			Type:      EventTypeUpdated,
+			Type:      evenType,
 			Timestamp: time.Now().Unix(),
 			ExtraData: gameModule.JackpotSubscribe(c.Context(), betMultiplier),
 		})
