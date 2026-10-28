@@ -89,6 +89,9 @@ type WSConn struct {
 	spinMu        sync.Mutex
 
 	baseCtx context.Context
+
+	// Special game
+	isSubscribed bool
 }
 
 func (c *WSConn) Done() <-chan struct{} {
@@ -773,11 +776,13 @@ func (h *EventsWSHandler) handleJackpotSubscribe(c *WSConn, claims *auth.Claims,
 		defer cancel()
 
 		evenType := EventTypeConnected
-		state, stateErr := h.app.stateProvider.GetPlayerState(ctx, claims.UserID, claims.CurrencyID, gameModule.GetGameCode())
-		if stateErr == nil {
-			ps, ok := state.(*game.PlayerState)
-			if ok && ps != nil && ps.BetMultiplier > 0 {
-				evenType = EventTypeUpdated
+		if c.isSubscribed {
+			state, stateErr := h.app.stateProvider.GetPlayerState(ctx, claims.UserID, claims.CurrencyID, gameModule.GetGameCode())
+			if stateErr == nil {
+				ps, ok := state.(*game.PlayerState)
+				if ok && ps != nil && ps.BetMultiplier > 0 {
+					evenType = EventTypeUpdated
+				}
 			}
 		}
 
@@ -789,7 +794,10 @@ func (h *EventsWSHandler) handleJackpotSubscribe(c *WSConn, claims *auth.Claims,
 		})
 		if err != nil {
 			h.logger.Warn().Err(err)
+		} else {
+			c.isSubscribed = true
 		}
+
 		return
 	}
 
