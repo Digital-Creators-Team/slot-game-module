@@ -152,6 +152,7 @@ func (h *GameHandler) Authorize(c *gin.Context) {
 			if mustUpdate {
 				if mustReset {
 					s.Reset()
+					s.BetMultiplier = 0
 					s.SpinResult = &game.SpinResult{}
 					s.SpinResult.ExtraData = extraData
 				}
