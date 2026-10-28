@@ -149,8 +149,8 @@ func (h *GameHandler) Authorize(c *gin.Context) {
 		extraData, mustUpdate, mustReset := gameModule.Authorize(ctx)
 		if extraData != nil {
 			s.ExtraData = extraData
+			s.BetMultiplier = 0
 			if mustUpdate {
-				s.BetMultiplier = 0
 				if mustReset {
 					s.Reset()
 					s.SpinResult = &game.SpinResult{}
