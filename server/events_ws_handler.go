@@ -496,9 +496,9 @@ func (h *EventsWSHandler) handleAuthorize(c *WSConn, claims *auth.Claims, req WS
 		if extraData != nil {
 			s.ExtraData = extraData
 			if mustUpdate {
+				s.BetMultiplier = 0
 				if mustReset {
 					s.Reset()
-					s.BetMultiplier = 0
 					s.SpinResult = &game.SpinResult{}
 					s.SpinResult.ExtraData = extraData
 				}

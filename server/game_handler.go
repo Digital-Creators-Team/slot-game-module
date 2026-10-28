@@ -150,13 +150,12 @@ func (h *GameHandler) Authorize(c *gin.Context) {
 		if extraData != nil {
 			s.ExtraData = extraData
 			if mustUpdate {
+				s.BetMultiplier = 0
 				if mustReset {
 					s.Reset()
-					s.BetMultiplier = 0
 					s.SpinResult = &game.SpinResult{}
 					s.SpinResult.ExtraData = extraData
 				}
-
 				err = h.app.stateProvider.SavePlayerState(ctx, userID, currencyID, gameModule.GetGameCode(), s)
 				if err != nil {
 					h.logger.Error().Err(err).Msg("Failed to set player state")
