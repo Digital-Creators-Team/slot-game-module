@@ -495,7 +495,6 @@ func (h *EventsWSHandler) handleAuthorize(c *WSConn, claims *auth.Claims, req WS
 		extraData, mustUpdate, mustReset := gameModule.Authorize(ctx)
 		if extraData != nil {
 			s.ExtraData = extraData
-			s.BetMultiplier = 0
 			if mustUpdate {
 				if mustReset {
 					s.Reset()
@@ -806,11 +805,6 @@ func (h *EventsWSHandler) autoSubscribeJackpot(c *WSConn, claims *auth.Claims) {
 		return
 	}
 
-	// TODO : verify with function later
-	if gameModule.GetGameCode() == "crazy-fury" {
-		return
-	}
-
 	ctx, cancel := c.NewCtxWithTimeout(wsTimeout)
 	defer cancel()
 	state, err := h.app.stateProvider.GetPlayerState(ctx, claims.UserID, claims.CurrencyID, gameModule.GetGameCode())
@@ -828,6 +822,21 @@ func (h *EventsWSHandler) autoSubscribeJackpot(c *WSConn, claims *auth.Claims) {
 	if betMultiplier <= 0 {
 		return
 	}
+
+	// TODO : verify with function later
+	if gameModule.GetGameCode() == "crazy-fury" {
+		sender := &jackpotWSSender{conn: c}
+		err := sender.Send(&Response{
+			Type:      EventTypeConnected,
+			Timestamp: time.Now().Unix(),
+			ExtraData: gameModule.JackpotSubscribe(c.Context(), betMultiplier),
+		})
+		if err != nil {
+			h.logger.Warn().Err(err)
+		}
+		return
+	}
+
 	h.subscribeJackpot(c, claims.TenantID, claims.CurrencyID, betMultiplier)
 }
 
