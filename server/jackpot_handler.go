@@ -50,9 +50,10 @@ func NewJackpotHandler(app *App, svc *jackpot.Service) *JackpotHandler {
 }
 
 type Response struct {
-	Type      string                `json:"type"`
-	Timestamp int64                 `json:"timestamp"`
-	Pools     map[string]PoolUpdate `json:"pools,omitempty"`
+	Type      string                 `json:"type"`
+	Timestamp int64                  `json:"timestamp"`
+	Pools     map[string]PoolUpdate  `json:"pools,omitempty"`
+	ExtraData map[string]interface{} `json:"extraData,omitempty"`
 }
 
 type PoolUpdate struct {
@@ -347,6 +348,19 @@ func (h *JackpotHandler) sendInitialPools(config *streamConfig, sender messageSe
 	gameModule := h.app.GetGame()
 	var currentPools []jackpot.Update
 	var err error
+
+	// TODO : verify with function later
+	if gameModule.GetGameCode() == "crazy-fury" {
+		err := sender.Send(&Response{
+			Type:      EventTypeConnected,
+			Timestamp: time.Now().Unix(),
+			ExtraData: gameModule.JackpotSubscribe(config.ctx, config.betMultiplier),
+		})
+		if err != nil {
+			h.logger.Warn().Err(err)
+		}
+		return nil
+	}
 
 	if len(config.targetPoolIDs) > 0 {
 		var initValueGetter func(poolID string) (decimal.Decimal, error)

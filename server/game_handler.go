@@ -142,6 +142,29 @@ func (h *GameHandler) Authorize(c *gin.Context) {
 		s.FreeSpins = nil
 	}
 
+	// Special game which need int player state at the first time
+	// TODO : verify with function later
+	if gameModule.GetGameCode() == "crazy-fury" {
+		game.SetPlayerStateForModule(ctx, s)
+		extraData, mustUpdate, mustReset := gameModule.Authorize(ctx)
+		if extraData != nil {
+			s.ExtraData = extraData
+			if mustUpdate {
+				if mustReset {
+					s.Reset()
+					s.SpinResult = &game.SpinResult{}
+					s.SpinResult.ExtraData = extraData
+				}
+				err = h.app.stateProvider.SavePlayerState(ctx, userID, currencyID, gameModule.GetGameCode(), s)
+				if err != nil {
+					h.logger.Error().Err(err).Msg("Failed to set player state")
+					InternalError(c, errors.Wrap(err, errors.ErrPlayerStateError, "Failed to set player state"))
+					return
+				}
+			}
+		}
+	}
+
 	// Get balance - requires WalletProvider
 	if h.app.walletProvider == nil {
 		h.logger.Error().Msg("Wallet provider not configured")

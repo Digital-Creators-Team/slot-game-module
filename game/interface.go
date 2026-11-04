@@ -70,6 +70,10 @@ type Module interface {
 	DefaultTenantID(ctx context.Context) string
 
 	DefaultCurrency(ctx context.Context) string
+
+	Authorize(ctx context.Context) (map[string]interface{}, bool, bool)
+
+	JackpotSubscribe(ctx context.Context, betMultiplier float32) map[string]interface{}
 }
 
 // Other games may feature multiple game modes with varying base bets (pay_line)

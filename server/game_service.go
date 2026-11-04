@@ -438,6 +438,12 @@ func (s *GameService) ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest
 	// spinResult.EndingBalance = playerBalance.Add(spinResult.TotalWin)
 
 	// 8. Log spin
+	// Special game which need int player state at the first time
+	// TODO : verify with function later
+	if gameCode == "crazy-fury" {
+		goto SAVE
+	}
+
 	if s.logProvider != nil {
 		var (
 			timestamp = time.Now().UTC()
@@ -493,6 +499,7 @@ func (s *GameService) ExecuteSpinV2(ctx context.Context, req *SpinServiceRequest
 		}
 	}
 
+SAVE:
 	// 8. Save player state
 	if err := s.savePlayerState(ctx, req.UserID, req.CurrencyID, gameCode, playerState); err != nil {
 		logger.Err(err).Msg("failed to save player state")

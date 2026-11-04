@@ -89,6 +89,9 @@ type WSConn struct {
 	spinMu        sync.Mutex
 
 	baseCtx context.Context
+
+	// Special game
+	isSubscribed bool
 }
 
 func (c *WSConn) Done() <-chan struct{} {
@@ -488,6 +491,27 @@ func (h *EventsWSHandler) handleAuthorize(c *WSConn, claims *auth.Claims, req WS
 		s.FreeSpins = nil
 	}
 
+	// Special game which need int player state at the first time
+	// TODO : verify with function later
+	if gameModule.GetGameCode() == "crazy-fury" {
+		game.SetPlayerStateForModule(ctx, s)
+		extraData, mustUpdate, mustReset := gameModule.Authorize(ctx)
+		if extraData != nil {
+			s.ExtraData = extraData
+			if mustUpdate {
+				if mustReset {
+					s.Reset()
+					s.SpinResult = &game.SpinResult{}
+					s.SpinResult.ExtraData = extraData
+				}
+				err = h.app.stateProvider.SavePlayerState(ctx, claims.UserID, claims.CurrencyID, gameModule.GetGameCode(), s)
+				if err != nil {
+					return &wsReply{status: http.StatusInternalServerError, err: apperrors.Wrap(err, apperrors.ErrPlayerStateError, "Failed to set first player state")}
+				}
+			}
+		}
+	}
+
 	if h.app.walletProvider == nil {
 		return &wsReply{status: http.StatusInternalServerError, err: apperrors.New(apperrors.ErrInternalServerError, "Wallet provider not configured")}
 	}
@@ -605,6 +629,21 @@ func (h *EventsWSHandler) handleSpin(c *WSConn, claims *auth.Claims, req WSReque
 			return r
 		}
 		return &wsReply{status: http.StatusInternalServerError, err: err}
+	}
+
+	// TODO : verify with function later
+	if gameModule.GetGameCode() == "crazy-fury" {
+		if result.SpinResult.MustSendAfterSpin != nil && *result.SpinResult.MustSendAfterSpin {
+			sender := &jackpotWSSender{conn: c}
+			err := sender.Send(&Response{
+				Type:      EventTypeUpdated,
+				Timestamp: time.Now().Unix(),
+				ExtraData: gameModule.JackpotSubscribe(c.Context(), betMul),
+			})
+			if err != nil {
+				h.logger.Warn().Err(err)
+			}
+		}
 	}
 
 	response := result.SpinResult.ToSpinResponse()
@@ -730,6 +769,38 @@ func (h *EventsWSHandler) handleJackpotSubscribe(c *WSConn, claims *auth.Claims,
 		return
 	}
 
+	// TODO : verify with function later
+	gameModule := h.app.GetGame()
+	if gameModule.GetGameCode() == "crazy-fury" {
+		ctx, cancel := c.NewCtxWithTimeout(wsTimeout)
+		defer cancel()
+
+		evenType := EventTypeConnected
+		if c.isSubscribed {
+			state, stateErr := h.app.stateProvider.GetPlayerState(ctx, claims.UserID, claims.CurrencyID, gameModule.GetGameCode())
+			if stateErr == nil {
+				ps, ok := state.(*game.PlayerState)
+				if ok && ps != nil && ps.BetMultiplier > 0 {
+					evenType = EventTypeUpdated
+				}
+			}
+		}
+
+		sender := &jackpotWSSender{conn: c}
+		err := sender.Send(&Response{
+			Type:      evenType,
+			Timestamp: time.Now().Unix(),
+			ExtraData: gameModule.JackpotSubscribe(c.Context(), betMultiplier),
+		})
+		if err != nil {
+			h.logger.Warn().Err(err)
+		} else {
+			c.isSubscribed = true
+		}
+
+		return
+	}
+
 	h.subscribeJackpot(c, claims.TenantID, claims.CurrencyID, betMultiplier)
 }
 
@@ -741,6 +812,7 @@ func (h *EventsWSHandler) autoSubscribeJackpot(c *WSConn, claims *auth.Claims) {
 	if gameModule == nil {
 		return
 	}
+
 	ctx, cancel := c.NewCtxWithTimeout(wsTimeout)
 	defer cancel()
 	state, err := h.app.stateProvider.GetPlayerState(ctx, claims.UserID, claims.CurrencyID, gameModule.GetGameCode())
@@ -758,6 +830,21 @@ func (h *EventsWSHandler) autoSubscribeJackpot(c *WSConn, claims *auth.Claims) {
 	if betMultiplier <= 0 {
 		return
 	}
+
+	// TODO : verify with function later
+	if gameModule.GetGameCode() == "crazy-fury" {
+		sender := &jackpotWSSender{conn: c}
+		err := sender.Send(&Response{
+			Type:      EventTypeConnected,
+			Timestamp: time.Now().Unix(),
+			ExtraData: gameModule.JackpotSubscribe(c.Context(), betMultiplier),
+		})
+		if err != nil {
+			h.logger.Warn().Err(err)
+		}
+		return
+	}
+
 	h.subscribeJackpot(c, claims.TenantID, claims.CurrencyID, betMultiplier)
 }
 
@@ -786,9 +873,11 @@ func (h *EventsWSHandler) subscribeJackpot(c *WSConn, tenantID string, currency 
 		}
 		targetPoolIDs = poolIDs
 	}
+
 	isTargetPool := func(poolID string) bool {
 		return len(targetPoolIDs) == 0 || lo.Contains(targetPoolIDs, poolID)
 	}
+
 	config := &streamConfig{
 		tenantID:      tenantID,
 		currency:      currency,
@@ -808,6 +897,7 @@ func (h *EventsWSHandler) subscribeJackpot(c *WSConn, tenantID string, currency 
 					Msg("panic recovered in jackpot stream")
 			}
 		}()
+
 		h.app.jackpotHandler.streamUpdates(config, sender)
 	}()
 }
